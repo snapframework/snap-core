@@ -1,0 +1,28 @@
+name:           snap-core-testsuite
+version:        0.1.1
+build-type:     Simple
+cabal-version:  >= 1.6
+
+Executable testsuite
+   hs-source-dirs:  ../src suite
+   main-is:         TestSuite.hs
+
+   build-depends:
+     QuickCheck >= 2,
+     base >= 4 && < 5,
+     bytestring,
+     containers,
+     dlist >= 0.5 && < 0.6,
+     filepath,
+     HUnit >= 1.2 && < 2,
+     iteratee >= 0.3.1 && < 0.4,
+     monads-fd,
+     old-locale,
+     parallel >= 2.2 && <2.3,
+     test-framework < 0.3,
+     test-framework-hunit < 0.3,
+     test-framework-quickcheck2 < 0.3,
+     time,
+     transformers
+     
+   ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded

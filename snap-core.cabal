@@ -1,0 +1,46 @@
+name:           snap-core
+version:        0.1.1
+synopsis:       Snap: A Haskell Web Framework (Core)
+
+description:
+  Snap is a simple web development framework. FIXME: explain core
+
+license:        BSD3
+license-file:   LICENSE
+author:         James Sanders, Gregory Collins, Doug Beardsley
+maintainer:     snap@snapframework.com
+build-type:     Simple
+cabal-version:  >= 1.6
+homepage:       http://snapframework.com/
+category:       Web
+
+
+Library
+  hs-source-dirs: src
+
+  exposed-modules:
+    Data.CIByteString,
+    Snap.Http.Types,
+    Snap.Types,
+    Snap.Iteratee,
+    Snap.Internal.Http.Types
+    Snap.Internal.Iteratee.Debug
+
+  build-depends:
+    base >= 4 && < 5,
+    bytestring,
+    containers,
+    dlist >= 0.5 && < 0.6,
+    filepath,
+    iteratee >= 0.3.1 && <0.4,
+    monads-fd,
+    old-locale,
+    time,
+    transformers
+
+  ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
+
+
+source-repository head
+  type:     git
+  location: http://git.snapframework.com/snap-core
