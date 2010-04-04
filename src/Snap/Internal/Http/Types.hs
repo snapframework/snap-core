@@ -31,6 +31,12 @@ class HasHeaders a where
     updateHeaders :: (Headers -> Headers) -> a -> a
     headers       :: a -> Headers
 
+    addHeader     :: CIByteString -> ByteString -> a -> a
+    addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
+
+    getHeader     :: CIByteString -> a -> Maybe [ByteString]
+    getHeader k a = Map.lookup k $ headers a
+
 ------------------------------------------------------------------------------
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
                deriving(Show,Read,Eq)

@@ -14,7 +14,7 @@ module Snap.Types
     -- * The Snap Monad
     Snap
   , runSnap
-  , NoHandlerException
+  , NoHandlerException(..)
 
     -- ** Functions for control flow and early termination
   , finishWith
@@ -34,14 +34,14 @@ module Snap.Types
 
     -- * HTTP
     -- ** Datatypes
+  , Cookie
+  , HasHeaders(..)
   , Headers
   , HttpVersion
+  , Method(..)
   , Params
   , Request
   , Response
-  , Method(..)
-  , HasHeaders(..)
-  , Cookie
 
     -- ** Requests
   , rqServerName
@@ -279,7 +279,7 @@ localRequest f m = do
 
 -- | This exception is thrown if the handler you supply to 'runSnap' fails.
 data NoHandlerException = NoHandlerException
-   deriving (Typeable)
+   deriving (Eq, Typeable)
 
 instance Show NoHandlerException where
     show NoHandlerException = "No handler for request"
@@ -306,3 +306,5 @@ runSnap (Snap m) req = do
   where
     ss = SnapState req emptyResponse
 {-# INLINE runSnap #-}
+
+
