@@ -7,7 +7,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Internal (c2w)
 import           Test.QuickCheck
-import           Test.QuickCheck.Gen
 
 
 instance Arbitrary S.ByteString where

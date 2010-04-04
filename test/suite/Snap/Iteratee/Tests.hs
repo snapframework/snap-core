@@ -5,7 +5,6 @@ module Snap.Iteratee.Tests
 
 import qualified Control.Exception as E
 import           Control.Exception hiding (try, assert)
-import           Control.Monad
 import           Control.Monad.Identity
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -24,6 +23,7 @@ liftQ = QC.run
 tests :: [Test]
 tests = [ testEnumBS
         , testEnumLBS
+        , testBuffer
         , testTakeExactly1
         , testTakeExactly2
         , testTakeExactly3
@@ -44,6 +44,15 @@ testEnumLBS = testProperty "enumLBS" prop
     prop s = fromWrap (runIdentity (run iter)) == s
       where
         iter = runIdentity $ enumLBS s stream2stream
+
+
+testBuffer :: Test
+testBuffer = testProperty "testBuffer" prop
+  where
+    prop s = s /= L.empty ==> fromWrap (runIdentity (run iter)) == s'
+      where
+        s' = L.take 20000 $ L.cycle s
+        iter = runIdentity $ enumLBS s' (bufferIteratee stream2stream)
 
 --enumBS "abcdefg" (joinI (takeExactly 8 stream2stream)) >>= run >>= return . fromWrap
 

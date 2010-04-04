@@ -25,6 +25,7 @@ mkdir -p $DIR
 
 EXCLUDES='Main
 Data.CIByteString
+Snap.Iteratee.Tests
 Snap.Internal.Http.Parser.Tests
 Snap.Internal.Http.Server.Tests
 Snap.Internal.Http.Types.Tests
