@@ -82,9 +82,7 @@ module Snap.Types
 import           Control.Applicative
 import           Control.Exception
 import           Control.Monad.State.Strict
-import           Control.Monad.Trans(MonadIO, liftIO)
 import qualified Data.ByteString.Lazy as L
-import           Data.Either
 import qualified Data.Iteratee as Iter
 import           Data.Maybe
 import           Data.Typeable

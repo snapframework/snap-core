@@ -8,7 +8,6 @@ module Snap.Internal.Http.Types where
 import           Data.ByteString (ByteString)
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString as S
-import           Data.Char
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Time.Clock
