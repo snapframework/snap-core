@@ -11,6 +11,7 @@ module Snap.Iteratee
   , fromWrap
   , toWrap
   , takeExactly
+  , countBytes
   , bufferIteratee
   ) where
 
@@ -32,6 +33,25 @@ type Stream         = StreamG WrappedByteString Word8
 type IterV      m   = IterGV WrappedByteString Word8 m
 type Iteratee   m   = IterateeG WrappedByteString Word8 m
 type Enumerator m a = Iteratee m a -> m (Iteratee m a)
+
+-- | Count the bytes that an iteratee sends
+countBytes :: (Monad m) => Iteratee m a -> Iteratee m (a, Int)
+countBytes = go 0
+  where
+    go n iter = IterateeG $ f n iter
+
+    f n iter ch@(Chunk ws) = do
+        iterv <- runIter iter ch
+        case iterv of
+          Done x rest -> return $ Done (x, n + m `seq` n + m) rest
+          Cont i err  -> return $ Cont ((go $! n + m) i) err
+      where
+        m = S.length $ unWrap ws
+    f n iter stream = do
+        iterv <- runIter iter stream
+        case iterv of
+          Done x rest -> return $ Done (x, n) rest
+          Cont i err  -> return $ Cont (go n i) err
 
 
 -- | Our enumerators produce a lot of little strings; rather than spending all
