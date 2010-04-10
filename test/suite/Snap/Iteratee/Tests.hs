@@ -1,3 +1,5 @@
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Iteratee.Tests
@@ -7,12 +9,15 @@ import qualified Control.Exception as E
 import           Control.Exception hiding (try, assert)
 import           Control.Monad.Identity
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Prelude hiding (drop, take)
 import           Test.Framework 
 import           Test.Framework.Providers.QuickCheck2
 import           Test.QuickCheck
 import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic hiding (run)
+import           Test.Framework.Providers.HUnit
+import qualified Test.HUnit as H
 
 import           Snap.Iteratee
 import           Snap.Test.Common ()
@@ -20,13 +25,26 @@ import           Snap.Test.Common ()
 liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
 liftQ = QC.run
 
+expectException :: IO a -> PropertyM IO ()
+expectException m = do
+    e <- liftQ $ E.try m
+    case e of
+      Left (z::SomeException)  -> (show z) `seq` return ()
+      Right _ -> fail "expected exception, didn't get one"
+
+
 tests :: [Test]
 tests = [ testEnumBS
         , testEnumLBS
         , testBuffer
+        , testBuffer2
+        , testBuffer3
+        , testBuffer4
         , testTakeExactly1
         , testTakeExactly2
         , testTakeExactly3
+        , testCountBytes
+        , testCountBytes2
         ]
 
 testEnumBS :: Test
@@ -52,9 +70,45 @@ testBuffer = testProperty "testBuffer" prop
     prop s = s /= L.empty ==> fromWrap (runIdentity (run iter)) == s'
       where
         s' = L.take 20000 $ L.cycle s
-        iter = runIdentity $ enumLBS s' (bufferIteratee stream2stream)
+        i = runIdentity $ bufferIteratee stream2stream
+        iter = runIdentity $ enumLBS s' i
 
---enumBS "abcdefg" (joinI (takeExactly 8 stream2stream)) >>= run >>= return . fromWrap
+
+testBuffer2 :: Test
+testBuffer2 = testCase "testBuffer2" prop
+  where
+    prop = do
+        i <- bufferIteratee $ drop 4 >> stream2stream
+
+        s <- enumLBS "abcdefgh" i >>= run >>= return . fromWrap
+        H.assertEqual "s == 'efgh'" "efgh" s
+
+
+testBuffer3 :: Test
+testBuffer3 = testProperty "testBuffer3" prop
+  where
+    prop s = s /= L.empty ==> fromWrap (runIdentity (run iter)) == (L.take 19999 s')
+      where
+        s' = L.take 20000 $ L.cycle s
+        ss = joinI $ take 19999 stream2stream
+        i = runIdentity $ bufferIteratee (ss >>= \x -> drop 1 >> return x)
+        iter = runIdentity $ enumLBS s' i
+
+testBuffer4 :: Test
+testBuffer4 = testProperty "testBuffer4" $
+              monadicIO $ forAllM arbitrary prop
+  where
+    prop s = do
+        i <- liftQ $ bufferIteratee (stream2stream >> throwErr (Err "foo"))
+        i' <- liftQ $ enumLBS s i
+        expectException $ run i'
+
+        j <- liftQ $ bufferIteratee (throwErr (Err "foo") >> stream2stream)
+        j' <- liftQ $ enumLBS s j
+        expectException $ run j'
+        
+        k <- liftQ $ enumErr "foo" j
+        expectException $ run k
 
 
 testTakeExactly1 :: Test
@@ -63,10 +117,7 @@ testTakeExactly1 = testProperty "short stream" $
   where
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
-        e <- liftQ $ E.try $ doIter >>= run >>= return . fromWrap
-        case e of
-          Left (_::SomeException) -> return ()
-          Right _ -> fail "expected exception"
+        expectException $ doIter >>= run >>= return . fromWrap
 
       where
         doIter = enumLBS s (joinI (takeExactly (n+1) stream2stream))
@@ -102,3 +153,45 @@ testTakeExactly3 = testProperty "long stream" $
         doIter = enumLBS s (joinI (takeExactly n stream2stream))
 
         n = fromIntegral $ L.length s
+
+
+testCountBytes :: Test
+testCountBytes = testProperty "count bytes" $
+                 monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (!_,n1) <- f (countBytes (return ()))
+        (!_,n2) <- f (countBytes stream2stream)
+
+        assert $ n1 == 0
+        assert $ n2 == n
+
+        expectException $ g erriter
+        expectException $ enumEof erriter >>= run
+        
+
+     where
+       erriter = countBytes $ throwErr $ Err "foo"
+       g iter = enumLBS s iter >>= run
+       f = liftQ . g
+       n = fromEnum $ L.length s
+
+
+testCountBytes2 :: Test
+testCountBytes2 = testProperty "count bytes" $
+                  monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        pre $ L.length s > 4
+        n1 <- f iter
+
+        assert $ n1 == 4
+
+     where
+       f i = liftQ $ enumLBS s i >>= run
+       iter = do
+           (!_,m) <- countBytes $ drop 4
+           stream2stream
+           return m

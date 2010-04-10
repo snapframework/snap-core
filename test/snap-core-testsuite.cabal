@@ -26,3 +26,4 @@ Executable testsuite
      transformers
      
    ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
+                -fno-warn-unused-do-bind

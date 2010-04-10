@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Snap.Iteratee
@@ -34,20 +35,26 @@ type IterV      m   = IterGV WrappedByteString Word8 m
 type Iteratee   m   = IterateeG WrappedByteString Word8 m
 type Enumerator m a = Iteratee m a -> m (Iteratee m a)
 
--- | Count the bytes that an iteratee sends
+
+-- | Count the bytes consumed by an iteratee
 countBytes :: (Monad m) => Iteratee m a -> Iteratee m (a, Int)
 countBytes = go 0
   where
-    go n iter = IterateeG $ f n iter
+    go !n iter = IterateeG $ f n iter
 
-    f n iter ch@(Chunk ws) = do
+    f !n !iter ch@(Chunk ws) = do
         iterv <- runIter iter ch
         case iterv of
-          Done x rest -> return $ Done (x, n + m `seq` n + m) rest
+          Done x rest -> let !n' = n + m - len rest
+                         in return $! Done (x, n') rest
           Cont i err  -> return $ Cont ((go $! n + m) i) err
       where
         m = S.length $ unWrap ws
-    f n iter stream = do
+
+        len (EOF _) = 0
+        len (Chunk s) = S.length $ unWrap s
+
+    f !n !iter stream = do
         iterv <- runIter iter stream
         case iterv of
           Done x rest -> return $ Done (x, n) rest
@@ -57,17 +64,17 @@ countBytes = go 0
 -- | Our enumerators produce a lot of little strings; rather than spending all
 -- our time doing kernel context switches for 4-byte write() calls, we'll
 -- buffer the iteratee to send a good-sized chunk at a time
-bufferIteratee :: (Monad m) => Iteratee m a -> Iteratee m a
-bufferIteratee = go (D.empty,0)
+bufferIteratee :: (Monad m) => Enumerator m a
+bufferIteratee = return . go (D.empty,0)
   where
     blocksize = 2048
 
     --go :: (DList ByteString, Int) -> Iteratee m a -> Iteratee m a
-    go (dl,n) iter = IterateeG $ f (dl,n) iter
+    go (!dl,!n) iter = IterateeG $! f (dl,n) iter
 
     --f :: (DList ByteString, Int) -> Iteratee m a -> Stream -> m (IterV m a)
-    f _      iter ch@(EOF (Just _)) = runIter iter ch
-    f (dl,_) iter ch@(EOF Nothing) = do
+    f _      !iter ch@(EOF (Just _)) = runIter iter ch
+    f (!dl,_) !iter ch@(EOF Nothing) = do
         iterv <- runIter iter $ Chunk big
         case iterv of
           Done x rest     -> return $ Done x rest
@@ -76,7 +83,7 @@ bufferIteratee = go (D.empty,0)
       where
         big = toWrap $ L.fromChunks [S.concat $ D.toList dl]
         
-    f (dl,n) iter (Chunk ws) =
+    f (!dl,!n) iter (Chunk ws) =
         if n' > blocksize
            then do
                iterv <- runIter iter (Chunk big)
@@ -111,9 +118,9 @@ chunkAppropriately lbs = outchunks
     addToFinished soFar dl = D.snoc soFar $ S.concat $ D.toList dl
 
     go :: [ByteString] -> DList ByteString -> Int -> DList ByteString -> [ByteString]
-    go [] soFar _ dl = D.toList $ addToFinished soFar dl
+    go [] !soFar !_ !dl = D.toList $ addToFinished soFar dl
 
-    go (x:xs) soFar n dl =
+    go (x:xs) !soFar !n !dl =
         if n' >= blocksize
           then go xs (addToFinished soFar dl') 0 D.empty
           else go xs soFar n' $ D.snoc dl x

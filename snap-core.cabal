@@ -39,7 +39,7 @@ Library
     transformers
 
   ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
-
+                -fno-warn-unused-do-bind
 
 source-repository head
   type:     git
