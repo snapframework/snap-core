@@ -23,6 +23,7 @@ module Snap.Types
     -- ** Access to state
   , getRequest
   , getResponse
+  , putRequest
   , putResponse
   , modifyRequest
   , modifyResponse

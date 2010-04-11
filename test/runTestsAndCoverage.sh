@@ -30,6 +30,7 @@ Snap.Internal.Http.Parser.Tests
 Snap.Internal.Http.Server.Tests
 Snap.Internal.Http.Types.Tests
 Snap.Internal.Iteratee.Tests
+Snap.Types.Tests
 Text.Snap.Templates.Tests
 Snap.Test.Common'
 

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Snap.Types.Tests
   ( tests ) where
@@ -41,7 +42,8 @@ tests :: [Test]
 tests = [ testFail
         , testAlternative
         , testEarlyTermination
-        , testRqBody ]
+        , testRqBody
+        , testTrivials]
 
 
 testFail :: Test
@@ -105,3 +107,23 @@ testRqBody = testCase "request bodies" $ do
     f mvar1 mvar2 = do
         getRequestBody >>= liftIO . putMVar mvar1
         getRequestBody >>= liftIO . putMVar mvar2
+
+
+testTrivials :: Test
+testTrivials = testCase "trivial functions" $ do
+    (rq,rsp) <- go $ do
+        req <- getRequest
+        putRequest $ req { rqIsSecure=True }
+        putResponse $ setResponseStatus 333 "333" sampleResponse
+        r <- getResponse
+        liftIO $ assertEqual "rsp status" 333 $ rspStatus r
+        !_ <- localRequest (\r -> r {rqIsSecure=False}) $ do
+            q <- getRequest
+            liftIO $ assertEqual "localrq" False $ rqIsSecure q
+            return ()
+        return ()
+
+    let !s = show NoHandlerException
+
+    assertEqual "rq secure" True $ rqIsSecure rq
+    assertEqual "rsp status" 333 $ rspStatus rsp
