@@ -35,14 +35,19 @@ module Snap.Types
 
     -- * HTTP
     -- ** Datatypes
-  , Cookie
-  , HasHeaders(..)
+  , Cookie(..)
   , Headers
+  , HasHeaders(..)
   , HttpVersion
   , Method(..)
   , Params
   , Request
   , Response
+
+    -- ** Headers
+  , addHeader
+  , setHeader
+  , getHeader
 
     -- ** Requests
   , rqServerName
@@ -70,7 +75,8 @@ module Snap.Types
   , setResponseBody
   , setResponseStatus
   , rspStatus
-  , filterResponseBody
+  , rspStatusReason
+  , modifyResponseBody
   , setContentType
   , addCookie
   , setContentLength
@@ -89,9 +95,8 @@ import qualified Data.Iteratee as Iter
 import           Data.Maybe
 import           Data.Typeable
 ------------------------------------------------------------------------------
-import           Snap.Http.Types
-import           Snap.Iteratee (Iteratee, run, fromWrap, stream2stream)
-import           Snap.Internal.Http.Types hiding (Enumerator)
+import           Snap.Iteratee (Iteratee, run, fromWrap, stream2stream, enumBS)
+import           Snap.Internal.Http.Types
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------

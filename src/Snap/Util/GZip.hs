@@ -128,7 +128,7 @@ gzipCompression = modifyResponse f
   where
     f = setHeader "Content-Encoding" "gzip" .
         clearContentLength .
-        filterResponseBody gcompress
+        modifyResponseBody gcompress
 
 
 ------------------------------------------------------------------------------
@@ -137,7 +137,7 @@ compressCompression = modifyResponse f
   where
     f = setHeader "Content-Encoding" "compress" .
         clearContentLength .
-        filterResponseBody ccompress
+        modifyResponseBody ccompress
 
 
 ------------------------------------------------------------------------------

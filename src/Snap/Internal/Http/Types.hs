@@ -23,25 +23,38 @@ import qualified Snap.Iteratee as I
 type Enumerator a = I.Enumerator IO a
 
 ------------------------------------------------------------------------------
--- Headers and HasHeaders typeclass
--- headers are case insensitive
+-- | 'Headers' is a type alias for a case-insensitive key-value mapping.
 type Headers = Map CIByteString [ByteString]
 
--- FIXME: should we be able to update headers in Requests?
+
+-- | 'HasHeaders' is a typeclass for datatypes which contain HTTP headers.
 class HasHeaders a where
+
+    -- | Modify the datatype's headers.
     updateHeaders :: (Headers -> Headers) -> a -> a
+
+    -- | Retrieve the headers from a datatype that has headers.
     headers       :: a -> Headers
 
-    addHeader     :: CIByteString -> ByteString -> a -> a
-    addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
 
-    setHeader     :: CIByteString -> ByteString -> a -> a
-    setHeader k v = updateHeaders $ Map.insert k [v]
+-- | Add a header key-value-pair to the 'HasHeaders' datatype. If a header with
+-- the same name already exists, the new value is appended to the headers list.
+addHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
+addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
 
-    getHeader     :: CIByteString -> a -> Maybe [ByteString]
-    getHeader k a = Map.lookup k $ headers a
+-- | Set a header key-value-pair in a 'HasHeaders' datatype. If a header with
+-- the same name already exists, it is overwritten with the new value.
+setHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
+setHeader k v = updateHeaders $ Map.insert k [v]
+
+-- | Get a header value out of a 'HasHeaders' datatype.
+getHeader :: (HasHeaders a) => CIByteString -> a -> Maybe [ByteString]
+getHeader k a = Map.lookup k $ headers a
 
 ------------------------------------------------------------------------------
+
+-- | 'Method' enumerates the HTTP method values (see
+-- <http://tools.ietf.org/html/rfc2068.html#section-5.1.1>)
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
                deriving(Show,Read,Eq)
 
@@ -49,43 +62,97 @@ data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
 ------------------------------------------------------------------------------
 type HttpVersion = (Int,Int)
 
+-- | A datatype representing an HTTP cookie.
 data Cookie = Cookie {
+      -- | The name of the cookie.
       cookieName    :: !ByteString
+
+      -- | The cookie's string value.
     , cookieValue   :: !ByteString
+
+      -- | The cookie's expiration value, if it has one.
     , cookieExpires :: !(Maybe UTCTime)
+
+      -- | The cookie's \"domain\" value, if it has one.
     , cookieDomain  :: !(Maybe ByteString)
+
+      -- | The cookie path.
     , cookiePath    :: !(Maybe ByteString)
 } deriving (Eq, Show)
 
+-- | 'Params' is a type alias for the HTTP parameters mapping. Each parameter
+-- key maps to a list of ByteString values; if a parameter is specified
+-- multiple times (e.g.: \"@GET /foo?param=bar1&param=bar2@\"), looking up
+-- \"@param@\" in the mapping will give you @[\"bar1\", \"bar2\"]@.
 type Params = Map ByteString [ByteString]
 
 ------------------------------------------------------------------------------
 -- request type
 ------------------------------------------------------------------------------
 
--- | FIXME: describe Request
-
--- N.B.: "localAddr" is the machine address, "serverAddr" is the EXTERNAL
--- address
+-- | The 'Request' datatype contains all of the information about an incoming
+-- HTTP request.
 data Request = Request
-    { rqServerName     :: !ByteString
+    { -- | The server name of the request, as it came in from the request's
+      -- @Host:@ header.
+      rqServerName     :: !ByteString
+
+      -- | Return the port number the HTTP server is listening on
     , rqServerPort     :: !Int
+
+      -- | The remote IP address
     , rqRemoteAddr     :: !ByteString
+
+      -- | The remote TCP port number.
     , rqRemotePort     :: !Int
+
+      -- | The local IP address for this request.
     , rqLocalAddr      :: !ByteString
+
+      -- | Return the port number the HTTP server is listening on
     , rqLocalPort      :: !Int
+
+      -- | Returns the HTTP server's idea of its local hostname
     , rqLocalHostname  :: !ByteString
+
+      -- | Returns @True@ if this is an @HTTPS@ session (currently always
+      -- @False@).
     , rqIsSecure       :: !Bool
     , rqHeaders        :: Headers
     , rqBody           :: forall a . Enumerator a
+
+      -- | Returns the @Content-Length@ of the HTTP request body.
     , rqContentLength  :: !(Maybe Int)
+
+      -- | Returns the HTTP request method.
     , rqMethod         :: !Method
+
+      -- | Returns the HTTP version used by the client.
     , rqVersion        :: !HttpVersion
+
+      -- | Returns a list of the cookies that came in from the HTTP request
+      -- headers.
     , rqCookies        :: [Cookie]
+ 
+      -- | Handlers can (/will be; --ed/) be hung on a @URI@ \"entry point\";
+      -- this is called the \"context path\". If a handler is hung on the
+      -- context path @\"\/foo/\"@, and you request @\"/foo/bar\"@, the value
+      -- of 'rqPathInfo' will be \"bar\".
     , rqPathInfo       :: !ByteString
+
+      -- | The \"context path\" of the request; catenating 'rqContextPath' and
+      -- 'rqPathInfo' should get you back to the original 'rqURI'.
     , rqContextPath    :: !ByteString
+
+      -- | Returns the @URI@ requested by the client.
     , rqURI            :: !ByteString
+
+      -- | Returns the HTTP query string for this 'Request'.
     , rqQueryString    :: !ByteString
+
+      -- | Returns the 'Params' mapping for this 'Request'. \"Parameters\" are
+      -- automatically decoded from the query string and @POST@ body and
+      -- entered into this mapping.
     , rqParams         :: Params
     }
 
@@ -161,6 +228,8 @@ instance HasHeaders Headers where
 ------------------------------------------------------------------------------
 -- response type
 ------------------------------------------------------------------------------
+
+-- | The 'Response' datatype represents an HTTP response.
 data Response = Response
     { rspHeaders       :: Headers
     , rspHttpVersion   :: !HttpVersion
@@ -170,7 +239,11 @@ data Response = Response
       --   out of the text will be too expensive
     , rspContentLength :: !(Maybe Int)
     , rspBody          :: forall a . Enumerator a
+
+      -- | Return the HTTP status code
     , rspStatus        :: !Int
+
+      -- | Return the HTTP status explanation string
     , rspStatusReason  :: !ByteString
     }
 
@@ -234,24 +307,36 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 -- responses
 ------------------------------------------------------------------------------
 
+-- | An empty 'Response'.
 emptyResponse       :: Response
 emptyResponse       = Response Map.empty (1,1) Nothing return 200 "OK"
 
-setResponseBody     :: (forall a . Enumerator a) -> Response -> Response
+-- | Set an HTTP response body to the given 'Enumerator' value.
+setResponseBody     :: (forall a . Enumerator a)  -- ^ new response body
+                                                  -- enumerator
+                    -> Response                   -- ^ response to modify
+                    -> Response
 setResponseBody e r = r { rspBody = e }
 {-# INLINE setResponseBody #-}
 
-setResponseStatus   :: Int -> ByteString -> Response -> Response
+-- | Set the HTTP response status.
+setResponseStatus   :: Int        -- ^ HTTP response integer code
+                    -> ByteString -- ^ HTTP response explanation
+                    -> Response   -- ^ Response to be modified
+                    -> Response
 setResponseStatus s reason r = r { rspStatus=s, rspStatusReason=reason }
 {-# INLINE setResponseStatus #-}
 
-filterResponseBody  :: (forall a . Enumerator a -> Enumerator a)
+
+-- | Modify a response body.
+modifyResponseBody  :: (forall a . Enumerator a -> Enumerator a)
                     -> Response
                     -> Response
-filterResponseBody f r = r { rspBody = f (rspBody r) }
-{-# INLINE filterResponseBody #-}
+modifyResponseBody f r = r { rspBody = f (rspBody r) }
+{-# INLINE modifyResponseBody #-}
 
 
+-- | Set the @Content-Type@ in the 'Response' headers.
 setContentType      :: ByteString -> Response -> Response
 setContentType ct = updateHeaders f
   where
@@ -259,6 +344,7 @@ setContentType ct = updateHeaders f
 {-# INLINE setContentType #-}
 
 
+-- | Add an HTTP 'Cookie' to the 'Response' headers.
 addCookie :: Cookie            -- ^ cookie value
           -> Response          -- ^ response to modify
           -> Response
@@ -289,6 +375,7 @@ setContentLength l r = r { rspContentLength = Just l }
 {-# INLINE setContentLength #-}
 
 
+-- | Remove any @Content-Length@ set in the 'Response'.
 clearContentLength :: Response -> Response
 clearContentLength r = r { rspContentLength = Nothing }
 {-# INLINE clearContentLength #-}

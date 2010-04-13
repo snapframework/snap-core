@@ -1,16 +1,35 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | Snap Framework type aliases and utilities for iteratees. Note that as a
+-- convenience, this module also exports everything from @Data.Iteratee@ in the
+-- @iteratee@ library.
+--
+-- /WARNING/: Note that all of these types are scheduled to change in the
+-- @darcs@ head version of the @iteratee@ library; John Lato et. al are working
+-- on a much improved iteratee formulation.
+
 module Snap.Iteratee
-  ( Stream
+  ( -- * Convenience aliases around types from @Data.Iteratee@
+    Stream
   , IterV
   , Iteratee
   , Enumerator
+
+    -- * Re-export types and functions from @Data.Iteratee@
   , module Data.Iteratee
+
+    -- * Helper functions
+
+    -- ** Enumerators
   , enumBS
   , enumLBS
+
+    -- ** Conversion to/from 'WrappedByteString'
   , fromWrap
   , toWrap
+
+    -- ** Iteratee utilities
   , takeExactly
   , countBytes
   , bufferIteratee
@@ -30,13 +49,14 @@ import           Prelude hiding (drop)
 import           Data.DList (DList)
 import qualified Data.DList as D
 ------------------------------------------------------------------------------
+
 type Stream         = StreamG WrappedByteString Word8
 type IterV      m   = IterGV WrappedByteString Word8 m
 type Iteratee   m   = IterateeG WrappedByteString Word8 m
 type Enumerator m a = Iteratee m a -> m (Iteratee m a)
 
 
--- | Count the bytes consumed by an iteratee
+-- | Wrap an 'Iteratee', counting the number of bytes consumed by it.
 countBytes :: (Monad m) => Iteratee m a -> Iteratee m (a, Int)
 countBytes = go 0
   where
@@ -61,9 +81,11 @@ countBytes = go 0
           Cont i err  -> return $ Cont (go n i) err
 
 
--- | Our enumerators produce a lot of little strings; rather than spending all
--- our time doing kernel context switches for 4-byte write() calls, we'll
--- buffer the iteratee to send a good-sized chunk at a time
+-- | Buffer an iteratee.
+--
+-- Our enumerators produce a lot of little strings; rather than spending all
+-- our time doing kernel context switches for 4-byte write() calls, we buffer
+-- the iteratee to send 2KB at a time.
 bufferIteratee :: (Monad m) => Enumerator m a
 bufferIteratee = return . go (D.empty,0)
   where
@@ -100,7 +122,7 @@ bufferIteratee = return . go (D.empty,0)
         big = toWrap $ L.fromChunks [S.concat $ D.toList dl']
         
 
--- | Turn a strict bytestring into an enumerator
+-- | Enumerate a strict bytestring.
 enumBS :: (Monad m) => ByteString -> Enumerator m a
 enumBS bs = enumPure1Chunk $ WrapBS bs
 {-# INLINE enumBS #-}
@@ -130,7 +152,7 @@ chunkAppropriately lbs = outchunks
         m = S.length x
         
 
--- | Turn a lazy bytestring into an enumerator
+-- | Enumerate a lazy bytestring.
 enumLBS :: (Monad m) => L.ByteString -> Enumerator m a
 enumLBS lbs iter = foldM k iter enums
   where
@@ -138,18 +160,18 @@ enumLBS lbs iter = foldM k iter enums
     enums = map (enumPure1Chunk . WrapBS) bss
     k i e = e i
 
--- | lazy bytestring -> wrapped bytestring
+-- | Convert a lazy bytestring to a wrapped bytestring.
 toWrap :: L.ByteString -> WrappedByteString Word8
 toWrap = WrapBS . S.concat . L.toChunks
 {-# INLINE toWrap #-}
 
--- | wrapped bytestring -> lazy bytestring
+-- | Convert a wrapped bytestring to a lazy bytestring
 fromWrap :: WrappedByteString Word8 -> L.ByteString
 fromWrap = L.fromChunks . (:[]) . unWrap
 {-# INLINE fromWrap #-}
 
--- |Read n elements from a stream and apply the given iteratee to the stream of
--- the read elements. Read exactly n elements, and if the stream is short
+-- | Read n elements from a stream and apply the given iteratee to the stream
+-- of the read elements. Read exactly n elements, and if the stream is short
 -- propagate an error.
 takeExactly :: (SC.StreamChunk s el, Monad m) =>
                Int ->

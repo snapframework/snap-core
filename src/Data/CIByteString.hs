@@ -1,6 +1,20 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+-- | "Data.CIByteString" is a module containing 'CIByteString', a wrapper for
+-- 'ByteString' which provides case-insensitive (ASCII-wise) 'Ord' and 'Eq'
+-- instances.
+--
+-- 'CIByteString' also has an 'IsString' instance, so if you use the
+-- \"OverloadedStrings\" LANGUAGE pragma you can write case-insensitive string
+-- literals, e.g.:
+--
+-- @
+-- \> let a = \"Foo\" in
+--   putStrLn $ (show $ unCI a) ++ \"==\\\"FoO\\\" is \" ++ show (a == \"FoO\")
+-- \"Foo\"==\"FoO\" is True
+-- @
+
 module Data.CIByteString
  ( CIByteString
  , toCI
@@ -15,7 +29,14 @@ import qualified Data.ByteString as S
 import           Data.Char
 import           Data.String
 
--- | A case-insensitive newtype wrapper for ByteString
+f = putStrLn $ (show $ unCI a) ++ " == " ++ (show $ unCI b) ++ " is " ++ show r
+  where
+    a = "foo"
+    b = "FoO"
+    r = a == b
+
+
+-- | A case-insensitive newtype wrapper for 'ByteString'
 data CIByteString = CIByteString { unCI        :: !ByteString
                                  , _lowercased :: !ByteString }
 
