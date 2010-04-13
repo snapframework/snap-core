@@ -97,7 +97,7 @@ type Params = Map ByteString [ByteString]
 ------------------------------------------------------------------------------
 
 -- | The 'Request' datatype contains all of the information about an incoming
--- HTTP request.
+-- HTTP request.x
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
       -- @Host:@ header.

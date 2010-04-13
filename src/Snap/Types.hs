@@ -1,41 +1,19 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 
 {-|
 
 This module contains the core type definitions, class instances, and functions
-for the 'Snap' monad, which is the monad used for web handlers in the Snap
-framework.
+for HTTP as well as the 'Snap' monad, which is used for web handlers.
 
 -}
 module Snap.Types
   ( 
-    -- * The Snap Monad
-    Snap
-  , runSnap
-  , NoHandlerException(..)
-
-    -- ** Functions for control flow and early termination
-  , finishWith
-  , pass
-
-    -- ** Access to state
-  , getRequest
-  , getResponse
-  , putRequest
-  , putResponse
-  , modifyRequest
-  , modifyResponse
-  , localRequest
-
-    -- ** Grabbing request bodies
-  , runRequestBody
-  , getRequestBody
-
     -- * HTTP
     -- ** Datatypes
-  , Cookie(..)
+    Cookie(..)
   , Headers
   , HasHeaders(..)
   , HttpVersion
@@ -72,15 +50,43 @@ module Snap.Types
 
     -- ** Responses
   , emptyResponse
-  , setResponseBody
   , setResponseStatus
   , rspStatus
   , rspStatusReason
-  , modifyResponseBody
   , setContentType
   , addCookie
   , setContentLength
   , clearContentLength
+
+    -- *** Response I/O
+  , setResponseBody
+  , modifyResponseBody
+  , addToOutput
+  , writeBS
+  , writeLBS
+
+    -- * The Snap Monad
+  , Snap
+  , runSnap
+  , NoHandlerException(..)
+
+    -- ** Functions for control flow and early termination
+  , finishWith
+  , pass
+
+    -- ** Access to state
+  , getRequest
+  , getResponse
+  , putRequest
+  , putResponse
+  , modifyRequest
+  , modifyResponse
+  , localRequest
+
+    -- ** Grabbing request bodies
+  , runRequestBody
+  , getRequestBody
+  , unsafeDetachRequestBody
 
     -- * Iteratee
   , Enumerator
@@ -90,12 +96,19 @@ module Snap.Types
 import           Control.Applicative
 import           Control.Exception
 import           Control.Monad.State.Strict
+import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Iteratee as Iter
 import           Data.Maybe
 import           Data.Typeable
 ------------------------------------------------------------------------------
-import           Snap.Iteratee (Iteratee, run, fromWrap, stream2stream, enumBS)
+import           Snap.Iteratee ( Iteratee
+                               , run
+                               , (>.)
+                               , fromWrap
+                               , stream2stream
+                               , enumBS
+                               , enumLBS )
 import           Snap.Internal.Http.Types
 ------------------------------------------------------------------------------
 
@@ -107,9 +120,9 @@ import           Snap.Internal.Http.Types
 
 'Snap' is the 'Monad' that user web handlers run in. 'Snap' gives you:
 
-1. stateful access to fetch or modify the HTTP 'Request'
+1. stateful access to fetch or modify an HTTP 'Request'
 
-2. stateful access to fetch or modify the HTTP 'Response'
+2. stateful access to fetch or modify an HTTP 'Response'
 
 3. failure \/ 'Alternative' \/ 'MonadPlus' semantics: a 'Snap' handler can
    choose not to handle a given request, using 'empty' or its synonym 'pass',
@@ -124,20 +137,28 @@ import           Snap.Internal.Http.Types
    > c :: Snap String
    > c = a <|> b             -- try running a, if it fails then try b
 
-4. early termination: if you call 'finishWith':
+4. convenience functions ('writeBS', 'writeLBS', 'addToOutput') for writing
+output to the 'Response':
 
-   @FIXME: prefer something nicer than setResponseBody (enumBS ....)@
+  > a :: (forall a . Enumerator a) -> Snap ()
+  > a someEnumerator = do
+  >     writeBS "I'm a strict bytestring"
+  >     writeLBS "I'm a lazy bytestring"
+  >     addToOutput someEnumerator
+
+5. early termination: if you call 'finishWith':
 
    > a :: Snap ()
    > a = do
+   >   modifyResponse $ setResponseStatus 500
+   >   writeBS "500 error"
    >   r <- getResponse
-   >   finishWith (setResponseStatus 500 $
-   >               setResponseBody (enumBS $ B.pack "500 error") r)
+   >   finishWith r
 
    then any subsequent processing will be skipped and supplied 'Response' value
    will be returned from 'runSnap' as-is.
 
-5. access to the 'IO' monad through a 'MonadIO' instance:
+6. access to the 'IO' monad through a 'MonadIO' instance:
 
    > a :: Snap ()
    > a = liftIO fireTheMissiles
@@ -219,6 +240,24 @@ getRequestBody :: Snap L.ByteString
 getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 {-# INLINE getRequestBody #-}
 
+
+-- | Detach the request body's 'Enumerator' from the 'Request' and return
+-- it. You would want to use this if you needed to send the HTTP request body
+-- (transformed or otherwise) through to the output in O(1) space. (Examples:
+-- transcoding, \"echo\", etc)
+-- 
+-- Normally Snap is careful to ensure that the request body is fully consumed
+-- after your web handler runs; this function is marked \"unsafe\" because it
+-- breaks this guarantee and leaves the responsibility up to you. If you don't
+-- fully consume the 'Enumerator' you get here, the next HTTP request in the
+-- pipeline (if any) will misparse. Be careful with exception handlers.
+unsafeDetachRequestBody :: Snap (Enumerator a)
+unsafeDetachRequestBody = do
+    req <- getRequest
+    let enum = rqBody req
+    putRequest $ req {rqBody = enumBS ""}
+    return enum
+
 -- | Short-circuit a 'Snap' monad action early, storing the given 'Response'
 -- value in its state
 finishWith :: Response -> Snap ()
@@ -270,6 +309,26 @@ modifyRequest f = smodify $ \ss -> ss { _snapRequest = f $ _snapRequest ss }
 modifyResponse :: (Response -> Response) -> Snap () 
 modifyResponse f = smodify $ \ss -> ss { _snapResponse = f $ _snapResponse ss }
 {-# INLINE modifyResponse #-}
+
+
+-- | Add the output from the given enumerator to the 'Response' stored in the
+-- 'Snap' monad state.
+addToOutput :: (forall a . Enumerator a)   -- ^ output to add
+            -> Snap ()
+addToOutput enum = modifyResponse $ modifyResponseBody (>. enum)
+
+
+-- | Add the given strict 'ByteString' to the body of the 'Response' stored in
+-- the 'Snap' monad state.
+writeBS :: ByteString -> Snap ()
+writeBS s = addToOutput $ enumBS s
+
+
+-- | Add the given lazy 'L.ByteString' to the body of the 'Response' stored in
+-- the 'Snap' monad state.
+writeLBS :: L.ByteString -> Snap ()
+writeLBS s = addToOutput $ enumLBS s
+
 
 -- | Run a 'Snap' action with a locally-modified 'Request' state object. The
 -- 'Request' object in the Snap monad state after the call to localRequest will
