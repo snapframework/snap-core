@@ -29,12 +29,6 @@ import qualified Data.ByteString as S
 import           Data.Char
 import           Data.String
 
-f = putStrLn $ (show $ unCI a) ++ " == " ++ (show $ unCI b) ++ " is " ++ show r
-  where
-    a = "foo"
-    b = "FoO"
-    r = a == b
-
 
 -- | A case-insensitive newtype wrapper for 'ByteString'
 data CIByteString = CIByteString { unCI        :: !ByteString

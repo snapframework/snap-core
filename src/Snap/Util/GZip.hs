@@ -54,7 +54,11 @@ import           Snap.Types
 -- @Content-Encoding@ will be set in the output headers, and the
 -- @Content-Length@ will be cleared if it was set. (We can't process the stream
 -- in O(1) space if the length is known beforehand.)
-
+--
+-- The wrapped handler will be run to completion, and then the 'Response'
+-- that's contained within the 'Snap' monad state will be passed to
+-- 'finishWith' to prevent further processing.
+--
 withCompression :: Snap a   -- ^ the web handler to run
                 -> Snap ()
 withCompression = withCompression' compressibleMimeTypes
@@ -80,6 +84,9 @@ withCompression' mimeTable action = do
                          then chkAcceptEncoding
                          else return ()
       _             -> return ()
+
+
+    getResponse >>= finishWith
 
   where
     chkAcceptEncoding :: Snap ()
