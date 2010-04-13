@@ -46,7 +46,7 @@ testTypes = testCase "show" $ do
   where
     resp = addCookie cook $
            setContentLength 4 $
-           filterResponseBody id $
+           modifyResponseBody id $
            setResponseBody (enumBS "PING") $
            setContentType "text/plain" $
            setResponseStatus 555 "bogus" $
