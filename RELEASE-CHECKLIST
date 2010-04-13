@@ -1,6 +1,6 @@
 -*- org -*-
 
-* TODO Release Checklist [0%]
+* TODO Release Checklist [0/10]
 
   - [ ] generate and review haddock docs, copy to website
 
@@ -9,6 +9,8 @@
   - [ ] check tutorial material for consistency, update docs on website
 
   - [ ] check code for style & hygiene
+
+    - [ ] grep for FIXME/TODO
 
   - [ ] kill any warnings, both in library & testsuite
 

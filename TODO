@@ -42,6 +42,8 @@
 
 * TODO [#A] Review HTTP server code for exception safety
 
+* TODO [#B] GIT submodule setup for the various snap-* libraries
+
 * TODO [#B] Better benchmarks
   :LOGBOOK:
   - Note taken on [2010-04-13 Tue 02:50] \\
