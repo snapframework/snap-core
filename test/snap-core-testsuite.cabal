@@ -9,11 +9,11 @@ Executable testsuite
 
    build-depends:
      QuickCheck >= 2,
+     attoparsec >= 0.8.0.2 && < 0.9,
      base >= 4 && < 5,
      bytestring,
      containers,
      dlist >= 0.5 && < 0.6,
-     filepath,
      HUnit >= 1.2 && < 2,
      iteratee >= 0.3.1 && < 0.4,
      monads-fd,
@@ -23,7 +23,8 @@ Executable testsuite
      test-framework-hunit < 0.3,
      test-framework-quickcheck2 < 0.3,
      time,
-     transformers
+     transformers,
+     zlib
      
    ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
                 -fno-warn-unused-do-bind

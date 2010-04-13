@@ -74,6 +74,7 @@ module Snap.Types
   , setContentType
   , addCookie
   , setContentLength
+  , clearContentLength
 
     -- * Iteratee
   , Enumerator

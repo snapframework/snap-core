@@ -23,20 +23,23 @@ Library
     Snap.Http.Types,
     Snap.Types,
     Snap.Iteratee,
-    Snap.Internal.Http.Types
-    Snap.Internal.Iteratee.Debug
+    Snap.Internal.Debug,
+    Snap.Internal.Http.Types,
+    Snap.Internal.Iteratee.Debug,
+    Snap.Util.GZip
 
   build-depends:
+    attoparsec >= 0.8.0.2 && < 0.9,
     base >= 4 && < 5,
     bytestring,
     containers,
     dlist >= 0.5 && < 0.6,
-    filepath,
     iteratee >= 0.3.1 && <0.4,
     monads-fd,
     old-locale,
     time,
-    transformers
+    transformers,
+    zlib
 
   ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
                 -fno-warn-unused-do-bind

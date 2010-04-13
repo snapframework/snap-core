@@ -1,7 +1,8 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Snap.Internal.Http.Types where
 
@@ -33,6 +34,9 @@ class HasHeaders a where
 
     addHeader     :: CIByteString -> ByteString -> a -> a
     addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
+
+    setHeader     :: CIByteString -> ByteString -> a -> a
+    setHeader k v = updateHeaders $ Map.insert k [v]
 
     getHeader     :: CIByteString -> a -> Maybe [ByteString]
     getHeader k a = Map.lookup k $ headers a
@@ -146,9 +150,13 @@ instance Show Request where
 
 
 instance HasHeaders Request where
-    headers = rqHeaders
+    headers           = rqHeaders
     updateHeaders f r = r { rqHeaders = f (rqHeaders r) }
 
+
+instance HasHeaders Headers where
+    headers       = id
+    updateHeaders = id
 
 ------------------------------------------------------------------------------
 -- response type
@@ -280,11 +288,16 @@ setContentLength    :: Int -> Response -> Response
 setContentLength l r = r { rspContentLength = Just l }
 {-# INLINE setContentLength #-}
 
+
+clearContentLength :: Response -> Response
+clearContentLength r = r { rspContentLength = Nothing }
+{-# INLINE clearContentLength #-}
+
 ------------------------------------------------------------------------------
 -- local definitions
 fromStr :: String -> ByteString
 fromStr = S.pack . map c2w
-
+{-# INLINE fromStr #-}
 
 ------------------------------------------------------------------------------
 -- private helper functions

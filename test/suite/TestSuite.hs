@@ -5,6 +5,9 @@ import Test.Framework (defaultMain, testGroup)
 import qualified Snap.Types.Tests
 import qualified Snap.Internal.Http.Types.Tests
 import qualified Snap.Iteratee.Tests
+import qualified Snap.Util.GZip.Tests
+
+
 main :: IO ()
 main = defaultMain tests
   where tests = [
@@ -14,4 +17,6 @@ main = defaultMain tests
                             Snap.Types.Tests.tests
                 , testGroup "Snap.Iteratee.Tests"
                             Snap.Iteratee.Tests.tests
+                , testGroup "Snap.Util.GZip.Tests"
+                            Snap.Util.GZip.Tests.tests
                 ]

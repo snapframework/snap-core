@@ -31,6 +31,7 @@ Snap.Internal.Http.Server.Tests
 Snap.Internal.Http.Types.Tests
 Snap.Internal.Iteratee.Tests
 Snap.Types.Tests
+Snap.Util.GZip.Tests
 Text.Snap.Templates.Tests
 Snap.Test.Common'
 

@@ -11,7 +11,6 @@ import           Data.ByteString.Char8 (ByteString)
 import           Data.Iteratee
 import qualified Data.Map as Map
 import           Test.Framework
-import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
 
