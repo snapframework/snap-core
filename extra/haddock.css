@@ -19,7 +19,7 @@ BODY {
 
 A:link    { color: #5200A3; text-decoration: none }
 A:visited { color: #5200A3; text-decoration: none }
-A:hover   { color: #7c00f7; text-decoration: none; border-bottom:#7c00f7 dashed 1px; }
+A:hover   { color: #5200A3; text-decoration: none; border-bottom:#5200A3 dashed 1px; }
 
 TABLE.vanilla {
   width: 100%;
@@ -360,11 +360,11 @@ TD.topbut A:visited {
   }
 
 TD.topbut A:hover {
-  background-color: #6060ff;
+  background-color: #C9D3DE;
   }
 
 TD.topbut:hover {
-  background-color: #6060ff
+  background-color: #C9D3DE;
   }
 
 TD.modulebar { 
