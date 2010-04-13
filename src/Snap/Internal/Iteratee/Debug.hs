@@ -1,3 +1,8 @@
+-- | An internal Snap module for debugging iteratees.
+--
+-- /N.B./ this is an internal interface, please don't write user code that
+-- depends on it.
+
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE FlexibleInstances #-}
 

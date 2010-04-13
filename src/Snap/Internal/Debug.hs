@@ -1,3 +1,10 @@
+-- | An internal Snap module for (optionally) printing debugging
+-- messages. Normally 'debug' does nothing, but you can hand-edit this file to
+-- cause debug messages to be sent to @stdout@.
+--
+-- /N.B./ this is an internal interface, please don't write external code that
+-- depends on it.
+
 module Snap.Internal.Debug where
 
 import           Control.Monad.Trans

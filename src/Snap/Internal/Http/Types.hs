@@ -1,3 +1,9 @@
+-- | An internal Snap module containing HTTP types.
+--
+-- /N.B./ this is an internal interface, please don't write user code that
+-- depends on it. Most of these declarations (except for the
+-- unsafe/encapsulation-breaking ones) are re-exported from "Snap.Types".
+
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE OverloadedStrings #-}
