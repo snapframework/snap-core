@@ -1,0 +1,70 @@
+-*- org -*-
+
+
+* TODO [#A] Add fileServe
+  :LOGBOOK:
+  - Note taken on [2010-04-13 Tue 02:42] \\
+    fileServe :: FilePath -> Snap ()
+    fileServe' :: MimeMap -> FilePath -> Snap ()
+    
+     - Files served relative to root dir + rqPathInfo
+    
+     - check and prohibit ".." outside of root dir
+    
+     - mime map done by extension, or by suffix? e.g. ".tar.gz"?
+       - search efficiency -- reverse the filename and lookup in a trie?
+  :END:
+
+
+* TODO [#A] Website material
+  :LOGBOOK:
+  - Note taken on [2010-04-13 Tue 02:46] \\
+    Website requirements:
+    
+     - tutorial info, or at least a description of how to obtain and install the
+       software
+    
+     - hpc reports, haddock for all released versions
+    
+     - news section w/ rss (maybe for version 2)
+    
+     - general info
+    
+       - mailing list
+    
+       - contributors (photos?)
+    
+       - links to source control
+  :END:
+
+
+* TODO [#A] Finish HTTP server test suite
+
+* TODO [#A] Review HTTP server code for exception safety
+
+* TODO [#B] Better benchmarks
+  :LOGBOOK:
+  - Note taken on [2010-04-13 Tue 02:50] \\
+    Ways to make the benchmarks better:
+    
+     - fine-grained microbenchmarks w/ criterion
+    
+     - track benchmark progress over time (using Hudson or the 'progression'
+       package)
+    
+     - more sophistication than just "PONG"
+    
+       - test performance for larger streams with/without compression, etc
+  :END:
+
+* TODO [#C] Setup a CI server, either buildbot or hudson
+  :LOGBOOK:
+  - Note taken on [2010-04-13 Tue 02:51] \\
+    Buildbot should track:
+    
+     - warnings/errors/build status
+    
+     - test coverage report, test suite success rate over time
+    
+     - benchmarks over time
+  :END:

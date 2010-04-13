@@ -1,0 +1,21 @@
+-*- org -*-
+
+* TODO Release Checklist [0%]
+
+  - [ ] generate and review haddock docs, copy to website
+
+  - [ ] pass testsuite, generate hpc coverage report, copy to website
+
+  - [ ] check tutorial material for consistency, update docs on website
+
+  - [ ] check code for style & hygiene
+
+  - [ ] kill any warnings, both in library & testsuite
+
+  - [ ] all modules exported? correct modules exported?
+
+  - [ ] review code for space leaks
+
+  - [ ] run benchmarks, check for regressions
+
+  - [ ] check accompanying info files (READMEs, LICENSE, CONTRIBUTORS, etc)
