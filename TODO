@@ -3,6 +3,8 @@
 
 * TODO [#A] Add fileServe
   :LOGBOOK:
+  - Note taken on [2010-04-13 Tue 18:36] \\
+    Executive decision: defer directory indices for another version
   - Note taken on [2010-04-13 Tue 02:42] \\
     fileServe :: FilePath -> Snap ()
     fileServe' :: MimeMap -> FilePath -> Snap ()
