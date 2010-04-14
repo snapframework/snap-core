@@ -70,7 +70,7 @@ getHeader k a = liftM (S.intercalate " ") (Map.lookup k $ headers a)
 -- | 'Method' enumerates the HTTP method values (see
 -- <http://tools.ietf.org/html/rfc2068.html#section-5.1.1>)
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
-               deriving(Show,Read,Eq)
+               deriving(Show,Read,Ord,Eq)
 
 
 ------------------------------------------------------------------------------

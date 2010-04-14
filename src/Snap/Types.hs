@@ -18,6 +18,7 @@ module Snap.Types
   , HasHeaders(..)
   , HttpVersion
   , Method(..)
+  , Route(..)
   , Params
   , Request
   , Response
@@ -74,6 +75,12 @@ module Snap.Types
   , finishWith
   , pass
 
+    -- ** Routing
+  , method
+  , path
+  , dir
+  , route
+
     -- ** Access to state
   , getRequest
   , getResponse
@@ -101,9 +108,12 @@ import           Control.Applicative
 import           Control.Exception
 import           Control.Monad.State.Strict
 import           Data.ByteString (ByteString)
+import           Data.ByteString.Internal (c2w)
+import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Iteratee as Iter
 import           Data.Maybe
+import qualified Data.Map as M
 import           Data.Typeable
 ------------------------------------------------------------------------------
 import           Snap.Iteratee ( Iteratee
@@ -217,6 +227,31 @@ instance Alternative Snap where
     (<|>) = mplus
 
 
+{-|
+
+'Route' is the data type you use to build a routing tree. Matching is done
+unambiguously.
+
+An example that maps "login" to an account action, "read/:id" to an article
+action, and the top level to an index render action.
+
+postRoutes = Dir $ Map.fromList [ ( "login", Action renderLogin ) ]
+getRoutes  = Dir $ Map.fromList [
+  ( "", Action renderIndex ),
+  ( "login", Action doLogin ),
+  ( "article", Capture "id" $ Action renderArticle ) ]
+
+routes = Method Map.fromList [
+  ( GET,  getRoutes ),
+  ( POST, postRoutes ) ]
+
+-}
+data Route = Action (Snap ())              -- ^ wraps a 'Snap' action
+           | Capture ByteString Route      -- ^ captures the dir in a param
+           | Dir (M.Map ByteString Route)  -- ^ match on a dir
+           | Method (M.Map Method Route)   -- ^ match on a method
+
+
 ------------------------------------------------------------------------------
 
 -- | Given an iteratee (data consumer), send the request body through it and
@@ -272,6 +307,70 @@ finishWith = Snap . return . Just . Left
 -- to handle the given request within the given handler
 pass :: Snap a
 pass = empty
+
+-- | Runs a 'Snap' monad action only for the given method
+method :: Method -> Snap a -> Snap a
+method m action = do
+    req <- getRequest
+    unless (rqMethod req == m) pass
+    action
+{-# INLINE method #-}
+
+
+-- Take n bytes of the path info and append it to the context path, with the
+-- trailing slash
+updateContextPath :: Int -> Request -> Request
+updateContextPath n req = req { rqContextPath = ctx
+                              , rqPathInfo    = pinfo }
+  where
+    ctx'  = B.take n (rqPathInfo req)
+    ctx   = B.concat [rqContextPath req, ctx', "/"]
+    pinfo = B.drop (n+1) (rqPathInfo req)
+
+-- Runs a 'Snap' monad action only for requests with a path that matches
+-- the comparator
+pathWith :: (ByteString -> ByteString -> Bool)
+           -> ByteString
+           -> Snap a
+           -> Snap a
+pathWith c p action = do
+    req <- getRequest
+    when (c p (rqPathInfo req)) pass
+    modifyRequest $ updateContextPath (B.length p)
+    action
+
+-- | Runs a 'Snap' monad action only for requests starting with a given path
+dir :: ByteString -> Snap a -> Snap a
+dir = pathWith B.isPrefixOf
+{-# INLINE dir #-}
+
+-- | Runs a 'Snap' monad action only for requests with the same path as
+-- the given one
+path :: ByteString -> Snap a -> Snap a
+path = pathWith (==)
+{-# INLINE path #-}
+
+-- | Routes many 'Snap' monad actions unambiguously in O(log n)
+route :: Route -> Snap ()
+route (Action action) = action
+route (Capture param rt) = do
+    cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
+    modifyRequest $ updateContextPath (B.length cwd) . (f cwd)
+    route rt
+  where
+    f v req = req { rqParams = M.insertWith (++) param [v] (rqParams req) }
+route (Dir rtm) = do
+    cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
+    case M.lookup cwd rtm of
+      Just rt -> do
+          modifyRequest $ updateContextPath (B.length cwd)
+          route rt
+      Nothing -> pass
+route (Method rtm) = do
+    m <- getRequest >>= return . rqMethod
+    case M.lookup m rtm of
+      Just rt -> route rt
+      Nothing -> pass
 
 
 -- | Local Snap version of 'get'
