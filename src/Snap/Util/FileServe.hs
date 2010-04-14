@@ -21,6 +21,7 @@ import           Data.Time.Clock.POSIX
 import           System.Directory
 import           System.FilePath
 import           System.IO
+import           System.Posix.Files
 import           System.Time
 
 ------------------------------------------------------------------------------
@@ -132,14 +133,16 @@ fileServe' mm root = do
 
     maybe (return ()) (chkModificationTime mt) mbIfModified
 
-
     -- get the mime type for the file. We know this is a file, otherwise we
     -- would've failed earlier.
     let fn   = takeFileName fp
     let mime = fileType mm fn
 
+    sz <- liftIO $ liftM (fromEnum . fileSize) $ getFileStatus fp
+
     modifyResponse $ setHeader "Last-Modified" (formatHttpTime mt)
                    . setContentType mime
+                   . setContentLength sz
                    . setResponseBody (enumFile fp)
 
   where
@@ -170,7 +173,7 @@ fileServe' mm root = do
 ------------------------------------------------------------------------------
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
 enumFile fp iter = do
-    h  <- liftIO $ openFile fp ReadMode
+    h  <- liftIO $ openBinaryFile fp ReadMode
     i' <- enumHandle h iter
     return $ do
         x <- i'

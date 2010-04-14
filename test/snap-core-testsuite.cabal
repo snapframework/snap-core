@@ -27,6 +27,7 @@ Executable testsuite
      test-framework-quickcheck2 < 0.3,
      time,
      transformers,
+     unix,
      zlib
      
    ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded

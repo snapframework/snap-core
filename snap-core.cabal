@@ -67,6 +67,7 @@ Library
     old-time,
     time,
     transformers,
+    unix,
     zlib
 
   ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
