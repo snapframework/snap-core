@@ -154,11 +154,11 @@ import           Snap.Internal.Http.Types
 4. convenience functions ('writeBS', 'writeLBS', 'addToOutput') for writing
 output to the 'Response':
 
-  > a :: (forall a . Enumerator a) -> Snap ()
-  > a someEnumerator = do
-  >     writeBS "I'm a strict bytestring"
-  >     writeLBS "I'm a lazy bytestring"
-  >     addToOutput someEnumerator
+   > a :: (forall a . Enumerator a) -> Snap ()
+   > a someEnumerator = do
+   >     writeBS "I'm a strict bytestring"
+   >     writeLBS "I'm a lazy bytestring"
+   >     addToOutput someEnumerator
 
 5. early termination: if you call 'finishWith':
 
@@ -235,15 +235,15 @@ unambiguously.
 An example that maps "login" to an account action, "read/:id" to an article
 action, and the top level to an index render action.
 
-postRoutes = Dir $ Map.fromList [ ( "login", Action renderLogin ) ]
-getRoutes  = Dir $ Map.fromList [
-  ( "", Action renderIndex ),
-  ( "login", Action doLogin ),
-  ( "article", Capture "id" $ Action renderArticle ) ]
-
-routes = Method Map.fromList [
-  ( GET,  getRoutes ),
-  ( POST, postRoutes ) ]
+  > postRoutes = Dir $ Map.fromList [ ( "login", Action renderLogin ) ]
+  > getRoutes  = Dir $ Map.fromList [
+  >   ( "", Action renderIndex ),
+  >   ( "login", Action doLogin ),
+  >   ( "article", Capture "id" $ Action renderArticle ) ]
+  > 
+  > routes = Method Map.fromList [
+  >   ( GET,  getRoutes ),
+  >   ( POST, postRoutes ) ]
 
 -}
 data Route = Action (Snap ())              -- ^ wraps a 'Snap' action
