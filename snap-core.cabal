@@ -50,6 +50,7 @@ Library
     Snap.Internal.Debug,
     Snap.Internal.Http.Types,
     Snap.Internal.Iteratee.Debug,
+    Snap.Util.FileServe,
     Snap.Util.GZip
 
   build-depends:
@@ -57,10 +58,13 @@ Library
     base >= 4 && < 5,
     bytestring,
     containers,
+    directory,
     dlist >= 0.5 && < 0.6,
+    filepath,
     iteratee >= 0.3.1 && <0.4,
     monads-fd,
     old-locale,
+    old-time,
     time,
     transformers,
     zlib

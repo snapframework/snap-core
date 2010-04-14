@@ -16,10 +16,10 @@ import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8 hiding (Done)
 import qualified Data.Attoparsec.Char8 as Atto
-import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Char8 (ByteString)
 import           Data.Iteratee.WrappedByteString
+import           Data.Maybe
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import           Data.Typeable
@@ -80,10 +80,10 @@ withCompression' mimeTable action = do
     debug $ "withCompression', content-type is " ++ show mbCt
 
     case mbCt of
-      (Just (ct:_)) -> if Set.member ct mimeTable
-                         then chkAcceptEncoding
-                         else return ()
-      _             -> return ()
+      (Just ct) -> if Set.member ct mimeTable
+                      then chkAcceptEncoding
+                      else return ()
+      _         -> return ()
 
 
     getResponse >>= finishWith
@@ -95,9 +95,7 @@ withCompression' mimeTable action = do
         debug $ "checking accept-encoding"
         let mbAcc = getHeader "Accept-Encoding" req
         debug $ "accept-encoding is " ++ show mbAcc
-        let s = case mbAcc of
-                  Nothing -> ""
-                  Just xs -> B.intercalate " " xs
+        let s = fromMaybe "" mbAcc
 
         types <- liftIO $ parseAcceptEncoding s
 

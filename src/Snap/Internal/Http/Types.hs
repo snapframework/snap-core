@@ -12,6 +12,7 @@
 
 module Snap.Internal.Http.Types where
 
+import           Control.Monad (liftM)
 import           Data.ByteString (ByteString)
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString as S
@@ -53,9 +54,16 @@ addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
 setHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
 setHeader k v = updateHeaders $ Map.insert k [v]
 
--- | Get a header value out of a 'HasHeaders' datatype.
-getHeader :: (HasHeaders a) => CIByteString -> a -> Maybe [ByteString]
-getHeader k a = Map.lookup k $ headers a
+-- | Get all of the values for a given header.
+getHeaders :: (HasHeaders a) => CIByteString -> a -> Maybe [ByteString]
+getHeaders k a = Map.lookup k $ headers a
+
+-- | Get a header value out of a 'HasHeaders' datatype. If many headers came in
+-- with the same name, they will be catenated together.
+getHeader :: (HasHeaders a) => CIByteString -> a -> Maybe ByteString
+getHeader k a = liftM (S.intercalate " ") (Map.lookup k $ headers a)
+
+
 
 ------------------------------------------------------------------------------
 
@@ -97,7 +105,7 @@ type Params = Map ByteString [ByteString]
 ------------------------------------------------------------------------------
 
 -- | The 'Request' datatype contains all of the information about an incoming
--- HTTP request.x
+-- HTTP request.
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
       -- @Host:@ header.
@@ -344,9 +352,7 @@ modifyResponseBody f r = r { rspBody = f (rspBody r) }
 
 -- | Set the @Content-Type@ in the 'Response' headers.
 setContentType      :: ByteString -> Response -> Response
-setContentType ct = updateHeaders f
-  where
-    f = Map.insert "Content-Type" [ct]
+setContentType = setHeader "Content-Type"
 {-# INLINE setContentType #-}
 
 
@@ -385,6 +391,21 @@ setContentLength l r = r { rspContentLength = Just l }
 clearContentLength :: Response -> Response
 clearContentLength r = r { rspContentLength = Nothing }
 {-# INLINE clearContentLength #-}
+
+
+------------------------------------------------------------------------------
+-- HTTP dates
+
+-- | Convert a 'ClockTime' into an HTTP timestamp
+formatHttpTime :: UTCTime -> ByteString
+formatHttpTime = fromStr . formatTime defaultTimeLocale "%a, %d %b %Y %X GMT"
+
+-- | Convert an HTTP timestamp into a 'UTCTime'
+parseHttpTime :: ByteString -> Maybe UTCTime
+parseHttpTime s' =
+    parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" s
+  where
+    s = toStr s'
 
 ------------------------------------------------------------------------------
 -- local definitions

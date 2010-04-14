@@ -90,6 +90,10 @@ module Snap.Types
 
     -- * Iteratee
   , Enumerator
+
+    -- * HTTP utilities
+  , formatHttpTime
+  , parseHttpTime 
   ) where
 
 ------------------------------------------------------------------------------

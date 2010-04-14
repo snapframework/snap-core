@@ -64,14 +64,14 @@ setFoo s = do
 testAlternative :: Test
 testAlternative = testCase "alternative" $ do
     (_,resp) <- go (pass <|> setFoo "Bar")
-    assertEqual "foo present" (Just ["Bar"]) $ getHeader "Foo" resp
+    assertEqual "foo present" (Just "Bar") $ getHeader "Foo" resp
 
     (_,resp2) <- go (fail ""
                        <|> fail2
                        <|> setFoo "Bar"
                        <|> setFoo "Baz")
     assertEqual "alternative chooses correct branch"
-                (Just ["Bar"]) $ getHeader "Foo" resp2
+                (Just ["Bar"]) $ getHeaders "Foo" resp2
 
   where
     fail2 :: Snap ()
@@ -85,7 +85,7 @@ sampleResponse = addHeader "Foo" "Quux" $ emptyResponse
 testEarlyTermination :: Test
 testEarlyTermination = testCase "early termination" $ do
     (_,resp) <- go (finishWith sampleResponse >>= \_ -> setFoo "Bar")
-    assertEqual "foo" (Just ["Quux"]) $ getHeader "Foo" resp
+    assertEqual "foo" (Just ["Quux"]) $ getHeaders "Foo" resp
 
 
 testRqBody :: Test
@@ -116,13 +116,13 @@ testTrivials = testCase "trivial functions" $ do
         putResponse $ setResponseStatus 333 "333" sampleResponse
         r <- getResponse
         liftIO $ assertEqual "rsp status" 333 $ rspStatus r
-        !_ <- localRequest (\r -> r {rqIsSecure=False}) $ do
+        !_ <- localRequest (\x -> x {rqIsSecure=False}) $ do
             q <- getRequest
             liftIO $ assertEqual "localrq" False $ rqIsSecure q
             return ()
         return ()
 
-    let !s = show NoHandlerException
+    let !_ = show NoHandlerException `seq` ()
 
     assertEqual "rq secure" True $ rqIsSecure rq
     assertEqual "rsp status" 333 $ rspStatus rsp
