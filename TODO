@@ -20,8 +20,9 @@
 
 * STARTED [#A] improve git email hook
   :LOGBOOK:
-  - Note taken on [2010-04-14 Wed 23:29] \\
-    git email hook is annoying! extremely annoying! i mean really!
+  - Note taken on [2010-04-14 Wed 23:29] \\ git email hook is annoying!
+    extremely annoying! i mean really! will the subject be set correctly this
+    time? or am I condemned to eternal torment
   - State "STARTED"    from "TODO"       [2010-04-14 Wed 23:18]
   :END:
 
