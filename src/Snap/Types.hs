@@ -231,7 +231,7 @@ instance Alternative Snap where
 
 {-
 
-'Route' is the internal data type you use to build a routing tree. Matching is
+The internal data type you use to build a routing tree.  Matching is
 done unambiguously.
 
 'Capture' and 'Dir' routes can have a "fallback" route:
@@ -284,8 +284,8 @@ instance Monoid Route where
 
 ------------------------------------------------------------------------------
 
--- | Given an iteratee (data consumer), send the request body through it and
--- return the result
+-- | Sends the request body through an iteratee (data consumer) and
+-- returns the result.
 runRequestBody :: Iteratee IO a -> Snap a
 runRequestBody iter = do
     req  <- getRequest
@@ -304,22 +304,23 @@ runRequestBody iter = do
     return result
 
 
--- | Return the request body as a bytestring
+-- | Returns the request body as a bytestring.
 getRequestBody :: Snap L.ByteString
 getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 {-# INLINE getRequestBody #-}
 
 
--- | Detach the request body's 'Enumerator' from the 'Request' and return
--- it. You would want to use this if you needed to send the HTTP request body
--- (transformed or otherwise) through to the output in O(1) space. (Examples:
--- transcoding, \"echo\", etc)
+-- | Detaches the request body's 'Enumerator' from the 'Request' and
+-- returns it. You would want to use this if you needed to send the
+-- HTTP request body (transformed or otherwise) through to the output
+-- in O(1) space. (Examples: transcoding, \"echo\", etc)
 -- 
--- Normally Snap is careful to ensure that the request body is fully consumed
--- after your web handler runs; this function is marked \"unsafe\" because it
--- breaks this guarantee and leaves the responsibility up to you. If you don't
--- fully consume the 'Enumerator' you get here, the next HTTP request in the
--- pipeline (if any) will misparse. Be careful with exception handlers.
+-- Normally Snap is careful to ensure that the request body is fully
+-- consumed after your web handler runs; this function is marked
+-- \"unsafe\" because it breaks this guarantee and leaves the
+-- responsibility up to you. If you don't fully consume the
+-- 'Enumerator' you get here, the next HTTP request in the pipeline
+-- (if any) will misparse. Be careful with exception handlers.
 unsafeDetachRequestBody :: Snap (Enumerator a)
 unsafeDetachRequestBody = do
     req <- getRequest
@@ -327,18 +328,19 @@ unsafeDetachRequestBody = do
     putRequest $ req {rqBody = enumBS ""}
     return enum
 
--- | Short-circuit a 'Snap' monad action early, storing the given 'Response'
--- value in its state
+-- | Short-circuits a 'Snap' monad action early, storing the given
+-- 'Response' value in its state.
 finishWith :: Response -> Snap ()
 finishWith = Snap . return . Just . Left
 {-# INLINE finishWith #-}
 
--- | Fails out of a 'Snap' monad action; used to indicate that you choose not
--- to handle the given request within the given handler
+-- | Fails out of a 'Snap' monad action.  This is used to indicate
+-- that you choose not to handle the given request within the given
+-- handler.
 pass :: Snap a
 pass = empty
 
--- | Runs a 'Snap' monad action only for the given method
+-- | Runs a 'Snap' monad action only for the given method.
 method :: Method -> Snap a -> Snap a
 method m action = do
     req <- getRequest
@@ -347,8 +349,8 @@ method m action = do
 {-# INLINE method #-}
 
 
--- Take n bytes of the path info and append it to the context path, with the
--- trailing slash
+-- Appends n bytes of the path info to the context path with a
+-- trailing slash.
 updateContextPath :: Int -> Request -> Request
 updateContextPath n req | n > 0     = req { rqContextPath = ctx
                                           , rqPathInfo    = pinfo }
@@ -359,7 +361,7 @@ updateContextPath n req | n > 0     = req { rqContextPath = ctx
     pinfo = B.drop (n+1) (rqPathInfo req)
 
 -- Runs a 'Snap' monad action only for requests with a path that matches
--- the comparator
+-- the comparator.
 pathWith :: (ByteString -> ByteString -> Bool)
          -> ByteString
          -> Snap a
@@ -370,23 +372,24 @@ pathWith c p action = do
     modifyRequest $ updateContextPath (B.length p)
     action
 
--- | Runs a 'Snap' monad action only for requests starting with a given path
+-- | Runs a 'Snap' monad action only for requests starting with a
+-- given path.
 dir :: ByteString -> Snap a -> Snap a
 dir = pathWith B.isPrefixOf
 {-# INLINE dir #-}
 
 -- | Runs a 'Snap' monad action only for requests with the same path as
--- the given one
+-- the given one.
 path :: ByteString -> Snap a -> Snap a
 path = pathWith (==)
 {-# INLINE path #-}
 
--- | Runs a 'Snap' monad action only for the top level
+-- | Runs a 'Snap' monad action only for the top level.
 top :: Snap a -> Snap a
 top = path ""
 {-# INLINE top #-}
 
--- | Routes many 'Snap' monad actions unambiguously in O(log n)
+-- | Routes many 'Snap' monad actions unambiguously in O(log n).
 --
 -- The routes are given as relative paths. If a component starts with colon
 -- (":"), it tells the router to capture that component. Captured components
@@ -443,69 +446,69 @@ route' NoRoute       [] = pass
 route' NoRoute (fb:fbs) = route' fb fbs
 
 
--- | Local Snap version of 'get'
+-- | Local Snap version of 'get'.
 sget :: Snap SnapState
 sget = Snap $ liftM (Just . Right) get
 {-# INLINE sget #-}
 
--- | Local Snap monad version of 'modify'
+-- | Local Snap monad version of 'modify'.
 smodify :: (SnapState -> SnapState) -> Snap ()
 smodify f = Snap $ modify f >> return (Just $ Right ())
 {-# INLINE smodify #-}
 
--- | Grab the 'Request' object out of the 'Snap' monad
+-- | Grabs the 'Request' object out of the 'Snap' monad.
 getRequest :: Snap Request
 getRequest = liftM _snapRequest sget
 {-# INLINE getRequest #-}
 
--- | Grab the 'Response' object out of the 'Snap' monad
+-- | Grabs the 'Response' object out of the 'Snap' monad.
 getResponse :: Snap Response
 getResponse = liftM _snapResponse sget
 {-# INLINE getResponse #-}
 
--- | Put a new 'Response' object into the 'Snap' monad
+-- | Puts a new 'Response' object into the 'Snap' monad.
 putResponse :: Response -> Snap ()
 putResponse r = smodify $ \ss -> ss { _snapResponse = r }
 {-# INLINE putResponse #-}
 
--- | Put a new 'Request' object into the 'Snap' monad
+-- | Puts a new 'Request' object into the 'Snap' monad.
 putRequest :: Request -> Snap ()
 putRequest r = smodify $ \ss -> ss { _snapRequest = r }
 {-# INLINE putRequest #-}
 
--- | Modify the 'Request' object stored in a 'Snap' monad
+-- | Modifies the 'Request' object stored in a 'Snap' monad.
 modifyRequest :: (Request -> Request) -> Snap ()
 modifyRequest f = smodify $ \ss -> ss { _snapRequest = f $ _snapRequest ss }
 {-# INLINE modifyRequest #-}
 
--- | Modify the 'Response' object stored in a 'Snap' monad
+-- | Modifes the 'Response' object stored in a 'Snap' monad.
 modifyResponse :: (Response -> Response) -> Snap () 
 modifyResponse f = smodify $ \ss -> ss { _snapResponse = f $ _snapResponse ss }
 {-# INLINE modifyResponse #-}
 
 
--- | Add the output from the given enumerator to the 'Response' stored in the
--- 'Snap' monad state.
+-- | Adds the output from the given enumerator to the 'Response'
+-- stored in the 'Snap' monad state.
 addToOutput :: (forall a . Enumerator a)   -- ^ output to add
             -> Snap ()
 addToOutput enum = modifyResponse $ modifyResponseBody (>. enum)
 
 
--- | Add the given strict 'ByteString' to the body of the 'Response' stored in
--- the 'Snap' monad state.
+-- | Adds the given strict 'ByteString' to the body of the 'Response'
+-- stored in the 'Snap' monad state.
 writeBS :: ByteString -> Snap ()
 writeBS s = addToOutput $ enumBS s
 
 
--- | Add the given lazy 'L.ByteString' to the body of the 'Response' stored in
--- the 'Snap' monad state.
+-- | Adds the given lazy 'L.ByteString' to the body of the 'Response'
+-- stored in the 'Snap' monad state.
 writeLBS :: L.ByteString -> Snap ()
 writeLBS s = addToOutput $ enumLBS s
 
 
--- | Run a 'Snap' action with a locally-modified 'Request' state object. The
--- 'Request' object in the Snap monad state after the call to localRequest will
--- be unchanged.
+-- | Runs a 'Snap' action with a locally-modified 'Request' state
+-- object. The 'Request' object in the Snap monad state after the call
+-- to localRequest will be unchanged.
 localRequest :: (Request -> Request) -> Snap a -> Snap a
 localRequest f m = do
     req <- getRequest
@@ -526,7 +529,7 @@ instance Show NoHandlerException where
 instance Exception NoHandlerException
 
 
--- | Run a 'Snap' monad action in the 'Iteratee IO' monad.
+-- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
 runSnap :: Snap a -> Request -> Iteratee IO (Request,Response)
 runSnap (Snap m) req = do
     (r, ss') <- runStateT m ss

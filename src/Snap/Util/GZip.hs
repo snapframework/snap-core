@@ -265,7 +265,7 @@ fullyParse s p =
 
 
 -- We're not gonna bother with quality values; we'll do gzip or compress in
--- that order
+-- that order.
 acceptParser :: Parser [ByteString]
 acceptParser = do
     xs <- option [] $ (:[]) <$> encoding

@@ -56,7 +56,7 @@ type Iteratee   m   = IterateeG WrappedByteString Word8 m
 type Enumerator m a = Iteratee m a -> m (Iteratee m a)
 
 
--- | Wrap an 'Iteratee', counting the number of bytes consumed by it.
+-- | Wraps an 'Iteratee', counting the number of bytes consumed by it.
 countBytes :: (Monad m) => Iteratee m a -> Iteratee m (a, Int)
 countBytes = go 0
   where
@@ -81,7 +81,7 @@ countBytes = go 0
           Cont i err  -> return $ Cont (go n i) err
 
 
--- | Buffer an iteratee.
+-- | Buffers an iteratee.
 --
 -- Our enumerators produce a lot of little strings; rather than spending all
 -- our time doing kernel context switches for 4-byte write() calls, we buffer
@@ -122,13 +122,13 @@ bufferIteratee = return . go (D.empty,0)
         big = toWrap $ L.fromChunks [S.concat $ D.toList dl']
         
 
--- | Enumerate a strict bytestring.
+-- | Enumerates a strict bytestring.
 enumBS :: (Monad m) => ByteString -> Enumerator m a
 enumBS bs = enumPure1Chunk $ WrapBS bs
 {-# INLINE enumBS #-}
 
 -- | Twiddling the bytestrings to have a decent chunksize takes time but it's
--- cheaper than a whole bunch of tiny kernel write()s
+-- cheaper than a whole bunch of tiny kernel write()s.
 chunkAppropriately :: L.ByteString -> [ByteString]
 chunkAppropriately lbs = outchunks
   where
@@ -152,7 +152,7 @@ chunkAppropriately lbs = outchunks
         m = S.length x
         
 
--- | Enumerate a lazy bytestring.
+-- | Enumerates a lazy bytestring.
 enumLBS :: (Monad m) => L.ByteString -> Enumerator m a
 enumLBS lbs iter = foldM k iter enums
   where
@@ -160,19 +160,19 @@ enumLBS lbs iter = foldM k iter enums
     enums = map (enumPure1Chunk . WrapBS) bss
     k i e = e i
 
--- | Convert a lazy bytestring to a wrapped bytestring.
+-- | Converts a lazy bytestring to a wrapped bytestring.
 toWrap :: L.ByteString -> WrappedByteString Word8
 toWrap = WrapBS . S.concat . L.toChunks
 {-# INLINE toWrap #-}
 
--- | Convert a wrapped bytestring to a lazy bytestring
+-- | Converts a wrapped bytestring to a lazy bytestring.
 fromWrap :: WrappedByteString Word8 -> L.ByteString
 fromWrap = L.fromChunks . (:[]) . unWrap
 {-# INLINE fromWrap #-}
 
--- | Read n elements from a stream and apply the given iteratee to the stream
--- of the read elements. Read exactly n elements, and if the stream is short
--- propagate an error.
+-- | Reads n elements from a stream and applies the given iteratee to
+-- the stream of the read elements. Reads exactly n elements, and if
+-- the stream is short propagates an error.
 takeExactly :: (SC.StreamChunk s el, Monad m) =>
                Int ->
                EnumeratorN s el s el m a
