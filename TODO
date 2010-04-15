@@ -1,6 +1,5 @@
 -*- org -*-
 
-
 * STARTED [#A] Add fileServe
   :LOGBOOK:
   - State "STARTED"    from "TODO"       [2010-04-14 Wed 22:55]
@@ -19,7 +18,7 @@
   :END:
 ** TODO [#A] fileserve testsuite
 
-
+* TODO [#A] improve git email hook
 
 * TODO [#A] Website material
   :LOGBOOK:
