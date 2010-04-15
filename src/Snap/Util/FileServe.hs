@@ -130,7 +130,6 @@ fileServe' mm root = do
 
     -- check modification time and bug out early if the file is not modified.
     mt <- liftIO $ liftM clock2time $ getModificationTime fp
-
     maybe (return ()) (chkModificationTime mt) mbIfModified
 
     -- get the mime type for the file. We know this is a file, otherwise we

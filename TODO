@@ -1,8 +1,9 @@
 -*- org -*-
 
 
-* TODO [#A] Add fileServe
+* STARTED [#A] Add fileServe
   :LOGBOOK:
+  - State "STARTED"    from "TODO"       [2010-04-14 Wed 22:55]
   - Note taken on [2010-04-13 Tue 18:36] \\
     Executive decision: defer directory indices for another version
   - Note taken on [2010-04-13 Tue 02:42] \\
