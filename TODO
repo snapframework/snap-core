@@ -18,7 +18,10 @@
   :END:
 ** TODO [#A] fileserve testsuite
 
-* TODO [#A] improve git email hook
+* STARTED [#A] improve git email hook
+  :LOGBOOK:
+  - State "STARTED"    from "TODO"       [2010-04-14 Wed 23:18]
+  :END:
 
 * TODO [#A] Website material
   :LOGBOOK:
