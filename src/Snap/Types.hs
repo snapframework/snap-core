@@ -241,17 +241,17 @@ done unambiguously.
 
 Fallback routes are stacked: i.e. for a route like:
 
-> Dir [("foo", Capture "bar" (Action bar) Unrouted)] baz
+> Dir [("foo", Capture "bar" (Action bar) NoRoute)] baz
 
 visiting the URI foo/ will result in the "bar" capture being empty and
-triggering its fallback. It's Unrouted, so we go to the nearest parent
+triggering its fallback. It's NoRoute, so we go to the nearest parent
 fallback and try that, which is the baz action.
 
 -}
 data Route = Action (Snap ())                     -- wraps a 'Snap' action
            | Capture ByteString Route Route       -- captures the dir in a param
            | Dir (Map.Map ByteString Route) Route -- match on a dir
-           | Unrouted
+           | NoRoute
 
 instance Show Route where
     show (Action _)       = "action"
@@ -259,19 +259,19 @@ instance Show Route where
                                    , " (fallback: ", show fb, ")" ]
     show (Dir rm fb)      = concat [ "dir ", show rm
                                    , " (fallback: ", show fb, ")" ]
-    show Unrouted         = "unrouted"
+    show NoRoute          = "nothing"
 
 instance Monoid Route where
-    mempty = Unrouted
+    mempty = NoRoute
 
     -- Unions two routes, favoring the right-hand side
-    mappend Unrouted r = r
+    mappend NoRoute r = r
 
     mappend l@(Action _) r = case r of
       (Action _)        -> r
       (Capture p r' fb) -> Capture p r' (mappend fb l)
       (Dir _ _)         -> mappend (Dir Map.empty l) r
-      Unrouted          -> l
+      NoRoute           -> l
 
     mappend (Capture p r' fb) r = Capture p (mappend r' r) fb
 
@@ -279,7 +279,7 @@ instance Monoid Route where
       (Action _)      -> Dir rm (mappend fb r)
       (Capture _ _ _) -> Dir rm (mappend fb r)
       (Dir rm' fb')   -> Dir (Map.unionWith mappend rm rm') (mappend fb fb')
-      Unrouted        -> l
+      NoRoute         -> l
 
 
 ------------------------------------------------------------------------------
@@ -416,8 +416,8 @@ pRoute (r, a) = foldr f (Action a) hier
   where
     hier   = filter (not . B.null) $ B.splitWith (== (c2w '/')) r
     f s rt = if B.head s == c2w ':'
-        then Capture (B.tail s) rt Unrouted
-        else Dir (Map.fromList [(s, rt)]) Unrouted
+        then Capture (B.tail s) rt NoRoute
+        else Dir (Map.fromList [(s, rt)]) NoRoute
 
 route' :: Route -> [Route] -> Snap ()
 route' (Action action) _ = action
@@ -439,8 +439,8 @@ route' (Dir rtm fb) fbs = do
           route' rt (fb:fbs)
       Nothing -> route' fb fbs
 
-route' Unrouted       [] = pass
-route' Unrouted (fb:fbs) = route' fb fbs
+route' NoRoute       [] = pass
+route' NoRoute (fb:fbs) = route' fb fbs
 
 
 -- | Local Snap version of 'get'
