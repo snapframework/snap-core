@@ -18,7 +18,6 @@ module Snap.Types
   , HasHeaders(..)
   , HttpVersion
   , Method(..)
-  , Route(..)
   , Params
   , Request
   , Response
@@ -79,6 +78,7 @@ module Snap.Types
   , method
   , path
   , dir
+  , top
   , route
 
     -- ** Access to state
@@ -113,7 +113,8 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Iteratee as Iter
 import           Data.Maybe
-import qualified Data.Map as M
+import           Data.Monoid
+import qualified Data.Map as Map
 import           Data.Typeable
 ------------------------------------------------------------------------------
 import           Snap.Iteratee ( Iteratee
@@ -124,6 +125,7 @@ import           Snap.Iteratee ( Iteratee
                                , enumBS
                                , enumLBS )
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Debug
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -227,29 +229,57 @@ instance Alternative Snap where
     (<|>) = mplus
 
 
-{-|
+{-
 
-'Route' is the data type you use to build a routing tree. Matching is done
-unambiguously.
+'Route' is the internal data type you use to build a routing tree. Matching is
+done unambiguously.
 
-An example that maps "login" to an account action, "read/:id" to an article
-action, and the top level to an index render action.
+'Capture' and 'Dir' routes can have a "fallback" route:
 
-  > postRoutes = Dir $ Map.fromList [ ( "login", Action renderLogin ) ]
-  > getRoutes  = Dir $ Map.fromList [
-  >   ( "", Action renderIndex ),
-  >   ( "login", Action doLogin ),
-  >   ( "article", Capture "id" $ Action renderArticle ) ]
-  > 
-  > routes = Method Map.fromList [
-  >   ( GET,  getRoutes ),
-  >   ( POST, postRoutes ) ]
+  - For 'Capture', the fallback is routed when there is nothing to capture
+  - For 'Dir', the fallback is routed when we can't find a route in its map
+
+Fallback routes are stacked: i.e. for a route like:
+
+> Dir [("foo", Capture "bar" (Action bar) NoRoute)] baz
+
+visiting the URI foo/ will result in the "bar" capture being empty and
+triggering its fallback. It's NoRoute, so we go to the nearest parent
+fallback and try that, which is the baz action.
 
 -}
-data Route = Action (Snap ())              -- ^ wraps a 'Snap' action
-           | Capture ByteString Route      -- ^ captures the dir in a param
-           | Dir (M.Map ByteString Route)  -- ^ match on a dir
-           | Method (M.Map Method Route)   -- ^ match on a method
+data Route = Action (Snap ())                     -- wraps a 'Snap' action
+           | Capture ByteString Route Route       -- captures the dir in a param
+           | Dir (Map.Map ByteString Route) Route -- match on a dir
+           | NoRoute
+
+instance Show Route where
+    show (Action _)       = "action"
+    show (Capture p r fb) = concat [ "capture ", show p, " (", show r, ")"
+                                   , " (fallback: ", show fb, ")" ]
+    show (Dir rm fb)      = concat [ "dir ", show rm
+                                   , " (fallback: ", show fb, ")" ]
+    show NoRoute          = "nothing"
+
+instance Monoid Route where
+    mempty = NoRoute
+
+    -- Unions two routes, favoring the right-hand side
+    mappend NoRoute r = r
+
+    mappend l@(Action _) r = case r of
+      (Action _)        -> r
+      (Capture p r' fb) -> Capture p r' (mappend fb l)
+      (Dir _ _)         -> mappend (Dir Map.empty l) r
+      NoRoute           -> l
+
+    mappend (Capture p r' fb) r = Capture p (mappend r' r) fb
+
+    mappend l@(Dir rm fb) r = case r of
+      (Action _)      -> Dir rm (mappend fb r)
+      (Capture _ _ _) -> Dir rm (mappend fb r)
+      (Dir rm' fb')   -> Dir (Map.unionWith mappend rm rm') (mappend fb fb')
+      NoRoute         -> l
 
 
 ------------------------------------------------------------------------------
@@ -320,8 +350,9 @@ method m action = do
 -- Take n bytes of the path info and append it to the context path, with the
 -- trailing slash
 updateContextPath :: Int -> Request -> Request
-updateContextPath n req = req { rqContextPath = ctx
-                              , rqPathInfo    = pinfo }
+updateContextPath n req | n > 0     = req { rqContextPath = ctx
+                                          , rqPathInfo    = pinfo }
+                        | otherwise = req
   where
     ctx'  = B.take n (rqPathInfo req)
     ctx   = B.concat [rqContextPath req, ctx', "/"]
@@ -330,12 +361,12 @@ updateContextPath n req = req { rqContextPath = ctx
 -- Runs a 'Snap' monad action only for requests with a path that matches
 -- the comparator
 pathWith :: (ByteString -> ByteString -> Bool)
-           -> ByteString
-           -> Snap a
-           -> Snap a
+         -> ByteString
+         -> Snap a
+         -> Snap a
 pathWith c p action = do
     req <- getRequest
-    when (c p (rqPathInfo req)) pass
+    unless (c p (rqPathInfo req)) pass
     modifyRequest $ updateContextPath (B.length p)
     action
 
@@ -350,27 +381,66 @@ path :: ByteString -> Snap a -> Snap a
 path = pathWith (==)
 {-# INLINE path #-}
 
+-- | Runs a 'Snap' monad action only for the top level
+top :: Snap a -> Snap a
+top = path ""
+{-# INLINE top #-}
+
 -- | Routes many 'Snap' monad actions unambiguously in O(log n)
-route :: Route -> Snap ()
-route (Action action) = action
-route (Capture param rt) = do
-    cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
-    modifyRequest $ updateContextPath (B.length cwd) . (f cwd)
-    route rt
+--
+-- The routes are given as relative paths. If a component starts with colon
+-- (":"), it tells the router to capture that component. Captured components
+-- are available in the params of the 'Request'.
+--
+-- Longer paths are matched first, and specific routes are matched before
+-- captures. That is, if I have routes for @a@, @a/b@, and @a/:x@, a request
+-- to @a/b@ will go to @a/b@, @a/s@ for any s will go to @a/:x@, and @a@ will
+-- go to @a@.
+--
+-- The following example matches "article" to an article index, "login" to
+-- a login, and "article/:id" to an article renderer.
+--
+-- > route [ ("article",     renderIndex)
+-- >       , ("article/:id", renderArticle)
+-- >       , ("login",       method POST doLogin) ]
+route :: [(ByteString, Snap ())] -> Snap ()
+route rts = do
+  -- FIXME How do we make this debug only print once?
+  debug $ "Types.route: " ++ show rts'
+  route' rts' []
   where
-    f v req = req { rqParams = M.insertWith (++) param [v] (rqParams req) }
-route (Dir rtm) = do
+    rts' = mconcat (map pRoute rts)
+
+pRoute :: (ByteString, Snap ()) -> Route
+pRoute (r, a) = foldr f (Action a) hier
+  where
+    hier   = filter (not . B.null) $ B.splitWith (== (c2w '/')) r
+    f s rt = if B.head s == c2w ':'
+        then Capture (B.tail s) rt NoRoute
+        else Dir (Map.fromList [(s, rt)]) NoRoute
+
+route' :: Route -> [Route] -> Snap ()
+route' (Action action) _ = action
+
+route' (Capture param rt fb) fbs = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
-    case M.lookup cwd rtm of
+    if B.null cwd
+      then route' fb fbs
+      else do modifyRequest $ updateContextPath (B.length cwd) . (f cwd)
+              route' rt (fb:fbs)
+  where
+    f v req = req { rqParams = Map.insertWith (++) param [v] (rqParams req) }
+
+route' (Dir rtm fb) fbs = do
+    cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
+    case Map.lookup cwd rtm of
       Just rt -> do
           modifyRequest $ updateContextPath (B.length cwd)
-          route rt
-      Nothing -> pass
-route (Method rtm) = do
-    m <- getRequest >>= return . rqMethod
-    case M.lookup m rtm of
-      Just rt -> route rt
-      Nothing -> pass
+          route' rt (fb:fbs)
+      Nothing -> route' fb fbs
+
+route' NoRoute       [] = pass
+route' NoRoute (fb:fbs) = route' fb fbs
 
 
 -- | Local Snap version of 'get'
