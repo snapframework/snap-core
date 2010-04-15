@@ -17,6 +17,8 @@
      - mime map done by extension, or by suffix? e.g. ".tar.gz"?
        - search efficiency -- reverse the filename and lookup in a trie?
   :END:
+** TODO [#A] fileserve testsuite
+
 
 
 * TODO [#A] Website material
