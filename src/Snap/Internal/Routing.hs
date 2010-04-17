@@ -82,7 +82,7 @@ instance Monoid (Route a) where
 --
 -- @FIXME@\/@TODO@: we need a version with and without the context path setting
 -- behaviour; if the route is \"@article\/:id\/print@\", we probably want the
--- contextPath to be \"@\/article@\" instead of \"@\/article\/:id\/print@\".
+-- contextPath to be \"@\/article@\" instead of \"@\/article\/whatever\/print@\".
 --
 -- A path component within an URL entry point beginning with a colon (\"@:@\")
 -- is treated as a /variable capture/; the corresponding path component within
@@ -94,7 +94,7 @@ instance Monoid (Route a) where
 -- Then a request for \"@\/foo\/saskatchewan\/baz@\" would be routed to
 -- @fooBazHandler@ with a mapping for:
 --
--- > "bar" => "sasketchewan"
+-- > "bar" => "saskatchewan"
 --
 -- in its parameters table.
 --

@@ -7,15 +7,16 @@ for HTTP as well as the 'Snap' monad, which is used for web handlers.
 module Snap.Types
   ( 
     -- * HTTP
+    -- $httpDoc
     -- ** Datatypes
-    Cookie(..)
+    Request
+  , Response
   , Headers
   , HasHeaders(..)
-  , HttpVersion
-  , Method(..)
   , Params
-  , Request
-  , Response
+  , Method(..)
+  , Cookie(..)
+  , HttpVersion
 
     -- ** Headers
   , addHeader
@@ -104,3 +105,7 @@ import           Snap.Internal.Routing
 import           Snap.Internal.Types
 ------------------------------------------------------------------------------
 
+
+
+-- $httpDoc
+-- HTTP-related datatypes: 'Request', 'Response', 'Cookie', etc.
