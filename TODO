@@ -52,6 +52,8 @@
 
 * TODO [#A] Review HTTP server code for exception safety
 
+* TODO [#B] Provide URI escaping/unescaping utilities
+
 * TODO [#B] GIT submodule setup for the various snap-* libraries
 
 * TODO [#B] Better benchmarks
