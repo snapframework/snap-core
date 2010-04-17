@@ -1,31 +1,5 @@
 -*- org -*-
 
-* STARTED [#A] Add fileServe
-  :LOGBOOK:
-  - State "STARTED"    from "TODO"       [2010-04-14 Wed 22:55]
-  - Note taken on [2010-04-13 Tue 18:36] \\
-    Executive decision: defer directory indices for another version
-  - Note taken on [2010-04-13 Tue 02:42] \\
-    fileServe :: FilePath -> Snap ()
-    fileServe' :: MimeMap -> FilePath -> Snap ()
-    
-     - Files served relative to root dir + rqPathInfo
-    
-     - check and prohibit ".." outside of root dir
-    
-     - mime map done by extension, or by suffix? e.g. ".tar.gz"?
-       - search efficiency -- reverse the filename and lookup in a trie?
-  :END:
-** TODO [#A] fileserve testsuite
-
-* STARTED [#A] improve git email hook
-  :LOGBOOK:
-  - Note taken on [2010-04-14 Wed 23:29] \\ git email hook is annoying!
-    extremely annoying! i mean really! will the subject be set correctly this
-    time? or am I condemned to eternal torment
-  - State "STARTED"    from "TODO"       [2010-04-14 Wed 23:18]
-  :END:
-
 * TODO [#A] Website material
   :LOGBOOK:
   - Note taken on [2010-04-13 Tue 02:46] \\
@@ -46,7 +20,6 @@
     
        - links to source control
   :END:
-
 
 * TODO [#A] Finish HTTP server test suite
 
@@ -82,3 +55,41 @@
     
      - benchmarks over time
   :END:
+
+
+
+
+* DONE [#A] Add fileServe
+  CLOSED: [2010-04-17 Sat 18:20]
+  :LOGBOOK:
+  - State "DONE"       from "STARTED"    [2010-04-17 Sat 18:20]
+  - State "STARTED"    from "TODO"       [2010-04-14 Wed 22:55]
+  - Note taken on [2010-04-13 Tue 18:36] \\
+    Executive decision: defer directory indices for another version
+  - Note taken on [2010-04-13 Tue 02:42] \\
+    fileServe :: FilePath -> Snap ()
+    fileServe' :: MimeMap -> FilePath -> Snap ()
+    
+     - Files served relative to root dir + rqPathInfo
+    
+     - check and prohibit ".." outside of root dir
+    
+     - mime map done by extension, or by suffix? e.g. ".tar.gz"?
+       - search efficiency -- reverse the filename and lookup in a trie?
+  :END:
+** DONE [#A] fileserve testsuite
+   CLOSED: [2010-04-17 Sat 18:20]
+   :LOGBOOK:
+   - State "DONE"       from "TODO"       [2010-04-17 Sat 18:20]
+   :END:
+
+* DONE [#A] improve git email hook
+  CLOSED: [2010-04-17 Sat 18:20]
+  :LOGBOOK:
+  - State "DONE"       from "STARTED"    [2010-04-17 Sat 18:20]
+  - Note taken on [2010-04-14 Wed 23:29] \\ git email hook is annoying!
+    extremely annoying! i mean really! will the subject be set correctly this
+    time? or am I condemned to eternal torment
+  - State "STARTED"    from "TODO"       [2010-04-14 Wed 23:18]
+  :END:
+
