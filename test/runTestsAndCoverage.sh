@@ -33,6 +33,7 @@ Snap.Internal.Http.Types.Tests
 Snap.Internal.Iteratee.Tests
 Snap.Internal.Routing.Tests
 Snap.Types.Tests
+Snap.Util.FileServe.Tests
 Snap.Util.GZip.Tests
 Text.Snap.Templates.Tests
 Snap.Test.Common'

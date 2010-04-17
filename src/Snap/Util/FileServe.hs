@@ -162,7 +162,7 @@ fileServe' mm root = do
         return f
 
     --------------------------------------------------------------------------
-    chkModificationTime mt lt = when (mt > lt) notModified
+    chkModificationTime mt lt = when (mt <= lt) notModified
 
     --------------------------------------------------------------------------
     notModified = finishWith $
