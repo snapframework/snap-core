@@ -25,11 +25,13 @@ mkdir -p $DIR
 
 EXCLUDES='Main
 Data.CIByteString
+Snap.Internal.Debug
 Snap.Iteratee.Tests
 Snap.Internal.Http.Parser.Tests
 Snap.Internal.Http.Server.Tests
 Snap.Internal.Http.Types.Tests
 Snap.Internal.Iteratee.Tests
+Snap.Internal.Routing.Tests
 Snap.Types.Tests
 Snap.Util.GZip.Tests
 Text.Snap.Templates.Tests

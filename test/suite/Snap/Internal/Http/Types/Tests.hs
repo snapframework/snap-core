@@ -31,7 +31,7 @@ testTypes = testCase "show" $ do
     -- we don't care about the show instance really, we're just trying to shut
     -- up hpc
     assertBool "show" $ a /= b
-    assertEqual "rqParam" (Just ["bar"]) (rqParam req "foo")
+    assertEqual "rqParam" (Just ["bar"]) (rqParam "foo" req)
     assertEqual "lookup" (Just ["bbb"]) (Map.lookup "zzz" $ rqParams req)
     assertEqual "lookup 2" (Just ["bbb"]) (Map.lookup "zzz" $ headers req)
     assertEqual "cookie" (Just ["foo=bar; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com"]) cook'

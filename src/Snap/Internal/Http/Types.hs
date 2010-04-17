@@ -292,10 +292,10 @@ instance HasHeaders Response where
 -- initially read from the request's query string and the POST body (if the
 -- content-type is @application\/x-www-form-urlencoded@). Parameter values can
 -- be modified within handlers using "rqModifyParams".
-rqParam :: Request              -- ^ HTTP request
-        -> ByteString           -- ^ parameter name to look up
+rqParam :: ByteString           -- ^ parameter name to look up
+        -> Request              -- ^ HTTP request
         -> Maybe [ByteString]
-rqParam rq k = Map.lookup k $ rqParams rq
+rqParam k rq = Map.lookup k $ rqParams rq
 {-# INLINE rqParam #-}
 
 

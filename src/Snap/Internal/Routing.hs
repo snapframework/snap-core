@@ -11,7 +11,6 @@ import qualified Data.Map as Map
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
-import           Snap.Internal.Debug
 
 
 ------------------------------------------------------------------------------
@@ -34,22 +33,13 @@ triggering its fallback. It's NoRoute, so we go to the nearest parent
 fallback and try that, which is the baz action.
 
 -}
-data Route = Action (Snap ())                     -- wraps a 'Snap' action
-           | Capture ByteString Route Route       -- captures the dir in a param
-           | Dir (Map.Map ByteString Route) Route -- match on a dir
-           | NoRoute
+data Route a = Action (Snap a)                        -- wraps a 'Snap' action
+             | Capture ByteString (Route a) (Route a) -- captures the dir in a param
+             | Dir (Map.Map ByteString (Route a)) (Route a)  -- match on a dir
+             | NoRoute
 
 
-instance Show Route where
-    show (Action _)       = "action"
-    show (Capture p r fb) = concat [ "capture ", show p, " (", show r, ")"
-                                   , " (fallback: ", show fb, ")" ]
-    show (Dir rm fb)      = concat [ "dir ", show rm
-                                   , " (fallback: ", show fb, ")" ]
-    show NoRoute          = "nothing"
-
-
-instance Monoid Route where
+instance Monoid (Route a) where
     mempty = NoRoute
 
     -- Unions two routes, favoring the right-hand side
@@ -123,17 +113,14 @@ instance Monoid Route where
 -- >       , ("article/:id", renderArticle)
 -- >       , ("login",       method POST doLogin) ]
 --
-route :: [(ByteString, Snap ())] -> Snap ()
-route rts = do
-  -- FIXME How do we make this debug only print once?
-  debug $ "Types.route: " ++ show rts'
-  route' rts' []
+route :: [(ByteString, Snap a)] -> Snap a
+route rts = route' rts' []
   where
     rts' = mconcat (map pRoute rts)
 
 
 ------------------------------------------------------------------------------
-pRoute :: (ByteString, Snap ()) -> Route
+pRoute :: (ByteString, Snap a) -> Route a
 pRoute (r, a) = foldr f (Action a) hier
   where
     hier   = filter (not . B.null) $ B.splitWith (== (c2w '/')) r
@@ -143,7 +130,7 @@ pRoute (r, a) = foldr f (Action a) hier
 
 
 ------------------------------------------------------------------------------
-route' :: Route -> [Route] -> Snap ()
+route' :: Route a -> [Route a] -> Snap a
 route' (Action action) _ = action
 
 route' (Capture param rt fb) fbs = do

@@ -14,7 +14,7 @@ import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
 
-import           Snap.Types
+import           Snap.Internal.Types
 import           Snap.Internal.Http.Types
 import           Snap.Iteratee
 
@@ -90,7 +90,6 @@ testEarlyTermination = testCase "early termination" $ do
 
 testRqBody :: Test
 testRqBody = testCase "request bodies" $ do
-
     mvar1 <- newEmptyMVar
     mvar2 <- newEmptyMVar
 

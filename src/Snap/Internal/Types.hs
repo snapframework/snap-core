@@ -357,3 +357,20 @@ runSnap (Snap m) req = do
   where
     ss = SnapState req emptyResponse
 {-# INLINE runSnap #-}
+
+
+evalSnap :: Snap a -> Request -> Iteratee IO a
+evalSnap (Snap m) req = do
+    (r, _) <- runStateT m ss
+
+    e <- maybe (liftIO $ throwIO NoHandlerException)
+               return
+               r
+
+    -- is this a case of early termination?
+    case e of 
+      Left _  -> liftIO $ throwIO $ ErrorCall "no value"
+      Right x -> return x
+  where
+    ss = SnapState req emptyResponse
+{-# INLINE evalSnap #-}
