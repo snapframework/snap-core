@@ -250,9 +250,9 @@ path = pathWith (==)
 
 
 -- | Runs a 'Snap' monad action only when 'rqPathInfo' is empty.
-top :: Snap a -> Snap a
-top = path ""
-{-# INLINE top #-}
+ifTop :: Snap a -> Snap a
+ifTop = path ""
+{-# INLINE ifTop #-}
 
 
 -- | Local Snap version of 'get'.

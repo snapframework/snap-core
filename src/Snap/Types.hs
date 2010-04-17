@@ -74,7 +74,7 @@ module Snap.Types
   , method
   , path
   , dir
-  , top
+  , ifTop
   , route
 
     -- ** Access to state

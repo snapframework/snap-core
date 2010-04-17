@@ -8,9 +8,11 @@ module Snap.Types.Tests
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Exception
+import           Control.Monad
 import           Control.Monad.Trans (liftIO)
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Iteratee
 import qualified Data.Map as Map
 import           Test.Framework
@@ -30,7 +32,8 @@ tests = [ testFail
         , testRqBody
         , testTrivials
         , testMethod
-        , testDir ]
+        , testDir
+        , testWrites ]
 
 
 expectException :: IO a -> IO ()
@@ -127,15 +130,30 @@ testRqBody = testCase "request bodies" $ do
 
     _ <- goBody $ f mvar1 mvar2
 
-    v1 <- readMVar mvar1
-    v2 <- readMVar mvar2
+    v1 <- takeMVar mvar1
+    v2 <- takeMVar mvar2
 
     assertEqual "rq body" "zazzle" v1
     assertEqual "rq body 2" "" v2
 
+    _ <- goBody $ g mvar1 mvar2
+    w1 <- takeMVar mvar1
+    w2 <- takeMVar mvar2
+
+    assertEqual "rq body" "zazzle" w1
+    assertEqual "rq body 2" "" w2
+
+
+
   where
     f mvar1 mvar2 = do
         getRequestBody >>= liftIO . putMVar mvar1
+        getRequestBody >>= liftIO . putMVar mvar2
+
+    g mvar1 mvar2 = do
+        enum <- unsafeDetachRequestBody
+        bs <- liftM fromWrap (liftIO $ enum stream2stream >>= run)
+        liftIO $ putMVar mvar1 bs
         getRequestBody >>= liftIO . putMVar mvar2
 
 
@@ -172,3 +190,22 @@ testDir = testCase "dir" $ do
    expectException $ goPath "fooz/bar" (dir "foo" $ return ())
    expectNoException $ goPath "foo/bar" (path "foo/bar" $ return ())
    expectException $ goPath "foo/bar/z" (path "foo/bar" $ return ())
+   expectNoException $ goPath "" (ifTop $ return ())
+   expectException $ goPath "a" (ifTop $ return ())
+
+
+getBody :: Response -> IO L.ByteString
+getBody r = liftM fromWrap (rspBody r stream2stream >>= run)
+
+
+testWrites :: Test
+testWrites = testCase "writes" $ do
+    (_,r) <- go h
+    b <- getBody r
+    assertEqual "output functions" "Foo1Foo2Foo3" b
+  where
+    h :: Snap ()
+    h = do
+        addToOutput $ enumBS "Foo1"
+        writeBS "Foo2"
+        writeLBS "Foo3"
