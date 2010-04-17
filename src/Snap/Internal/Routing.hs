@@ -51,7 +51,11 @@ instance Monoid (Route a) where
       (Dir _ _)         -> mappend (Dir Map.empty l) r
       NoRoute           -> l
 
-    mappend (Capture p r' fb) r = Capture p (mappend r' r) fb
+    mappend l@(Capture p r' fb) r = case r of
+      (Action _)      -> Capture p r' (mappend fb r)
+      (Capture _ _ _) -> r
+      (Dir rm fb')    -> Dir rm (mappend fb' l)
+      NoRoute         -> l
 
     mappend l@(Dir rm fb) r = case r of
       (Action _)      -> Dir rm (mappend fb r)
