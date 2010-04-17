@@ -1,5 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Snap.Types.Tests
   ( tests ) where
 
@@ -8,6 +10,7 @@ import           Control.Concurrent.MVar
 import           Control.Exception
 import           Control.Monad.Trans (liftIO)
 import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as B
 import           Data.Iteratee
 import qualified Data.Map as Map
 import           Test.Framework
@@ -17,6 +20,39 @@ import           Test.HUnit hiding (Test, path)
 import           Snap.Internal.Types
 import           Snap.Internal.Http.Types
 import           Snap.Iteratee
+
+
+
+tests :: [Test]
+tests = [ testFail
+        , testAlternative
+        , testEarlyTermination
+        , testRqBody
+        , testTrivials
+        , testMethod
+        , testDir ]
+
+
+expectException :: IO a -> IO ()
+expectException m = do
+    e <- try m
+    case e of
+      Left (z::SomeException)  -> (show z) `seq` return ()
+      Right _ -> assertFailure "expected exception, didn't get one"
+
+
+expectNoException :: IO a -> IO ()
+expectNoException m = do
+    e <- try m
+    case e of
+      Left (_::SomeException) -> assertFailure "expected no exception, got one"
+      Right _ -> return ()
+
+
+mkRequest :: ByteString -> Request
+mkRequest uri = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                        return Nothing GET (1,1) [] uri "/"
+                        (B.concat ["/",uri]) "" Map.empty
 
 zomgRq :: Request
 zomgRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
@@ -33,16 +69,12 @@ go :: Snap a -> IO (Request,Response)
 go m = run $ runSnap m zomgRq
 
 
+goPath :: ByteString -> Snap a -> IO (Request,Response)
+goPath s m = run $ runSnap m $ mkRequest s
+
+
 goBody :: Snap a -> IO (Request,Response)
 goBody m = run $ runSnap m rqWithBody
-
-
-tests :: [Test]
-tests = [ testFail
-        , testAlternative
-        , testEarlyTermination
-        , testRqBody
-        , testTrivials]
 
 
 testFail :: Test
@@ -125,3 +157,18 @@ testTrivials = testCase "trivial functions" $ do
 
     assertEqual "rq secure" True $ rqIsSecure rq
     assertEqual "rsp status" 333 $ rspStatus rsp
+
+
+testMethod :: Test
+testMethod = testCase "method" $ do
+   expectException $ go (method POST $ return ())
+   expectNoException $ go (method GET $ return ())
+
+
+testDir :: Test
+testDir = testCase "dir" $ do
+   expectException $ goPath "foo/bar" (dir "zzz" $ return ())
+   expectNoException $ goPath "foo/bar" (dir "foo" $ return ())
+   expectException $ goPath "fooz/bar" (dir "foo" $ return ())
+   expectNoException $ goPath "foo/bar" (path "foo/bar" $ return ())
+   expectException $ goPath "foo/bar/z" (path "foo/bar" $ return ())
