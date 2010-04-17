@@ -53,6 +53,10 @@ Library
     Snap.Util.FileServe,
     Snap.Util.GZip
 
+  other-modules:
+    Snap.Internal.Routing,
+    Snap.Internal.Types
+
   build-depends:
     attoparsec >= 0.8.0.2 && < 0.9,
     base >= 4 && < 5,
