@@ -41,6 +41,7 @@ module Snap.Types
   , rqQueryString
   , rqParams
   , rqParam
+  , getParam
   , rqModifyParams
   , rqSetParam
 

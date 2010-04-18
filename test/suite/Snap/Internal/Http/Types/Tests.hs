@@ -43,6 +43,13 @@ testTypes = testCase "show" $ do
     bd <- rspBody resp stream2stream >>= run
     assertEqual "response body" "PING" (fromWrap bd)
 
+    let !_ = show GET
+    let !_ = GET == POST
+    let !_ = headers $ headers zomgRq
+
+
+    return ()
+
   where
     resp = addCookie cook $
            setContentLength 4 $

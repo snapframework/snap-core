@@ -146,15 +146,16 @@ data Request = Request
       -- | Returns a list of the cookies that came in from the HTTP request
       -- headers.
     , rqCookies        :: [Cookie]
- 
+
       -- | Handlers can (/will be; --ed/) be hung on a @URI@ \"entry point\";
       -- this is called the \"context path\". If a handler is hung on the
-      -- context path @\"\/foo/\"@, and you request @\"/foo/bar\"@, the value
-      -- of 'rqPathInfo' will be \"bar\".
+      -- context path @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the value
+      -- of 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
       -- | The \"context path\" of the request; catenating 'rqContextPath' and
-      -- 'rqPathInfo' should get you back to the original 'rqURI'.
+      -- 'rqPathInfo' should get you back to the original 'rqURI'. The
+      -- 'rqContextPath' always ends in a slash (@\"\/\"@) character.
     , rqContextPath    :: !ByteString
 
       -- | Returns the @URI@ requested by the client.
@@ -276,11 +277,11 @@ instance Show Response where
                        , "      ==============================\n      "
                        , show $ rspHeaders r
                        , "\n      ==============================" ]
-                 
+
       version = concat [ "version: ", show $ rspHttpVersion r ]
       status  = concat [ "status: ", show $ rspStatus r ]
       reason  = concat [ "reason: ", toStr $ rspStatusReason r ]
-    
+
 
 instance HasHeaders Response where
     headers = rspHeaders
@@ -288,10 +289,10 @@ instance HasHeaders Response where
 
 
 
--- | Looks up the value(s) for the given named parameter. Parameters are
--- initially read from the request's query string and the POST body (if the
--- content-type is @application\/x-www-form-urlencoded@). Parameter values can
--- be modified within handlers using "rqModifyParams".
+-- | Looks up the value(s) for the given named parameter. Parameters initially
+-- come from the request's query string and any decoded POST body (if the
+-- request's @Content-Type@ is @application\/x-www-form-urlencoded@). Parameter
+-- values can be modified within handlers using "rqModifyParams".
 rqParam :: ByteString           -- ^ parameter name to look up
         -> Request              -- ^ HTTP request
         -> Maybe [ByteString]
@@ -299,8 +300,20 @@ rqParam k rq = Map.lookup k $ rqParams rq
 {-# INLINE rqParam #-}
 
 
+-- | See 'rqParam'. Looks up a value for the given named parameter. If more
+-- than one value was entered for the given parameter name, 'getParam' gloms
+-- the values together with:
+--
+-- @    'S.intercalate' \" \"@
+--
+getParam :: ByteString          -- ^ parameter name to look up
+         -> Request             -- ^ HTTP request
+         -> Maybe ByteString
+getParam k rq = liftM (S.intercalate " ") $ rqParam k rq
+
+
 -- | Modifies the parameters mapping (which is a @Map ByteString ByteString@) in
--- a "Request" using the given function.
+-- a 'Request' using the given function.
 rqModifyParams :: (Params -> Params) -> Request -> Request
 rqModifyParams f r = r { rqParams = p }
   where
@@ -312,7 +325,7 @@ rqModifyParams f r = r { rqParams = p }
 rqSetParam :: ByteString        -- ^ parameter name
            -> [ByteString]      -- ^ parameter values
            -> Request           -- ^ request
-           -> Request 
+           -> Request
 rqSetParam k v = rqModifyParams $ Map.insert k v
 {-# INLINE rqSetParam #-}
 

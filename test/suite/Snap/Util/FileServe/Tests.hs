@@ -94,8 +94,22 @@ testFs = testCase "fileServe" $ do
                 (Just "text/html")
                 (getHeader "content-type" r5)
     
+    r6 <- go fs "foo.bin.bin.bin"
+    b6 <- getBody r6
+
+    assertEqual "foo.bin.bin.bin" "FOO\n" b6
+    assertEqual "foo.bin.bin.bin content-type"
+                (Just "application/octet-stream")
+                (getHeader "content-type" r6)
 
     expectException $ go fs "jfldksjflksd"
     expectException $ go fs "dummy/../foo.txt"
     expectException $ go fs "/etc/password"
 
+    coverMimeMap
+
+
+coverMimeMap :: (Monad m) => m ()
+coverMimeMap = mapM_ f $ Map.toList defaultMimeTypes
+  where
+    f (!k,!v) = return $ case k `seq` v `seq` () of () -> ()
