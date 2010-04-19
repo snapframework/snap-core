@@ -1,5 +1,47 @@
 /* -------- Global things --------- */
 
+@font-face {
+	font-family: 'DroidSerif';
+	src: url('fonts/DroidSerif-Regular.eot');
+	src: local('Droid Serif'),
+             url('fonts/DroidSerif-Regular.woff') format('woff'),
+             url('fonts/DroidSerif-Regular.ttf') format('truetype'),
+             url('fonts/DroidSerif-Regular.svg#DroidSerif') format('svg');
+}
+
+@font-face {
+	font-family: 'DroidSerif';
+        font-style: italic;
+	src: url('fonts/DroidSerif-Italic.eot');
+	src: local('Droid Serif'),
+             url('fonts/DroidSerif-Italic.woff') format('woff'),
+             url('fonts/DroidSerif-Italic.ttf') format('truetype'),
+             url('fonts/DroidSerif-Italic.svg#DroidSerif-Italic') format('svg');
+}
+
+@font-face {
+	font-family: 'DroidSerif';
+        font-weight: bold;
+	src: url('fonts/DroidSerif-Bold.eot');
+	src: local('Droid Serif'),
+             url('fonts/DroidSerif-Bold.woff') format('woff'),
+             url('fonts/DroidSerif-Bold.ttf') format('truetype'),
+             url('fonts/DroidSerif-Bold.svg#DroidSerif-Bold') format('svg');
+}
+
+@font-face {
+	font-family: 'DroidSerif';
+	src: url('fonts/DroidSerif-BoldItalic.eot');
+        font-weight: bold;
+        font-style: italic;
+	src: local('Droid Serif'),
+             url('fonts/DroidSerif-BoldItalic.woff') format('woff'),
+             url('fonts/DroidSerif-BoldItalic.ttf') format('truetype'),
+             url('fonts/DroidSerif-BoldItalic.svg#DroidSerif-BoldItalic') format('svg');
+}
+
+
+
 HTML {
   background-color: #f0f3ff;
   width: 100%;
@@ -14,7 +56,7 @@ BODY {
   background-color: #ffffff;
   color: #000000;
   font-size: 110%;
-  font-family: Georgia, serif;
+  font-family: DroidSerif, Georgia, serif;
   }
 
 A:link    { color: #5200A3; text-decoration: none }
@@ -28,7 +70,7 @@ TABLE.vanilla {
 }
 
 DL {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -41,7 +83,7 @@ TD.section1, TD.section2, TD.section3, TD.section4, TD.doc, DL {
 }
 
 TABLE.vanilla2 {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   border-width: 0px;
 }
 
@@ -234,7 +276,7 @@ TD.rdoc  {
   width: 100%;
   font-size: 80%;
   font-style: italic;
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   }
 
 TD.body  { 
@@ -271,7 +313,7 @@ TD.indexlinks {
 /* ------- Section Headings ------- */
 
 TD.section1, TD.section2, TD.section3, TD.section4, TD.section5 {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
 }
 
 TD.section1 {
@@ -306,7 +348,7 @@ TD.section4 {
 /* -------------- The title bar at the top of the page */
 
 TD.infohead {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   color: #ffffff;
   font-weight: bold;
   padding: 0 30px;
@@ -314,14 +356,14 @@ TD.infohead {
 }
 
 TD.infoval {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   color: #ffffff;
   padding: 0 30px;
   text-align: left;
 }
 
 TD.topbar {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   background-color: #3465a4;
   padding: 5px;
   -moz-border-radius-topleft:5px;
@@ -331,7 +373,7 @@ TD.topbar {
 }
 
 TD.title {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   color: #ffffff;
   padding-left: 30px;
   letter-spacing: -0.02em;
@@ -340,7 +382,7 @@ TD.title {
   }
 
 TD.topbut {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   padding-left: 5px;
   padding-right: 5px;
   border-left-width: 1px;
@@ -368,7 +410,7 @@ TD.topbut:hover {
   }
 
 TD.modulebar { 
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   color: #141B24;
   background-color: #C9D3DE;
   padding: 5px;
@@ -385,7 +427,7 @@ TD.modulebar {
 /* --------- The page footer --------- */
 
 TD.botbar {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   -moz-border-radius:5px;
   -webkit-border-radius:5px;
   background-color: #3465a4;
@@ -418,7 +460,7 @@ TD.botbar A:hover {
 .mini-synopsis H2 { font-size: 107%; }
 .mini-synopsis H3 { font-size: 100%; }
 .mini-synopsis H1, .mini-synopsis H2, .mini-synopsis H3 {
-  font-family: "Helvetica Neue","Arial",sans-serif;
+  font-family: "Gill Sans", "Helvetica Neue","Arial",sans-serif;
   margin-top: 0.5em;
   margin-bottom: 0.25em;
   padding: 0 0;
