@@ -17,12 +17,13 @@ import           Data.Iteratee
 import qualified Data.Map as Map
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
+import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit hiding (Test, path)
 
 import           Snap.Internal.Types
 import           Snap.Internal.Http.Types
 import           Snap.Iteratee
-
+import           Snap.Test.Common ()
 
 
 tests :: [Test]
@@ -33,7 +34,9 @@ tests = [ testFail
         , testTrivials
         , testMethod
         , testDir
-        , testWrites ]
+        , testWrites
+        , testURLEncode1
+        , testURLEncode2 ]
 
 
 expectException :: IO a -> IO ()
@@ -209,3 +212,16 @@ testWrites = testCase "writes" $ do
         addToOutput $ enumBS "Foo1"
         writeBS "Foo2"
         writeLBS "Foo3"
+
+
+testURLEncode1 :: Test
+testURLEncode1 = testCase "url encoding 1" $ do
+    let b = urlEncode "the quick brown fox~#"
+    assertEqual "url encoding 1" "the+quick+brown+fox%7e%23" b
+    assertEqual "fail" Nothing $ urlDecode "%"
+
+
+testURLEncode2 :: Test
+testURLEncode2 = testProperty "url encoding 2" prop
+  where
+    prop s = (urlDecode $ urlEncode s) == Just s

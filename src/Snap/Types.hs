@@ -98,6 +98,8 @@ module Snap.Types
     -- * HTTP utilities
   , formatHttpTime
   , parseHttpTime 
+  , urlEncode
+  , urlDecode
   ) where
 
 ------------------------------------------------------------------------------

@@ -25,8 +25,6 @@
 
 * TODO [#A] Review HTTP server code for exception safety
 
-* TODO [#B] Provide URI escaping/unescaping utilities
-
 * TODO [#B] GIT submodule setup for the various snap-* libraries
 
 * TODO [#B] Better benchmarks
@@ -91,5 +89,11 @@
     extremely annoying! i mean really! will the subject be set correctly this
     time? or am I condemned to eternal torment
   - State "STARTED"    from "TODO"       [2010-04-14 Wed 23:18]
+  :END:
+
+* DONE [#B] Provide URI escaping/unescaping utilities
+  CLOSED: [2010-04-19 Mon 23:40]
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2010-04-19 Mon 23:40]
   :END:
 

@@ -12,14 +12,26 @@
 
 module Snap.Internal.Http.Types where
 
-import           Control.Monad (liftM)
+import           Control.Applicative hiding (empty)
+import           Control.Monad (liftM, when)
+import qualified Data.Attoparsec as Atto
+import           Data.Attoparsec hiding (many, Result(..))
+import           Data.Bits
 import           Data.ByteString (ByteString)
 import           Data.ByteString.Internal (c2w,w2c)
+import qualified Data.ByteString.Nums.Careless.Hex as Cvt
 import qualified Data.ByteString as S
+import           Data.Char
+import           Data.DList (DList)
+import qualified Data.DList as DL
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Monoid
+import           Data.Serialize.Builder
 import           Data.Time.Clock
 import           Data.Time.Format
+import           Data.Word
+import           Prelude hiding (take)
 import           System.Locale (defaultTimeLocale)
 
 ------------------------------------------------------------------------------
@@ -418,6 +430,102 @@ parseHttpTime s' =
     parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" s
   where
     s = toStr s'
+
+
+------------------------------------------------------------------------------
+-- URL encoding
+
+------------------------------------------------------------------------------
+-- URL ENCODING
+------------------------------------------------------------------------------
+
+parseToCompletion :: Parser a -> ByteString -> Maybe a
+parseToCompletion p s = toResult $ finish r
+  where
+    r = parse p s
+
+    toResult (Atto.Done _ c) = Just c
+    toResult _               = Nothing
+
+
+pUrlEscaped :: Parser ByteString
+pUrlEscaped = do
+    sq <- nextChunk DL.empty
+    return $ S.concat $ DL.toList sq
+
+  where
+    nextChunk :: DList ByteString -> Parser (DList ByteString)
+    nextChunk s = (endOfInput *> pure s) <|> do
+        c <- anyWord8
+        case w2c c of
+          '+' -> plusSpace s
+          '%' -> percentEncoded s
+          _   -> unEncoded c s
+
+    percentEncoded :: DList ByteString -> Parser (DList ByteString)
+    percentEncoded l = do
+        hx <- take 2
+        when (S.length hx /= 2 ||
+               (not $ S.all (isHexDigit . w2c) hx)) $
+             fail "bad hex in url"
+          
+        let code = (Cvt.hex hx) :: Word8
+        nextChunk $ DL.snoc l (S.singleton code)
+
+    unEncoded :: Word8 -> DList ByteString -> Parser (DList ByteString)
+    unEncoded c l' = do
+        let l = DL.snoc l' (S.singleton c)
+        bs <- takeTill (flip elem (map c2w "%+"))
+        if S.null bs
+          then nextChunk l
+          else nextChunk $ DL.snoc l bs
+
+    plusSpace :: DList ByteString -> Parser (DList ByteString)
+    plusSpace l = nextChunk (DL.snoc l (S.singleton $ c2w ' '))
+
+
+-- | Decodes an URL-escaped string (see
+-- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
+urlDecode :: ByteString -> Maybe ByteString
+urlDecode = parseToCompletion pUrlEscaped
+
+
+-- "...Only alphanumerics [0-9a-zA-Z], the special characters "$-_.+!*'(),"
+-- [not including the quotes - ed], and reserved characters used for their
+-- reserved purposes may be used unencoded within a URL."
+
+-- | URL-escapes a string (see
+-- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
+urlEncode :: ByteString -> ByteString
+urlEncode = toByteString . S.foldl' f empty
+  where
+    f b c =
+        if c == c2w ' '
+          then b `mappend` singleton (c2w '+')
+          else if isKosher c
+                 then b `mappend` singleton c
+                 else b `mappend` hexd c
+
+    isKosher w = any ($ c) [ isAlphaNum
+                           , flip elem ['$', '-', '.', '!', '*'
+                                       , '\'', '(', ')', ',' ]]
+      where
+        c = w2c w
+
+hexd :: Word8 -> Builder
+hexd c = singleton (c2w '%') `mappend` singleton hi `mappend` singleton low
+  where
+    d   = c2w . intToDigit
+    low = d $ fromEnum $ c .&. 0xf
+    hi  = d $ fromEnum $ (c .&. 0xf0) `shift` (-4)
+
+
+finish :: Atto.Result a -> Atto.Result a
+finish (Atto.Partial f) = flip feed "" $ f ""
+finish x                = x
+
+char :: Char -> Parser Word8
+char = word8 . c2w
 
 ------------------------------------------------------------------------------
 -- local definitions
