@@ -21,6 +21,7 @@
        - links to source control
   :END:
 
+* TODO [#A] split rqContextPath out into rqSnapletPath and rqContextPath
 * TODO [#A] Finish HTTP server test suite
 
 * TODO [#A] Review HTTP server code for exception safety
