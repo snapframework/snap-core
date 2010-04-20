@@ -5,7 +5,6 @@
 module Snap.Util.FileServe.Tests
   ( tests ) where
 
-import           Control.Exception
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
@@ -25,12 +24,11 @@ import           Snap.Iteratee
 tests :: [Test]
 tests = [ testFs ]
 
-expectException :: IO a -> IO ()
-expectException m = do
-    e <- try m
-    case e of
-      Left (z::SomeException)  -> (show z) `seq` return ()
-      Right _ -> assertFailure "expected exception, didn't get one"
+
+expect404 :: IO Response -> IO ()
+expect404 m = do
+    r <- m
+    assertBool "expected 404" (rspStatus r == 404)
 
 
 getBody :: Response -> IO L.ByteString
@@ -102,9 +100,9 @@ testFs = testCase "fileServe" $ do
                 (Just "application/octet-stream")
                 (getHeader "content-type" r6)
 
-    expectException $ go fs "jfldksjflksd"
-    expectException $ go fs "dummy/../foo.txt"
-    expectException $ go fs "/etc/password"
+    expect404 $ go fs "jfldksjflksd"
+    expect404 $ go fs "dummy/../foo.txt"
+    expect404 $ go fs "/etc/password"
 
     coverMimeMap
 

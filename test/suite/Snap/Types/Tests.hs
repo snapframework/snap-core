@@ -39,20 +39,15 @@ tests = [ testFail
         , testURLEncode2 ]
 
 
-expectException :: IO a -> IO ()
-expectException m = do
-    e <- try m
-    case e of
-      Left (z::SomeException)  -> (show z) `seq` return ()
-      Right _ -> assertFailure "expected exception, didn't get one"
+expect404 :: IO (Request,Response) -> IO ()
+expect404 m = do
+    (_,r) <- m
+    assertBool "expected 404" (rspStatus r == 404)
 
-
-expectNoException :: IO a -> IO ()
-expectNoException m = do
-    e <- try m
-    case e of
-      Left (_::SomeException) -> assertFailure "expected no exception, got one"
-      Right _ -> return ()
+expectNo404 :: IO (Request,Response) -> IO ()
+expectNo404 m = do
+    (_,r) <- m
+    assertBool "expected 200" (rspStatus r /= 404)
 
 
 mkRequest :: ByteString -> Request
@@ -84,12 +79,7 @@ goBody m = run $ runSnap m rqWithBody
 
 
 testFail :: Test
-testFail = testCase "failure" $ do
-    x <- try (go pass)
-    assertBool "fail" $
-      case x of
-        Left NoHandlerException -> True
-        Right (_,_)             -> False
+testFail = testCase "failure" $ expect404 (go pass)
 
 
 setFoo :: ByteString -> Snap ()
@@ -182,19 +172,19 @@ testTrivials = testCase "trivial functions" $ do
 
 testMethod :: Test
 testMethod = testCase "method" $ do
-   expectException $ go (method POST $ return ())
-   expectNoException $ go (method GET $ return ())
+   expect404 $ go (method POST $ return ())
+   expectNo404 $ go (method GET $ return ())
 
 
 testDir :: Test
 testDir = testCase "dir" $ do
-   expectException $ goPath "foo/bar" (dir "zzz" $ return ())
-   expectNoException $ goPath "foo/bar" (dir "foo" $ return ())
-   expectException $ goPath "fooz/bar" (dir "foo" $ return ())
-   expectNoException $ goPath "foo/bar" (path "foo/bar" $ return ())
-   expectException $ goPath "foo/bar/z" (path "foo/bar" $ return ())
-   expectNoException $ goPath "" (ifTop $ return ())
-   expectException $ goPath "a" (ifTop $ return ())
+   expect404 $ goPath "foo/bar" (dir "zzz" $ return ())
+   expectNo404 $ goPath "foo/bar" (dir "foo" $ return ())
+   expect404 $ goPath "fooz/bar" (dir "foo" $ return ())
+   expectNo404 $ goPath "foo/bar" (path "foo/bar" $ return ())
+   expect404 $ goPath "foo/bar/z" (path "foo/bar" $ return ())
+   expectNo404 $ goPath "" (ifTop $ return ())
+   expect404 $ goPath "a" (ifTop $ return ())
 
 
 getBody :: Response -> IO L.ByteString
