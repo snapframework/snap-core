@@ -43,7 +43,7 @@ expectException m = do
 
 mkRequest :: ByteString -> Request
 mkRequest uri = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                        return Nothing GET (1,1) [] uri "/"
+                        return Nothing GET (1,1) [] "" uri "/"
                         (B.concat ["/",uri]) "" Map.empty
 
 go :: Snap a -> ByteString -> IO a

@@ -58,19 +58,19 @@ compressHdrs = setHeader "Accept-Encoding" "compress" emptyHdrs
 ------------------------------------------------------------------------------
 gzipRq :: Request
 gzipRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False gzipHdrs
-                 return Nothing GET (1,1) [] "/" "/" "/" "" Map.empty
+                 return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
 ------------------------------------------------------------------------------
 compressRq :: Request
 compressRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False compressHdrs
-                     return Nothing GET (1,1) [] "/" "/" "/" "" Map.empty
+                     return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
 ------------------------------------------------------------------------------
 badRq :: Request
 badRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False badHdrs
-                     return Nothing GET (1,1) [] "/" "/" "/" "" Map.empty
+                     return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 ------------------------------------------------------------------------------
 goGZip, goCompress, goBad :: Snap a -> IO (Request,Response)

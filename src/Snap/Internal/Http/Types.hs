@@ -159,15 +159,32 @@ data Request = Request
       -- headers.
     , rqCookies        :: [Cookie]
 
+
+      -- | We'll be doing web components (or \"snaplets\") for version 0.2. The
+      -- \"snaplet path\" refers to the place on the URL where your containing
+      -- snaplet is hung. The value of 'rqSnapletPath' is either @\"\"@ (at the
+      -- top-level context) or is a path beginning with a slash, but not ending
+      -- with one.
+      --
+      -- An identity is that:
+      --
+      -- @rqURI r == 'S.concat' [rqSnapletPath r, rqContextPath r, rqPathInfo r]@
+      --
+      -- note that until we introduce snaplets in v0.2, 'rqSnapletPath' will be
+      -- \"\"
+    , rqSnapletPath    :: !ByteString
+
       -- | Handlers can (/will be; --ed/) be hung on a @URI@ \"entry point\";
       -- this is called the \"context path\". If a handler is hung on the
       -- context path @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the value
       -- of 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
-      -- | The \"context path\" of the request; catenating 'rqContextPath' and
+      -- | The \"context path\" of the request; catenating 'rqContextPath', and
       -- 'rqPathInfo' should get you back to the original 'rqURI'. The
-      -- 'rqContextPath' always ends in a slash (@\"\/\"@) character.
+      -- 'rqContextPath' always begins and ends with a slash (@\"\/\"@)
+      -- character, and represents the path (relative to your
+      -- component\/snaplet) you took to get to your handler.
     , rqContextPath    :: !ByteString
 
       -- | Returns the @URI@ requested by the client.
@@ -200,6 +217,7 @@ instance Show Request where
                     , cookies
                     , pathinfo
                     , contextpath
+                    , snapletpath
                     , uri
                     , params
                     ]
@@ -234,6 +252,7 @@ instance Show Request where
                              ]
       pathinfo      = concat [ "pathinfo: ", toStr $ rqPathInfo r ]
       contextpath   = concat [ "contextpath: ", toStr $ rqContextPath r ]
+      snapletpath   = concat [ "snapletpath: ", toStr $ rqSnapletPath r ]
       uri           = concat [ "URI: ", toStr $ rqURI r ]
       params        = concat [ "params:\n"
                              , "      ========================================\n"

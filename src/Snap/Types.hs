@@ -108,7 +108,5 @@ import           Snap.Internal.Routing
 import           Snap.Internal.Types
 ------------------------------------------------------------------------------
 
-
-
 -- $httpDoc
 -- HTTP-related datatypes: 'Request', 'Response', 'Cookie', etc.

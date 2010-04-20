@@ -57,17 +57,17 @@ expectNoException m = do
 
 mkRequest :: ByteString -> Request
 mkRequest uri = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                        return Nothing GET (1,1) [] uri "/"
+                        return Nothing GET (1,1) [] "" uri "/"
                         (B.concat ["/",uri]) "" Map.empty
 
 zomgRq :: Request
 zomgRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                 return Nothing GET (1,1) [] "/" "/" "/" "" Map.empty
+                 return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
 rqWithBody :: Request
 rqWithBody = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                 (enumBS "zazzle") Nothing GET (1,1) [] "/" "/" "/" ""
+                 (enumBS "zazzle") Nothing GET (1,1) [] "" "/" "/" "/" ""
                  Map.empty
 
 

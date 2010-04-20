@@ -18,7 +18,6 @@ import           Data.Typeable
 
 ------------------------------------------------------------------------------
 import           Snap.Iteratee ( Iteratee
-                               , run
                                , (>.)
                                , fromWrap
                                , stream2stream
@@ -130,6 +129,8 @@ instance Alternative Snap where
 
 
 ------------------------------------------------------------------------------
+liftIter :: Iteratee IO a -> Snap a
+liftIter i = Snap (lift i >>= return . Just . Right)
 
 -- | Sends the request body through an iteratee (data consumer) and
 -- returns the result.
@@ -142,11 +143,11 @@ runRequestBody iter = do
     let iter' = iter >>= (\a -> Iter.skipToEof >> return a)
 
     -- run the iteratee
-    result <- liftIO $ enum iter' >>= run
+    result <- liftIter $ Iter.joinIM $ enum iter'
 
     -- stuff a new dummy enumerator into the request, so you can only try to
     -- read the request body from the socket once
-    modifyRequest $ \r -> r { rqBody = enumBS "" }
+    modifyRequest $ \r -> r { rqBody = return . Iter.joinI . Iter.take 0 }
 
     return result
 
@@ -172,7 +173,7 @@ unsafeDetachRequestBody :: Snap (Enumerator a)
 unsafeDetachRequestBody = do
     req <- getRequest
     let enum = rqBody req
-    putRequest $ req {rqBody = enumBS ""}
+    putRequest $ req {rqBody = return . Iter.joinI . Iter.take 0}
     return enum
 
 -- | Short-circuits a 'Snap' monad action early, storing the given
@@ -343,7 +344,7 @@ runSnap :: Snap a -> Request -> Iteratee IO (Request,Response)
 runSnap (Snap m) req = do
     (r, ss') <- runStateT m ss
 
-    e <- maybe (liftIO $ throwIO NoHandlerException)
+    e <- maybe (return $ Left fourohfour)
                return
                r
 
@@ -355,6 +356,10 @@ runSnap (Snap m) req = do
     return (_snapRequest ss', resp)
 
   where
+    fourohfour = setContentLength 3 $
+                 setResponseStatus 404 "Not Found" $
+                 modifyResponseBody (>. enumBS "404") $
+                 emptyResponse
     ss = SnapState req emptyResponse
 {-# INLINE runSnap #-}
 

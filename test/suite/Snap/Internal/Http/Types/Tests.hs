@@ -23,7 +23,7 @@ tests = [ testTypes ]
 
 zomgRq :: Request
 zomgRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                 return Nothing GET (1,1) [] "/" "/" "/" "" Map.empty
+                 return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
 testTypes :: Test
