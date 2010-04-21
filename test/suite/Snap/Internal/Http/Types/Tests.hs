@@ -5,6 +5,7 @@ module Snap.Internal.Http.Types.Tests
 
 import           Control.Parallel.Strategies
 import           Data.ByteString.Lazy.Char8 ()
+import           Data.IORef
 import           Data.Iteratee (stream2stream, run)
 import qualified Data.Map as Map
 import           Data.Time.Calendar
@@ -21,13 +22,24 @@ import           Snap.Iteratee (enumBS, fromWrap)
 tests :: [Test]
 tests = [ testTypes ]
 
-zomgRq :: Request
-zomgRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                 return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+mkRq :: IO Request
+mkRq = do
+    enum <- newIORef (SomeEnumerator return)
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                 enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
 testTypes :: Test
 testTypes = testCase "show" $ do
+    defReq <- mkRq
+
+    let req = rqModifyParams (Map.insert "zzz" ["bbb"]) $
+              updateHeaders (Map.insert "zzz" ["bbb"]) $
+              rqSetParam "foo" ["bar"] $
+              defReq
+
+    let !a = show req `using` rdeepseq
+
     -- we don't care about the show instance really, we're just trying to shut
     -- up hpc
     assertBool "show" $ a /= b
@@ -45,7 +57,7 @@ testTypes = testCase "show" $ do
 
     let !_ = show GET
     let !_ = GET == POST
-    let !_ = headers $ headers zomgRq
+    let !_ = headers $ headers defReq
 
 
     return ()
@@ -58,13 +70,7 @@ testTypes = testCase "show" $ do
            setContentType "text/plain" $
            setResponseStatus 555 "bogus" $
            emptyResponse
-    !a = show req `using` rdeepseq
     !b = show resp `using` rdeepseq
-
-    req = rqModifyParams (Map.insert "zzz" ["bbb"]) $
-          updateHeaders (Map.insert "zzz" ["bbb"]) $
-          rqSetParam "foo" ["bar"] $
-          zomgRq
 
     utc = UTCTime (ModifiedJulianDay 55226) 0
     cook = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/")

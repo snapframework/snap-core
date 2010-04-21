@@ -9,6 +9,7 @@ import           Control.Exception
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B
+import           Data.IORef
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Test.Framework
@@ -41,13 +42,18 @@ expectException m = do
       Right _ -> assertFailure "expected exception, didn't get one"
 
 
-mkRequest :: ByteString -> Request
-mkRequest uri = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                        return Nothing GET (1,1) [] "" uri "/"
-                        (B.concat ["/",uri]) "" Map.empty
+mkRequest :: ByteString -> IO Request
+mkRequest uri = do
+    enum <- newIORef $ SomeEnumerator return
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                     enum Nothing GET (1,1) [] "" uri "/"
+                     (B.concat ["/",uri]) "" Map.empty
 
 go :: Snap a -> ByteString -> IO a
-go m s = run $ evalSnap m $ mkRequest s
+go m s = do
+    req <- mkRequest s
+    run $ evalSnap m $ req
 
 
 routes :: Snap ByteString

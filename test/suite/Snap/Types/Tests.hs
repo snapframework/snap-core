@@ -13,6 +13,7 @@ import           Control.Monad.Trans (liftIO)
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.IORef
 import           Data.Iteratee
 import qualified Data.Map as Map
 import           Test.Framework
@@ -50,32 +51,46 @@ expectNo404 m = do
     assertBool "expected 200" (rspStatus r /= 404)
 
 
-mkRequest :: ByteString -> Request
-mkRequest uri = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                        return Nothing GET (1,1) [] "" uri "/"
-                        (B.concat ["/",uri]) "" Map.empty
+mkRequest :: ByteString -> IO Request
+mkRequest uri = do
+    enum <- newIORef $ SomeEnumerator return
 
-zomgRq :: Request
-zomgRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                 return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                     enum Nothing GET (1,1) [] "" uri "/"
+                     (B.concat ["/",uri]) "" Map.empty
+
+mkZomgRq :: IO Request
+mkZomgRq = do
+    enum <- newIORef $ SomeEnumerator return
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                     enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
-rqWithBody :: Request
-rqWithBody = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                 (enumBS "zazzle") Nothing GET (1,1) [] "" "/" "/" "/" ""
+mkRqWithBody :: IO Request
+mkRqWithBody = do
+    enum <- newIORef $ SomeEnumerator (enumBS "zazzle")
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
                  Map.empty
 
 
 go :: Snap a -> IO (Request,Response)
-go m = run $ runSnap m zomgRq
+go m = do
+    zomgRq <- mkZomgRq
+    run $ runSnap m zomgRq
 
 
 goPath :: ByteString -> Snap a -> IO (Request,Response)
-goPath s m = run $ runSnap m $ mkRequest s
+goPath s m = do
+    rq <- mkRequest s
+    run $ runSnap m $ rq
 
 
 goBody :: Snap a -> IO (Request,Response)
-goBody m = run $ runSnap m rqWithBody
+goBody m = do
+    rq <- mkRqWithBody
+    run $ runSnap m rq
 
 
 testFail :: Test

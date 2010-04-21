@@ -10,6 +10,7 @@ import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.Zlib as Zlib
 import           Control.Exception hiding (assert)
 import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.IORef
 import           Data.Iteratee
 import qualified Data.Map as Map
 import           Test.Framework
@@ -56,27 +57,44 @@ compressHdrs = setHeader "Accept-Encoding" "compress" emptyHdrs
 
 
 ------------------------------------------------------------------------------
-gzipRq :: Request
-gzipRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False gzipHdrs
-                 return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+mkGzipRq :: IO Request
+mkGzipRq = do
+    enum <- newIORef $ SomeEnumerator return
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False gzipHdrs
+                 enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
 ------------------------------------------------------------------------------
-compressRq :: Request
-compressRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False compressHdrs
-                     return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+mkCompressRq :: IO Request
+mkCompressRq = do
+    enum <- newIORef $ SomeEnumerator return
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False compressHdrs
+                 enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
 ------------------------------------------------------------------------------
-badRq :: Request
-badRq = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False badHdrs
-                     return Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+mkBadRq :: IO Request
+mkBadRq = do
+    enum <- newIORef $ SomeEnumerator return
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False badHdrs
+                  enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 ------------------------------------------------------------------------------
 goGZip, goCompress, goBad :: Snap a -> IO (Request,Response)
-goGZip m = run $ runSnap m gzipRq
-goCompress m = run $ runSnap m compressRq
-goBad m = run $ runSnap m badRq
+goGZip m = do
+    gzipRq <- mkGzipRq
+    run $ runSnap m gzipRq
+
+goCompress m = do
+    compressRq <- mkCompressRq
+    run $ runSnap m compressRq
+
+goBad m = do
+    badRq <- mkBadRq
+    run $ runSnap m badRq
 
 ------------------------------------------------------------------------------
 textPlain :: L.ByteString -> Snap ()

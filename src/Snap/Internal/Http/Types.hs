@@ -24,6 +24,7 @@ import qualified Data.ByteString as S
 import           Data.Char
 import           Data.DList (DList)
 import qualified Data.DList as DL
+import           Data.IORef
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Monoid
@@ -116,6 +117,8 @@ type Params = Map ByteString [ByteString]
 -- request type
 ------------------------------------------------------------------------------
 
+data SomeEnumerator = SomeEnumerator (forall a . Enumerator a)
+
 -- | Contains all of the information about an incoming HTTP request.
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
@@ -144,7 +147,7 @@ data Request = Request
       -- @False@).
     , rqIsSecure       :: !Bool
     , rqHeaders        :: Headers
-    , rqBody           :: forall a . Enumerator a
+    , rqBody           :: IORef SomeEnumerator
 
       -- | Returns the @Content-Length@ of the HTTP request body.
     , rqContentLength  :: !(Maybe Int)

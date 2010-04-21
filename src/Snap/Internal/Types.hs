@@ -12,6 +12,7 @@ import           Control.Monad.State.Strict
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.IORef
 import qualified Data.Iteratee as Iter
 import           Data.Maybe
 import           Data.Typeable
@@ -137,7 +138,8 @@ liftIter i = Snap (lift i >>= return . Just . Right)
 runRequestBody :: Iteratee IO a -> Snap a
 runRequestBody iter = do
     req  <- getRequest
-    let enum = rqBody req
+    senum <- liftIO $ readIORef $ rqBody req
+    let (SomeEnumerator enum) = senum
 
     -- make sure the iteratee consumes all of the output
     let iter' = iter >>= (\a -> Iter.skipToEof >> return a)
@@ -147,7 +149,8 @@ runRequestBody iter = do
 
     -- stuff a new dummy enumerator into the request, so you can only try to
     -- read the request body from the socket once
-    modifyRequest $ \r -> r { rqBody = return . Iter.joinI . Iter.take 0 }
+    liftIO $ writeIORef (rqBody req)
+                        (SomeEnumerator $ return . Iter.joinI . Iter.take 0 )
 
     return result
 
@@ -172,8 +175,11 @@ getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 unsafeDetachRequestBody :: Snap (Enumerator a)
 unsafeDetachRequestBody = do
     req <- getRequest
-    let enum = rqBody req
-    putRequest $ req {rqBody = return . Iter.joinI . Iter.take 0}
+    let ioref = rqBody req
+    senum <- liftIO $ readIORef ioref
+    let (SomeEnumerator enum) = senum
+    liftIO $ writeIORef ioref
+               (SomeEnumerator $ return . Iter.joinI . Iter.take 0)
     return enum
 
 -- | Short-circuits a 'Snap' monad action early, storing the given

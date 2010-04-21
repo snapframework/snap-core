@@ -9,6 +9,7 @@ import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.IORef
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Prelude hiding (take)
@@ -36,18 +37,23 @@ getBody r = liftM fromWrap (rspBody r stream2stream >>= run)
 
 
 go :: Snap a -> ByteString -> IO Response
-go m s = liftM snd (run $ runSnap m $ mkRequest s)
+go m s = do
+    rq <- mkRequest s
+    liftM snd (run $ runSnap m rq)
 
 goIfModifiedSince :: Snap a -> ByteString -> ByteString -> IO Response
-goIfModifiedSince m s lm = liftM snd (run $ runSnap m r)
-  where
-    r = setHeader "if-modified-since" lm $ mkRequest s
+goIfModifiedSince m s lm = do
+    rq <- mkRequest s
+    let r = setHeader "if-modified-since" lm rq
+    liftM snd (run $ runSnap m r)
 
 
-mkRequest :: ByteString -> Request
-mkRequest uri = Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                        return Nothing GET (1,1) [] "" uri "/"
-                        (B.concat ["/",uri]) "" Map.empty
+mkRequest :: ByteString -> IO Request
+mkRequest uri = do
+    enum <- newIORef $ SomeEnumerator return
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                     enum Nothing GET (1,1) [] "" uri "/"
+                     (B.concat ["/",uri]) "" Map.empty
 
 fs :: Snap ()
 fs = fileServe "data/fileServe"
