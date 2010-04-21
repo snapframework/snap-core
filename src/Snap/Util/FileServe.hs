@@ -5,6 +5,8 @@ module Snap.Util.FileServe
 (
   fileServe
 , fileServe'
+, fileServeSingle
+, fileServeSingle'
 , defaultMimeTypes
 , MimeMap
 ) where
@@ -175,26 +177,12 @@ fileServe' :: MimeMap           -- ^ MIME type mapping
 fileServe' mm root = do
     req <- getRequest
     let pInfo = S.unpack $ rqPathInfo req
-    let mbIfModified = (getHeader "if-modified-since" req >>=
-                        parseHttpTime)
 
     fp <- resolvePath pInfo
 
-    -- check modification time and bug out early if the file is not modified.
-    mt <- liftIO $ liftM clock2time $ getModificationTime fp
-    maybe (return ()) (chkModificationTime mt) mbIfModified
-
-    -- get the mime type for the file. We know this is a file, otherwise we
-    -- would've failed earlier.
     let fn   = takeFileName fp
     let mime = fileType mm fn
-
-    sz <- liftIO $ liftM (fromEnum . fileSize) $ getFileStatus fp
-
-    modifyResponse $ setHeader "Last-Modified" (formatHttpTime mt)
-                   . setContentType mime
-                   . setContentLength sz
-                   . setResponseBody (enumFile fp)
+    fileServeSingle' mime fp
 
   where
     --------------------------------------------------------------------------
@@ -213,6 +201,37 @@ fileServe' mm root = do
 
         return f
 
+
+------------------------------------------------------------------------------
+-- | Serves a single file specified by a full or relative path.  The
+-- path restrictions on fileServe don't apply to this function since
+-- the path is not being supplied by the user.
+fileServeSingle :: FilePath          -- ^ path to file
+                -> Snap ()
+fileServeSingle fp =
+    fileServeSingle' (fileType defaultMimeTypes (takeFileName fp)) fp
+
+
+------------------------------------------------------------------------------
+-- | Same as 'fileServeSingle', with control over the MIME mapping used.
+fileServeSingle' :: ByteString        -- ^ MIME type mapping
+                 -> FilePath          -- ^ path to file
+                 -> Snap ()
+fileServeSingle' mime fp = do
+    req <- getRequest
+    let mbIfModified = (getHeader "if-modified-since" req >>=
+                        parseHttpTime)
+    -- check modification time and bug out early if the file is not modified.
+    mt <- liftIO $ liftM clock2time $ getModificationTime fp
+    maybe (return ()) (chkModificationTime mt) mbIfModified
+
+    sz <- liftIO $ liftM (fromEnum . fileSize) $ getFileStatus fp
+
+    modifyResponse $ setHeader "Last-Modified" (formatHttpTime mt)
+                   . setContentType mime
+                   . setContentLength sz
+                   . setResponseBody (enumFile fp)
+  where
     --------------------------------------------------------------------------
     chkModificationTime mt lt = when (mt <= lt) notModified
 
