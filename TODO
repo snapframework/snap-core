@@ -21,7 +21,6 @@
        - links to source control
   :END:
 
-* TODO [#A] split rqContextPath out into rqSnapletPath and rqContextPath
 * TODO [#A] Finish HTTP server test suite
 
 * TODO [#A] Review HTTP server code for exception safety
@@ -98,3 +97,8 @@
   - State "DONE"       from "TODO"       [2010-04-19 Mon 23:40]
   :END:
 
+* DONE [#A] split rqContextPath out into rqSnapletPath and rqContextPath
+  CLOSED: [2010-04-20 Tue 23:27]
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2010-04-20 Tue 23:27]
+  :END:
