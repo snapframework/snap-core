@@ -366,7 +366,10 @@ runSnap (Snap m) req = do
                  setResponseStatus 404 "Not Found" $
                  modifyResponseBody (>. enumBS "404") $
                  emptyResponse
-    ss = SnapState req emptyResponse
+
+    dresp = emptyResponse { rspHttpVersion = rqVersion req }
+
+    ss = SnapState req dresp
 {-# INLINE runSnap #-}
 
 
@@ -383,5 +386,6 @@ evalSnap (Snap m) req = do
       Left _  -> liftIO $ throwIO $ ErrorCall "no value"
       Right x -> return x
   where
-    ss = SnapState req emptyResponse
+    dresp = emptyResponse { rspHttpVersion = rqVersion req }
+    ss = SnapState req dresp
 {-# INLINE evalSnap #-}
