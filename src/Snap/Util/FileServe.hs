@@ -3,7 +3,8 @@
 -- | Contains web handlers to serve files from a directory.
 module Snap.Util.FileServe
 (
-  fileServe
+  getSafePath
+, fileServe
 , fileServe'
 , fileServeSingle
 , fileServeSingle'
@@ -157,6 +158,26 @@ defaultMimeTypes = Map.fromList [
   ( ".zip"     , "application/zip"                   ) ]
 
 ------------------------------------------------------------------------------
+-- | Gets a path from the 'Request' using 'rqPathInfo' and makes sure it is
+-- safe to use for opening files.  A path is safe if it is a relative path
+-- and has no ".." elements to escape the intended directory structure.
+getSafePath :: Snap FilePath
+getSafePath = do
+    req <- getRequest
+    let p = S.unpack $ rqPathInfo req
+
+    -- relative paths only!
+    -- Given that p comes from rqPathInfo, is this check really
+    -- necessary?
+    when (not $ isRelative p) pass
+
+    -- check that we don't have any sneaky .. paths
+    let dirs = splitDirectories p
+    when (elem ".." dirs) pass
+    return p
+
+
+------------------------------------------------------------------------------
 -- | Serves files out of the given directory. The relative path given in
 -- 'rqPathInfo' is searched for the given file, and the file is served with the
 -- appropriate mime type if it is found. Absolute paths and \"@..@\" are prohibited
@@ -175,31 +196,15 @@ fileServe' :: MimeMap           -- ^ MIME type mapping
            -> FilePath          -- ^ root directory
            -> Snap ()
 fileServe' mm root = do
-    req <- getRequest
-    let pInfo = S.unpack $ rqPathInfo req
+    sp <- getSafePath
+    let fp   = root </> sp
 
-    fp <- resolvePath pInfo
+    -- check that the file exists
+    liftIO (doesFileExist fp) >>= flip unless pass
 
     let fn   = takeFileName fp
     let mime = fileType mm fn
     fileServeSingle' mime fp
-
-  where
-    --------------------------------------------------------------------------
-    resolvePath p = do
-        -- relative paths only!
-        when (not $ isRelative p) pass
-
-        -- check that we don't have any sneaky .. paths
-        let dirs = splitDirectories p
-        when (elem ".." dirs) pass
-
-        let f = root </> p
-
-        -- check that the file exists
-        liftIO (doesFileExist f) >>= flip unless pass
-
-        return f
 
 
 ------------------------------------------------------------------------------
