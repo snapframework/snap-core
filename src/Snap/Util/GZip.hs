@@ -50,6 +50,8 @@ import           Snap.Types
 --
 --   * @text/xml@
 --
+--   * @application/x-font-truetype@
+--
 -- Then the given handler's output stream will be compressed,
 -- @Content-Encoding@ will be set in the output headers, and the
 -- @Content-Length@ will be cleared if it was set. (We can't process the stream
@@ -117,7 +119,8 @@ withCompression' mimeTable action = do
 
 ------------------------------------------------------------------------------
 compressibleMimeTypes :: Set ByteString
-compressibleMimeTypes = Set.fromList [ "application/x-javascript"
+compressibleMimeTypes = Set.fromList [ "application/x-font-truetype"
+                                     , "application/x-javascript"
                                      , "text/css"
                                      , "text/html"
                                      , "text/javascript"

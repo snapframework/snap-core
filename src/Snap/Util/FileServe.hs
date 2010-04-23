@@ -146,6 +146,7 @@ defaultMimeTypes = Map.fromList [
   ( ".text"    , "text/plain"                        ),
   ( ".tgz"     , "application/x-tgz"                 ),
   ( ".torrent" , "application/x-bittorrent"          ),
+  ( ".ttf"     , "application/x-font-truetype"       ),
   ( ".txt"     , "text/plain"                        ),
   ( ".wav"     , "audio/x-wav"                       ),
   ( ".wax"     , "audio/x-ms-wax"                    ),
