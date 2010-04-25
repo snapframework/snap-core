@@ -6,6 +6,7 @@
 
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeSynonymInstances #-}
@@ -32,12 +33,28 @@ import           Data.Serialize.Builder
 import           Data.Time.Clock
 import           Data.Time.Format
 import           Data.Word
+import           Foreign hiding (new)
+import           Foreign.C.Error
+import           Foreign.C.String
+import           Foreign.C.Types
+import           Foreign.Marshal.Alloc
+import           Foreign.Ptr
 import           Prelude hiding (take)
 import           System.Locale (defaultTimeLocale)
 
 ------------------------------------------------------------------------------
 import           Data.CIByteString
 import qualified Snap.Iteratee as I
+
+
+foreign import ccall unsafe "set_c_locale"
+        set_c_locale :: IO ()
+
+foreign import ccall unsafe "c_parse_http_time"
+        c_parse_http_time :: CString -> IO CTime
+
+foreign import ccall unsafe "c_format_http_time"
+        c_format_http_time :: CTime -> CString -> IO ()
 
 ------------------------------------------------------------------------------
 type Enumerator a = I.Enumerator IO a
@@ -442,6 +459,7 @@ clearContentLength r = r { rspContentLength = Nothing }
 ------------------------------------------------------------------------------
 -- HTTP dates
 
+{-
 -- | Converts a 'ClockTime' into an HTTP timestamp.
 formatHttpTime :: UTCTime -> ByteString
 formatHttpTime = fromStr . formatTime defaultTimeLocale "%a, %d %b %Y %X GMT"
@@ -452,10 +470,19 @@ parseHttpTime s' =
     parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" s
   where
     s = toStr s'
+-}
 
+-- | Converts a 'CTime' into an HTTP timestamp.
+formatHttpTime :: CTime -> IO ByteString
+formatHttpTime t = allocaBytes 40 $ \ptr -> do
+    c_format_http_time t ptr
+    S.packCString ptr
 
-------------------------------------------------------------------------------
--- URL encoding
+-- | Converts an HTTP timestamp into a 'CTime'.
+parseHttpTime :: ByteString -> IO CTime
+parseHttpTime s = S.useAsCString s $ \ptr ->
+    c_parse_http_time ptr
+
 
 ------------------------------------------------------------------------------
 -- URL ENCODING

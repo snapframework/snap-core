@@ -21,7 +21,7 @@
     
        - links to source control
   :END:
-
+** TODO [#A] Mention that Snap is for unix systems only
 * TODO [#A] Finish HTTP server test suite
 
 * TODO [#A] Review HTTP server code for exception safety

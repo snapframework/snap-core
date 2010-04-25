@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Contains web handlers to serve files from a directory.
 module Snap.Util.FileServe
@@ -13,20 +14,22 @@ module Snap.Util.FileServe
 ) where
 
 ------------------------------------------------------------------------------
+import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Trans
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.Iteratee.IO (enumHandle)
+import           Data.Iteratee.WrappedByteString
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
-import           Data.Ratio ((%))
-import           Data.Time.Clock
-import           Data.Time.Clock.POSIX
+import           Data.Word (Word8)
+import           Foreign.C.Types
 import           System.Directory
 import           System.FilePath
 import           System.IO
+import           System.IO.Posix.MMap
 import           System.Posix.Files
 import           System.Time
 
@@ -189,6 +192,7 @@ getSafePath = do
 fileServe :: FilePath  -- ^ root directory
           -> Snap ()
 fileServe = fileServe' defaultMimeTypes
+{-# INLINE fileServe #-}
 
 
 ------------------------------------------------------------------------------
@@ -206,6 +210,7 @@ fileServe' mm root = do
     let fn   = takeFileName fp
     let mime = fileType mm fn
     fileServeSingle' mime fp
+{-# INLINE fileServe' #-}
 
 
 ------------------------------------------------------------------------------
@@ -216,7 +221,7 @@ fileServeSingle :: FilePath          -- ^ path to file
                 -> Snap ()
 fileServeSingle fp =
     fileServeSingle' (fileType defaultMimeTypes (takeFileName fp)) fp
-
+{-# INLINE fileServeSingle #-}
 
 ------------------------------------------------------------------------------
 -- | Same as 'fileServeSingle', with control over the MIME mapping used.
@@ -225,15 +230,21 @@ fileServeSingle' :: ByteString        -- ^ MIME type mapping
                  -> Snap ()
 fileServeSingle' mime fp = do
     req <- getRequest
-    let mbIfModified = (getHeader "if-modified-since" req >>=
-                        parseHttpTime)
+    
+    let mbH = getHeader "if-modified-since" req
+    mbIfModified <- liftIO $ case mbH of
+                               Nothing  -> return Nothing
+                               (Just s) -> liftM Just $ parseHttpTime s
+
     -- check modification time and bug out early if the file is not modified.
     mt <- liftIO $ liftM clock2time $ getModificationTime fp
     maybe (return ()) (chkModificationTime mt) mbIfModified
 
     sz <- liftIO $ liftM (fromEnum . fileSize) $ getFileStatus fp
 
-    modifyResponse $ setHeader "Last-Modified" (formatHttpTime mt)
+    lm <- liftIO $ formatHttpTime mt
+
+    modifyResponse $ setHeader "Last-Modified" lm
                    . setContentType mime
                    . setContentLength sz
                    . setResponseBody (enumFile fp)
@@ -267,15 +278,15 @@ defaultMimeType = "application/octet-stream"
 ------------------------------------------------------------------------------
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
 enumFile fp iter = do
-    h  <- liftIO $ openBinaryFile fp ReadMode
-    i' <- enumHandle h iter
-    return $ do
-        x <- i'
-        liftIO (hClose h)
-        return x
+    es <- (try $
+           liftM WrapBS $
+           unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
+    
+    case es of
+      (Left e)  -> return $ throwErr $ Err "IO error"
+      (Right s) -> liftM liftI $ runIter iter $ Chunk s
 
 
 ------------------------------------------------------------------------------
-clock2time :: ClockTime -> UTCTime
-clock2time (TOD x y) =
-    posixSecondsToUTCTime $ fromInteger x + fromRational (y % 1000000000000)
+clock2time :: ClockTime -> CTime
+clock2time (TOD x _) = fromInteger x

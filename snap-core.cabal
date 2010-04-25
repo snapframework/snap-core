@@ -42,6 +42,9 @@ category:       Web
 Library
   hs-source-dirs: src
 
+  c-sources: cbits/timefuncs.c
+  include-dirs: cbits
+
   exposed-modules:
     Data.CIByteString,
     Snap.Types,
@@ -60,6 +63,7 @@ Library
     attoparsec >= 0.8.0.2 && < 0.9,
     base >= 4 && < 5,
     bytestring,
+    bytestring-mmap >= 0.2.1 && <0.3,
     bytestring-nums,
     cereal >= 0.2 && < 0.3,
     containers,
@@ -74,6 +78,8 @@ Library
     transformers,
     unix,
     zlib
+
+  ghc-prof-options: -prof -auto-all
 
   if impl(ghc >= 6.12.0)
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
@@ -104,6 +110,8 @@ Executable snap
     transformers,
     unix,
     zlib
+
+  ghc-prof-options: -prof -auto-all
 
   if impl(ghc >= 6.12.0)
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
