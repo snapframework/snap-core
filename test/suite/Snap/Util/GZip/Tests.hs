@@ -31,6 +31,7 @@ tests :: [Test]
 tests = [ testIdentity1
         , testIdentity2
         , testIdentity3
+        , testCompositionDoesn'tExplode
         , testBadHeaders ]
 
 
@@ -117,6 +118,23 @@ testIdentity1 = testProperty "identity1" $ monadicIO $ forAllM arbitrary prop
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (_,rsp) <- liftQ $ goGZip (withCompression $ textPlain s)
+        let body = rspBody rsp
+
+        c <- liftQ $
+             body stream2stream >>= run >>= return . fromWrap
+
+        let s1 = GZip.decompress c
+        assert $ s == s1
+
+testCompositionDoesn'tExplode :: Test
+testCompositionDoesn'tExplode =
+    testProperty "testCompositionDoesn'tExplode" $
+                 monadicIO $
+                 forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (_,rsp) <- liftQ $ goGZip (withCompression $ withCompression $ textPlain s)
         let body = rspBody rsp
 
         c <- liftQ $

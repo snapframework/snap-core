@@ -77,15 +77,21 @@ withCompression' :: Set ByteString
 withCompression' mimeTable action = do
     _    <- action
     resp <- getResponse
-    let mbCt = getHeader "Content-Type" resp
 
-    debug $ "withCompression', content-type is " ++ show mbCt
+    -- If a content-encoding is already set, do nothing. This prevents
+    -- "withCompression $ withCompression m" from ruining your day.
+    if isJust $ getHeader "Content-Encoding" resp
+       then return ()
+       else do
+           let mbCt = getHeader "Content-Type" resp
 
-    case mbCt of
-      (Just ct) -> if Set.member ct mimeTable
-                      then chkAcceptEncoding
-                      else return ()
-      _         -> return ()
+           debug $ "withCompression', content-type is " ++ show mbCt
+
+           case mbCt of
+             (Just ct) -> if Set.member ct mimeTable
+                             then chkAcceptEncoding
+                             else return ()
+             _         -> return ()
 
 
     getResponse >>= finishWith
