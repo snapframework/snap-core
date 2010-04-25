@@ -43,11 +43,10 @@ import qualified Data.ByteString.Lazy as L
 import           Data.Iteratee
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
+import           Data.Monoid
+import           Data.Serialize.Builder as Build
 import           Data.Word (Word8)
 import           Prelude hiding (drop)
-
-import           Data.DList (DList)
-import qualified Data.DList as D
 ------------------------------------------------------------------------------
 
 type Stream         = StreamG WrappedByteString Word8
@@ -85,80 +84,55 @@ countBytes = go 0
 --
 -- Our enumerators produce a lot of little strings; rather than spending all
 -- our time doing kernel context switches for 4-byte write() calls, we buffer
--- the iteratee to send 2KB at a time.
+-- the iteratee to send 8KB at a time.
 bufferIteratee :: (Monad m) => Enumerator m a
-bufferIteratee = return . go (D.empty,0)
+bufferIteratee = return . go (Build.empty,0)
   where
-    blocksize = 2048
+    blocksize = 8192
 
-    --go :: (DList ByteString, Int) -> Iteratee m a -> Iteratee m a
-    go (!dl,!n) iter = IterateeG $! f (dl,n) iter
+    go (!bld,!n) iter = IterateeG $! f (bld,n) iter
 
-    --f :: (DList ByteString, Int) -> Iteratee m a -> Stream -> m (IterV m a)
     f _      !iter ch@(EOF (Just _)) = runIter iter ch
-    f (!dl,_) !iter ch@(EOF Nothing) = do
+    f (!bld,_) !iter ch@(EOF Nothing) = do
         iterv <- runIter iter $ Chunk big
         case iterv of
           Done x rest     -> return $ Done x rest
           Cont i (Just e) -> return $ Cont i (Just e)
           Cont i Nothing  -> runIter i ch
       where
-        big = toWrap $ L.fromChunks [S.concat $ D.toList dl]
+        big = WrapBS $ Build.toByteString bld
         
-    f (!dl,!n) iter (Chunk ws) =
+    f (!bld,!n) iter (Chunk ws) =
         if n' > blocksize
            then do
                iterv <- runIter iter (Chunk big)
                case iterv of
                   Done x rest     -> return $ Done x rest
                   Cont i (Just e) -> return $ Cont i (Just e)
-                  Cont i Nothing  -> return $ Cont (go (D.empty,0) i) Nothing
-           else return $ Cont (go (dl',n') iter) Nothing
+                  Cont i Nothing  -> return $ Cont (go (Build.empty,0) i) Nothing
+           else return $ Cont (go (bld',n') iter) Nothing
       where
-        s   = S.concat $ L.toChunks $ fromWrap ws
-        m   = S.length s
-        n'  = n+m
-        dl' = D.snoc dl s
-        big = toWrap $ L.fromChunks [S.concat $ D.toList dl']
+        (WrapBS s) = ws
+        m          = S.length s
+        n'         = n+m
+        bld'        = bld `mappend` Build.fromByteString s
+        big        = WrapBS $ Build.toByteString bld'
         
 
 -- | Enumerates a strict bytestring.
 enumBS :: (Monad m) => ByteString -> Enumerator m a
 enumBS bs = enumPure1Chunk $ WrapBS bs
 {-# INLINE enumBS #-}
-
--- | Twiddling the bytestrings to have a decent chunksize takes time but it's
--- cheaper than a whole bunch of tiny kernel write()s.
-chunkAppropriately :: L.ByteString -> [ByteString]
-chunkAppropriately lbs = outchunks
-  where
-    blocksize = 2048
-    chunks    = L.toChunks lbs
-
-    outchunks = go chunks D.empty 0 D.empty
-
-    addToFinished soFar dl = D.snoc soFar $ S.concat $ D.toList dl
-
-    go :: [ByteString] -> DList ByteString -> Int -> DList ByteString -> [ByteString]
-    go [] !soFar !_ !dl = D.toList $ addToFinished soFar dl
-
-    go (x:xs) !soFar !n !dl =
-        if n' >= blocksize
-          then go xs (addToFinished soFar dl') 0 D.empty
-          else go xs soFar n' $ D.snoc dl x
-      where
-        n' = n+m
-        dl' = D.snoc dl x
-        m = S.length x
         
 
 -- | Enumerates a lazy bytestring.
 enumLBS :: (Monad m) => L.ByteString -> Enumerator m a
 enumLBS lbs iter = foldM k iter enums
   where
-    bss   = chunkAppropriately lbs
-    enums = map (enumPure1Chunk . WrapBS) bss
+    enums = map (enumPure1Chunk . WrapBS) $ L.toChunks lbs
     k i e = e i
+{-# INLINE enumLBS #-}
+
 
 -- | Converts a lazy bytestring to a wrapped bytestring.
 toWrap :: L.ByteString -> WrappedByteString Word8
