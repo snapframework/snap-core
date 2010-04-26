@@ -14,27 +14,20 @@ module Snap.Util.FileServe
 ) where
 
 ------------------------------------------------------------------------------
-import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Trans
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
-import           Data.Iteratee.IO (enumHandle)
-import           Data.Iteratee.WrappedByteString
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
-import           Data.Word (Word8)
 import           Foreign.C.Types
 import           System.Directory
 import           System.FilePath
-import           System.IO
-import           System.IO.Posix.MMap
 import           System.Posix.Files
 import           System.Time
 
 ------------------------------------------------------------------------------
-import           Snap.Iteratee hiding (drop)
 import           Snap.Types
 
 
@@ -247,7 +240,8 @@ fileServeSingle' mime fp = do
     modifyResponse $ setHeader "Last-Modified" lm
                    . setContentType mime
                    . setContentLength sz
-                   . setResponseBody (enumFile fp)
+    sendFile fp
+
   where
     --------------------------------------------------------------------------
     chkModificationTime mt lt = when (mt <= lt) notModified
@@ -273,18 +267,6 @@ fileType mm f =
 ------------------------------------------------------------------------------
 defaultMimeType :: ByteString
 defaultMimeType = "application/octet-stream"
-
-
-------------------------------------------------------------------------------
-enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
-enumFile fp iter = do
-    es <- (try $
-           liftM WrapBS $
-           unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
-    
-    case es of
-      (Left e)  -> return $ throwErr $ Err "IO error"
-      (Right s) -> liftM liftI $ runIter iter $ Chunk s
 
 
 ------------------------------------------------------------------------------

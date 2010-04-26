@@ -61,6 +61,7 @@ module Snap.Types
   , addToOutput
   , writeBS
   , writeLBS
+  , sendFile
 
     -- * The Snap Monad
   , Snap

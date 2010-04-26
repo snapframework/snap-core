@@ -24,6 +24,7 @@ module Snap.Iteratee
     -- ** Enumerators
   , enumBS
   , enumLBS
+  , enumFile
 
     -- ** Conversion to/from 'WrappedByteString'
   , fromWrap
@@ -36,6 +37,7 @@ module Snap.Iteratee
   ) where
 
 ------------------------------------------------------------------------------
+import           Control.Exception
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -47,6 +49,7 @@ import           Data.Monoid
 import           Data.Serialize.Builder as Build
 import           Data.Word (Word8)
 import           Prelude hiding (drop)
+import           System.IO.Posix.MMap
 ------------------------------------------------------------------------------
 
 type Stream         = StreamG WrappedByteString Word8
@@ -165,3 +168,16 @@ takeExactly n' iter = IterateeG (step n')
   check n (Cont x Nothing)  = takeExactly n x
   check n (Cont _ (Just e)) = drop n >> throwErr e
   done s1 s2 = liftM (flip Done s2) (runIter iter s1 >>= checkIfDone return)
+
+
+
+------------------------------------------------------------------------------
+enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
+enumFile fp iter = do
+    es <- (try $
+           liftM WrapBS $
+           unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
+    
+    case es of
+      (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
+      (Right s) -> liftM liftI $ runIter iter $ Chunk s

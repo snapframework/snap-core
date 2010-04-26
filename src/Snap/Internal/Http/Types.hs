@@ -294,6 +294,20 @@ instance HasHeaders Headers where
 -- response type
 ------------------------------------------------------------------------------
 
+data ResponseBody = Enum (forall a . Enumerator a) -- ^ output body is enumerator
+                  | SendFile FilePath              -- ^ output body is sendfile()
+
+rspBodyMap :: (forall a . Enumerator a -> Enumerator a)
+           -> ResponseBody
+           -> ResponseBody
+rspBodyMap f b      = Enum $ f $ rspBodyToEnum b
+
+
+rspBodyToEnum :: ResponseBody -> Enumerator a
+rspBodyToEnum (Enum e) = e
+rspBodyToEnum (SendFile fp) = I.enumFile fp
+
+
 -- | Represents an HTTP response.
 data Response = Response
     { rspHeaders       :: Headers
@@ -303,7 +317,7 @@ data Response = Response
       --   looking up \"content-length\" in the headers and parsing the number
       --   out of the text will be too expensive.
     , rspContentLength :: !(Maybe Int)
-    , rspBody          :: forall a . Enumerator a
+    , rspBody          :: ResponseBody
 
       -- | Returns the HTTP status code.
     , rspStatus        :: !Int
@@ -386,14 +400,14 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 
 -- | An empty 'Response'.
 emptyResponse       :: Response
-emptyResponse       = Response Map.empty (1,1) Nothing return 200 "OK"
+emptyResponse       = Response Map.empty (1,1) Nothing (Enum return) 200 "OK"
 
 -- | Sets an HTTP response body to the given 'Enumerator' value.
 setResponseBody     :: (forall a . Enumerator a)  -- ^ new response body
                                                   -- enumerator
                     -> Response                   -- ^ response to modify
                     -> Response
-setResponseBody e r = r { rspBody = e }
+setResponseBody e r = r { rspBody = Enum e }
 {-# INLINE setResponseBody #-}
 
 -- | Sets the HTTP response status.
@@ -409,7 +423,7 @@ setResponseStatus s reason r = r { rspStatus=s, rspStatusReason=reason }
 modifyResponseBody  :: (forall a . Enumerator a -> Enumerator a)
                     -> Response
                     -> Response
-modifyResponseBody f r = r { rspBody = f (rspBody r) }
+modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }
 {-# INLINE modifyResponseBody #-}
 
 

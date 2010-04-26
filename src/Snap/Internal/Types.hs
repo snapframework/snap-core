@@ -322,6 +322,19 @@ writeLBS :: L.ByteString -> Snap ()
 writeLBS s = addToOutput $ enumLBS s
 
 
+-- | Sets the output to be the contents of the specified file.
+--
+-- Calling 'sendFile' will overwrite any output queued to be sent in the
+-- 'Response'. If the response body is not modified after the call to
+-- 'sendFile', Snap will use the efficient @sendfile()@ system call on
+-- platforms that support it.
+--
+-- If the response body is modified (using 'modifyResponseBody'), the file will
+-- be read using @mmap()@.
+sendFile :: FilePath -> Snap ()
+sendFile f = modifyResponse $ \r -> r { rspBody = SendFile f }
+
+
 -- | Runs a 'Snap' action with a locally-modified 'Request' state
 -- object. The 'Request' object in the Snap monad state after the call
 -- to localRequest will be unchanged.

@@ -203,7 +203,7 @@ testDir = testCase "dir" $ do
 
 
 getBody :: Response -> IO L.ByteString
-getBody r = liftM fromWrap (rspBody r stream2stream >>= run)
+getBody r = liftM fromWrap ((rspBodyToEnum $ rspBody r) stream2stream >>= run)
 
 
 testWrites :: Test

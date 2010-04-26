@@ -3,6 +3,7 @@
 module Snap.Internal.Http.Types.Tests
   ( tests ) where
 
+import           Control.Monad
 import           Control.Parallel.Strategies
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.IORef
@@ -21,6 +22,7 @@ import           Snap.Iteratee (enumBS, fromWrap)
 
 tests :: [Test]
 tests = [ testTypes ]
+
 
 mkRq :: IO Request
 mkRq = do
@@ -52,7 +54,7 @@ testTypes = testCase "show" $ do
     assertEqual "response status reason" "bogus" $ rspStatusReason resp
     assertEqual "content-length" (Just 4) $ rspContentLength resp
     -- run response body
-    bd <- rspBody resp stream2stream >>= run
+    bd <- (rspBodyToEnum $ rspBody resp) stream2stream >>= run
     assertEqual "response body" "PING" (fromWrap bd)
 
     let !_ = show GET

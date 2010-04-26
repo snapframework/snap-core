@@ -33,7 +33,7 @@ expect404 m = do
 
 
 getBody :: Response -> IO L.ByteString
-getBody r = liftM fromWrap (rspBody r stream2stream >>= run)
+getBody r = liftM fromWrap ((rspBodyToEnum $ rspBody r) stream2stream >>= run)
 
 
 go :: Snap a -> ByteString -> IO Response

@@ -118,7 +118,7 @@ testIdentity1 = testProperty "identity1" $ monadicIO $ forAllM arbitrary prop
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (_,rsp) <- liftQ $ goGZip (withCompression $ textPlain s)
-        let body = rspBody rsp
+        let body = rspBodyToEnum $ rspBody rsp
 
         c <- liftQ $
              body stream2stream >>= run >>= return . fromWrap
@@ -135,7 +135,7 @@ testCompositionDoesn'tExplode =
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (_,rsp) <- liftQ $ goGZip (withCompression $ withCompression $ textPlain s)
-        let body = rspBody rsp
+        let body = rspBodyToEnum $ rspBody rsp
 
         c <- liftQ $
              body stream2stream >>= run >>= return . fromWrap
@@ -151,7 +151,7 @@ testIdentity2 = testProperty "identity2" $ monadicIO $ forAllM arbitrary prop
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (_,rsp2) <- liftQ $ goCompress (withCompression $ textPlain s)
-        let body2 = rspBody rsp2
+        let body2 = rspBodyToEnum $ rspBody rsp2
 
         c2 <- liftQ $
               body2 stream2stream >>= run >>= return . fromWrap
@@ -166,7 +166,7 @@ testIdentity3 = testProperty "identity3" $ monadicIO $ forAllM arbitrary prop
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (_,rsp3) <- liftQ $ goGZip (withCompression $ binary s)
-        let body3 = rspBody rsp3
+        let body3 = rspBodyToEnum $ rspBody rsp3
 
         s3 <- liftQ $
               body3 stream2stream >>= run >>= return . fromWrap
@@ -182,6 +182,6 @@ testBadHeaders = testProperty "bad headers" $ monadicIO $ forAllM arbitrary prop
     prop :: L.ByteString -> PropertyM IO ()
     prop s = expectException $ do
         (_,rsp) <- goBad (withCompression $ textPlain s)
-        let body = rspBody rsp
+        let body = rspBodyToEnum $ rspBody rsp
 
         body stream2stream >>= run >>= return . fromWrap
