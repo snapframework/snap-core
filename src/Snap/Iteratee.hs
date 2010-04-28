@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 -- | Snap Framework type aliases and utilities for iteratees. Note that as a
 -- convenience, this module also exports everything from @Data.Iteratee@ in the
@@ -37,8 +38,10 @@ module Snap.Iteratee
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Exception
+import           Control.Exception (SomeException)
 import           Control.Monad
+import           Control.Monad.CatchIO
+import           Control.Monad.State.Strict
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -46,7 +49,7 @@ import           Data.Iteratee
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
 import           Data.Word (Word8)
-import           Prelude hiding (drop)
+import           Prelude hiding (catch,drop)
 import           System.IO.Posix.MMap
 import qualified Data.DList as D
 ------------------------------------------------------------------------------
@@ -55,6 +58,27 @@ type Stream         = StreamG WrappedByteString Word8
 type IterV      m   = IterGV WrappedByteString Word8 m
 type Iteratee   m   = IterateeG WrappedByteString Word8 m
 type Enumerator m a = Iteratee m a -> m (Iteratee m a)
+
+
+-- TEMPORARY until MonadCatchIO-transformers is fixed
+instance MonadCatchIO m => MonadCatchIO (StateT s m) where
+  m `catch` f = StateT $ \s -> runStateT m s `catch` \e -> runStateT (f e) s
+  block       = mapStateT block
+  unblock     = mapStateT unblock
+
+
+instance (Functor m, MonadCatchIO m) =>
+         MonadCatchIO (IterateeG s el m) where
+    --catch  :: Exception  e => m a -> (e -> m a) -> m a
+    catch m handler = IterateeG $ \str -> do
+        ee <- try $ runIter m str
+        case ee of 
+          (Left e)  -> runIter (handler e) str
+          (Right v) -> return v
+
+    --block :: m a -> m a        
+    block m = IterateeG $ \str -> block $ runIter m str
+    unblock m = IterateeG $ \str -> unblock $ runIter m str
 
 
 -- | Wraps an 'Iteratee', counting the number of bytes consumed by it.

@@ -7,7 +7,8 @@ module Snap.Internal.Types where
 
 ------------------------------------------------------------------------------
 import           Control.Applicative
-import           Control.Exception
+import           Control.Exception (throwIO, ErrorCall(..))
+import           Control.Monad.CatchIO
 import           Control.Monad.State.Strict
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as B
@@ -18,13 +19,7 @@ import           Data.Maybe
 import           Data.Typeable
 
 ------------------------------------------------------------------------------
-import           Snap.Iteratee ( Iteratee
-                               , (>.)
-                               , fromWrap
-                               , stream2stream
-                               , enumBS
-                               , enumLBS )
-
+import           Snap.Iteratee hiding (Enumerator)
 import           Snap.Internal.Http.Types
 
 
@@ -105,6 +100,15 @@ instance Monad Snap where
 instance MonadIO Snap where
     liftIO m = Snap $ liftM (Just . Right) $ liftIO m
 
+instance MonadCatchIO Snap where
+    catch (Snap m) handler = Snap $ do
+        x <- try m
+        case x of
+          (Left e)  -> let (Snap z) = handler e in z
+          (Right x) -> return x
+
+    block (Snap m) = Snap $ block m
+    unblock (Snap m) = Snap $ unblock m
 
 instance MonadPlus Snap where
     mzero = Snap $ return Nothing
