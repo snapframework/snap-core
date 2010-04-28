@@ -41,7 +41,6 @@ module Snap.Iteratee
 import           Control.Exception (SomeException)
 import           Control.Monad
 import           Control.Monad.CatchIO
-import           Control.Monad.State.Strict
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -58,13 +57,6 @@ type Stream         = StreamG WrappedByteString Word8
 type IterV      m   = IterGV WrappedByteString Word8 m
 type Iteratee   m   = IterateeG WrappedByteString Word8 m
 type Enumerator m a = Iteratee m a -> m (Iteratee m a)
-
-
--- TEMPORARY until MonadCatchIO-transformers is fixed
-instance MonadCatchIO m => MonadCatchIO (StateT s m) where
-  m `catch` f = StateT $ \s -> runStateT m s `catch` \e -> runStateT (f e) s
-  block       = mapStateT block
-  unblock     = mapStateT unblock
 
 
 instance (Functor m, MonadCatchIO m) =>

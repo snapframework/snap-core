@@ -105,7 +105,7 @@ instance MonadCatchIO Snap where
         x <- try m
         case x of
           (Left e)  -> let (Snap z) = handler e in z
-          (Right x) -> return x
+          (Right y) -> return y
 
     block (Snap m) = Snap $ block m
     unblock (Snap m) = Snap $ unblock m

@@ -34,11 +34,8 @@ import           Data.Time.Clock
 import           Data.Time.Format
 import           Data.Word
 import           Foreign hiding (new)
-import           Foreign.C.Error
 import           Foreign.C.String
 import           Foreign.C.Types
-import           Foreign.Marshal.Alloc
-import           Foreign.Ptr
 import           Prelude hiding (take)
 import           System.Locale (defaultTimeLocale)
 
