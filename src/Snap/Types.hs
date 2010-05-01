@@ -60,6 +60,8 @@ module Snap.Types
   , modifyResponseBody
   , addToOutput
   , writeBS
+  , writeLazyText
+  , writeText
   , writeLBS
   , sendFile
 

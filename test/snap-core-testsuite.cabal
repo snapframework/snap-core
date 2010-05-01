@@ -31,6 +31,7 @@ Executable testsuite
      test-framework < 0.3,
      test-framework-hunit < 0.3,
      test-framework-quickcheck2 < 0.3,
+     text >= 0.7.1 && <0.8,
      time,
      transformers,
      unix,
