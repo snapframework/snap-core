@@ -33,6 +33,7 @@ module Snap.Iteratee
 
     -- ** Iteratee utilities
   , takeExactly
+  , takeNoMoreThan
   , countBytes
   , bufferIteratee
   ) where
@@ -47,6 +48,7 @@ import qualified Data.ByteString.Lazy as L
 import           Data.Iteratee
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
+import           Data.Monoid (mappend)
 import           Data.Word (Word8)
 import           Prelude hiding (catch,drop)
 import           System.IO.Posix.MMap
@@ -169,7 +171,10 @@ takeExactly :: (SC.StreamChunk s el, Monad m) =>
                Int ->
                EnumeratorN s el s el m a
 takeExactly 0 iter = return iter
-takeExactly n' iter = IterateeG (step n')
+takeExactly n' iter =
+    if n' < 0
+      then takeExactly 0 iter
+      else IterateeG (step n')
   where
   step n chk@(Chunk str)
     | SC.null str = return $ Cont (takeExactly n iter) Nothing
@@ -185,6 +190,47 @@ takeExactly n' iter = IterateeG (step n')
   done s1 s2 = liftM (flip Done s2) (runIter iter s1 >>= checkIfDone return)
 
 
+-- | Reads up to n elements from a stream and applies the given iteratee to the
+-- stream of the read elements. If more than n elements are read, propagates an
+-- error.
+takeNoMoreThan :: (SC.StreamChunk s el, Monad m) =>
+                  Int ->
+                  EnumeratorN s el s el m a
+takeNoMoreThan n' iter =
+    if n' < 0
+      then takeNoMoreThan 0 iter
+      else IterateeG (step n')
+  where
+    step n chk@(Chunk str)
+      | SC.null str = return $ Cont (takeNoMoreThan n iter) Nothing
+      | SC.length str < n = liftM (flip Cont Nothing) inner
+      | otherwise = done (Chunk s1) (Chunk s2)
+          where inner    = liftM (check (n - SC.length str)) (runIter iter chk)
+                (s1, s2) = SC.splitAt n str
+
+    step _n (EOF (Just e))    = return $ Cont undefined (Just e)
+    step _n chk@(EOF Nothing) = do
+        v  <- runIter iter chk
+
+        case v of
+          (Done x s)        -> return $ Done (return x) s
+          (Cont _ (Just e)) -> return $ Cont undefined (Just e)
+          (Cont _ Nothing)  -> return $ Cont (throwErr $ Err "premature EOF") Nothing
+
+    check _ v@(Done _ _)      = return $ liftI v
+    check n (Cont x Nothing)  = takeNoMoreThan n x
+    check _ (Cont _ (Just e)) = throwErr e
+
+    done _ (EOF _) = error "impossible"
+    done s1 s2@(Chunk s2') = do
+        v <- runIter iter s1
+        case v of
+          (Done x s')       -> return $ Done (return x) (s' `mappend` s2)
+          (Cont _ (Just e)) -> return $ Cont undefined (Just e)
+          (Cont i Nothing)  ->
+              if SC.null s2'
+                then return $ Cont (takeNoMoreThan 0 i) Nothing
+                else return $ Cont undefined (Just $ Err "too many bytes")
 
 ------------------------------------------------------------------------------
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)

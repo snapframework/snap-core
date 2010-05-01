@@ -7,6 +7,7 @@ module Snap.Iteratee.Tests
 
 import qualified Control.Exception as E
 import           Control.Exception hiding (try, assert)
+import           Control.Monad
 import           Control.Monad.Identity
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -43,6 +44,9 @@ tests = [ testEnumBS
         , testTakeExactly1
         , testTakeExactly2
         , testTakeExactly3
+        , testTakeNoMoreThan1
+        , testTakeNoMoreThan2
+        , testTakeNoMoreThan3
         , testCountBytes
         , testCountBytes2
         ]
@@ -152,6 +156,58 @@ testTakeExactly3 = testProperty "long stream" $
       where
         doIter = enumLBS s (joinI (takeExactly n stream2stream))
 
+        n = fromIntegral $ L.length s
+
+
+testTakeNoMoreThan1 :: Test
+testTakeNoMoreThan1 = testProperty "takeNoMore: short stream" $
+                      monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        s' <- liftQ $ doIter >>= run >>= return . fromWrap
+
+        assert $ s == s'
+
+      where
+        doIter = enumLBS s (joinI (takeNoMoreThan (n+1) stream2stream))
+
+        n = fromIntegral $ L.length s
+
+
+testTakeNoMoreThan2 :: Test
+testTakeNoMoreThan2 = testProperty "takeNoMore: exact stream" $
+                      monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        e <- liftQ $ doIter >>= run >>= return . fromWrap
+        assert $ e == s
+
+      where
+        doIter = enumLBS s (joinI (takeNoMoreThan n stream2stream))
+
+        n = fromIntegral $ L.length s
+
+
+testTakeNoMoreThan3 :: Test
+testTakeNoMoreThan3 = testProperty "takeNoMoreLong" $
+                      monadicIO $ forAllM arbitrary prop
+  where
+    prop :: (Int,L.ByteString) -> PropertyM IO ()
+    prop (m,s) = do
+        v <- liftQ $ enumLBS "" (joinI (takeNoMoreThan 0 stream2stream)) >>= run
+        assert $ fromWrap v == ""
+
+        if (L.null s || m == 0)
+           then liftQ $ do
+                     !v <- doIter >>= run
+                     return ()
+           else expectException $ doIter >>= run >>= return . fromWrap
+
+        
+      where
+        doIter = enumLBS s (joinI (takeNoMoreThan (n-abs m) stream2stream))
         n = fromIntegral $ L.length s
 
 

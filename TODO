@@ -1,6 +1,5 @@
 -*- org -*-
 
-* TODO [#A] Limit the amount of data read from POST bodies to prevent server OOM denial of service
 * TODO [#A] Website material
   :LOGBOOK:
   - Note taken on [2010-04-13 Tue 02:46] \\
@@ -21,7 +20,6 @@
     
        - links to source control
   :END:
-** TODO [#A] Mention that Snap is for unix systems only
 * TODO [#A] Finish HTTP server test suite
 
 * TODO [#A] Review HTTP server code for exception safety
@@ -109,3 +107,13 @@
   - State "DONE"       from "TODO"       [2010-04-24 Sat 00:55]
   :END:
 
+* DONE [#A] Mention that Snap is for unix systems only
+   CLOSED: [2010-04-29 Thu 11:57]
+   :LOGBOOK:
+   - State "DONE"       from "TODO"       [2010-04-29 Thu 11:57]
+   :END:
+* DONE [#A] Limit the amount of data read from POST bodies to prevent server OOM denial of service
+  CLOSED: [2010-05-01 Sat 14:05]
+  :LOGBOOK:
+  - State "DONE"       from "TODO"       [2010-05-01 Sat 14:05]
+  :END:
