@@ -3,39 +3,46 @@ version:        0.1.1
 build-type:     Simple
 cabal-version:  >= 1.6
 
-Executable testsuite
-   c-sources: ../cbits/timefuncs.c
-   include-dirs: ../cbits
-   hs-source-dirs:  ../src suite
-   main-is:         TestSuite.hs
+Flag debug
+  Description: Enable debug logging to stderr
+  Default: False
 
-   build-depends:
-     QuickCheck >= 2,
-     attoparsec >= 0.8.0.2 && < 0.9,
-     base >= 4 && < 5,
-     bytestring,
-     bytestring-mmap >= 0.2.1 && <0.3,
-     bytestring-nums,
-     cereal >= 0.2 && < 0.3,
-     containers,
-     directory,
-     dlist >= 0.5 && < 0.6,
-     filepath,
-     HUnit >= 1.2 && < 2,
-     iteratee >= 0.3.1 && < 0.4,
-     MonadCatchIO-transformers >= 0.2 && < 0.3,
-     monads-fd,
-     old-locale,
-     old-time,
-     parallel >= 2.2 && <2.3,
-     test-framework < 0.3,
-     test-framework-hunit < 0.3,
-     test-framework-quickcheck2 < 0.3,
-     text >= 0.7.1 && <0.8,
-     time,
-     transformers,
-     unix,
-     zlib
-     
-   ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
-                -fno-warn-unused-do-bind
+Executable testsuite
+  c-sources: ../cbits/timefuncs.c
+  include-dirs: ../cbits
+  hs-source-dirs:  ../src suite
+  main-is:         TestSuite.hs
+
+  if flag(debug)
+    cpp-options: -DDEBUG
+
+  build-depends:
+    QuickCheck >= 2,
+    attoparsec >= 0.8.0.2 && < 0.9,
+    base >= 4 && < 5,
+    bytestring,
+    bytestring-mmap >= 0.2.1 && <0.3,
+    bytestring-nums,
+    cereal >= 0.2 && < 0.3,
+    containers,
+    directory,
+    dlist >= 0.5 && < 0.6,
+    filepath,
+    HUnit >= 1.2 && < 2,
+    iteratee >= 0.3.1 && < 0.4,
+    MonadCatchIO-transformers >= 0.2 && < 0.3,
+    monads-fd,
+    old-locale,
+    old-time,
+    parallel >= 2.2 && <2.3,
+    test-framework < 0.3,
+    test-framework-hunit < 0.3,
+    test-framework-quickcheck2 < 0.3,
+    text >= 0.7.1 && <0.8,
+    time,
+    transformers,
+    unix,
+    zlib
+    
+  ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
+               -fno-warn-unused-do-bind

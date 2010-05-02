@@ -39,8 +39,15 @@ cabal-version:  >= 1.6
 homepage:       http://snapframework.com/
 category:       Web
 
+Flag debug
+  Description: Enable debug logging to stderr
+  Default: False
+
 Library
   hs-source-dirs: src
+
+  if flag(debug)
+    cpp-options: -DDEBUG
 
   c-sources: cbits/timefuncs.c
   include-dirs: cbits
