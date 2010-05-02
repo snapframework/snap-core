@@ -15,16 +15,27 @@ import           Control.Monad.Trans
 
 ------------------------------------------------------------------------------
 import           Control.Concurrent
+import           Data.List
+import           Data.Maybe
 import           Foreign.C.Error
 import           System.IO
 import           System.IO.Unsafe
-
+import           Text.Printf
 
 _debugMVar :: MVar ()
 _debugMVar = unsafePerformIO $ newMVar ()
 
 debug :: (MonadIO m) => String -> m ()
-debug s = liftIO $ withMVar _debugMVar $ \_ -> hPutStrLn stderr s >> hFlush stderr
+debug s = liftIO $ withMVar _debugMVar $ \_ -> do
+              tid <- myThreadId
+              hPutStrLn stderr $ s' tid
+              hFlush stderr
+  where
+    chop x = let y = fromMaybe x $ stripPrefix "ThreadId " x
+             in printf "%8s" y
+
+    s' t   = "[" ++ chop (show t) ++ "] " ++ s
+
 {-# INLINE debug #-}
 
 debugErrno :: (MonadIO m) => String -> m ()

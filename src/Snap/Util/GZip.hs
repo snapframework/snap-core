@@ -215,21 +215,18 @@ compressEnumerator compFunc enum iteratee = do
 
     --------------------------------------------------------------------------
     f readEnd writeEnd tid i (EOF Nothing) = do
-        debug $ "f (EOF Nothing)"
         writeChan readEnd Nothing
         x <- consumeRest writeEnd i
         killThread tid
         return x
 
     f _ _ tid i ch@(EOF (Just _)) = do
-        debug $ "f (EOF err)"
         x <- runIter i ch
         killThread tid
         return x
 
     f readEnd writeEnd tid i (Chunk s') = do
         let s = unWrap s'
-        debug $ "f (Chunk " ++ show s ++ ")"
         writeChan readEnd $ Just s
         i' <- consumeSomeOutput writeEnd i
         return $ Cont (IterateeG $ f readEnd writeEnd tid i') Nothing
