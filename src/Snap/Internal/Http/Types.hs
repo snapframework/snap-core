@@ -205,7 +205,9 @@ data Request = Request
       --
       -- An identity is that:
       --
-      -- @rqURI r == 'S.concat' [rqSnapletPath r, rqContextPath r, rqPathInfo r]@
+      -- > rqURI r == 'S.concat' [ rqSnapletPath r
+      -- >                       , rqContextPath r
+      -- >                       , rqPathInfo r ]
       --
       -- note that until we introduce snaplets in v0.2, 'rqSnapletPath' will be
       -- \"\"
