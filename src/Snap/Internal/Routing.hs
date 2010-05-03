@@ -39,6 +39,7 @@ data Route a = Action (Snap a)                        -- wraps a 'Snap' action
              | NoRoute
 
 
+------------------------------------------------------------------------------
 instance Monoid (Route a) where
     mempty = NoRoute
 

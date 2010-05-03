@@ -17,9 +17,12 @@ import           Snap.Iteratee
 ------------------------------------------------------------------------------
 
 
+------------------------------------------------------------------------------
 instance Show (WrappedByteString Word8) where
     show (WrapBS s) = show s
 
+
+------------------------------------------------------------------------------
 debugIteratee :: Iteratee IO ()
 debugIteratee = IterateeG f
   where

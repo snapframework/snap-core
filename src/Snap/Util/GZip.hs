@@ -259,6 +259,7 @@ compressEnumerator compFunc enum iteratee = do
     toChunk = Chunk . WrapBS
 
 
+------------------------------------------------------------------------------
 fullyParse :: ByteString -> Parser a -> Either String a
 fullyParse s p =
     case r' of
@@ -270,6 +271,7 @@ fullyParse s p =
     r' = feed r ""
 
 
+------------------------------------------------------------------------------
 -- We're not gonna bother with quality values; we'll do gzip or compress in
 -- that order.
 acceptParser :: Parser [ByteString]
@@ -302,12 +304,17 @@ acceptParser = do
             option () (char '.' >> takeWhile isDigit >> pure ())
 
 
+------------------------------------------------------------------------------
 data BadAcceptEncodingException = BadAcceptEncodingException
    deriving (Typeable)
 
+
+------------------------------------------------------------------------------
 instance Show BadAcceptEncodingException where
     show BadAcceptEncodingException = "bad 'accept-encoding' header"
 
+
+------------------------------------------------------------------------------
 instance Exception BadAcceptEncodingException
 
 

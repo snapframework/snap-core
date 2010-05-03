@@ -80,16 +80,20 @@ import           Snap.Internal.Http.Types
    > a = liftIO fireTheMissiles
 -}
 
+
+------------------------------------------------------------------------------
 newtype Snap a = Snap {
       unSnap :: StateT SnapState (Iteratee IO) (Maybe (Either Response a))
 }
 
 
+------------------------------------------------------------------------------
 data SnapState = SnapState
     { _snapRequest  :: Request
     , _snapResponse :: Response }
 
 
+------------------------------------------------------------------------------
 instance Monad Snap where
     (Snap m) >>= f =
         Snap $ do
@@ -102,9 +106,13 @@ instance Monad Snap where
     return = Snap . return . Just . Right
     fail   = const $ Snap $ return Nothing
 
+
+------------------------------------------------------------------------------
 instance MonadIO Snap where
     liftIO m = Snap $ liftM (Just . Right) $ liftIO m
 
+
+------------------------------------------------------------------------------
 instance MonadCatchIO Snap where
     catch (Snap m) handler = Snap $ do
         x <- try m
@@ -115,6 +123,8 @@ instance MonadCatchIO Snap where
     block (Snap m) = Snap $ block m
     unblock (Snap m) = Snap $ unblock m
 
+
+------------------------------------------------------------------------------
 instance MonadPlus Snap where
     mzero = Snap $ return Nothing
 
@@ -124,15 +134,18 @@ instance MonadPlus Snap where
             if isJust mb then return mb else unSnap b
 
 
+------------------------------------------------------------------------------
 instance Functor Snap where
     fmap = liftM
 
 
+------------------------------------------------------------------------------
 instance Applicative Snap where
     pure  = return
     (<*>) = ap
 
-    
+
+------------------------------------------------------------------------------
 instance Alternative Snap where
     empty = mzero
     (<|>) = mplus
@@ -142,6 +155,8 @@ instance Alternative Snap where
 liftIter :: Iteratee IO a -> Snap a
 liftIter i = Snap (lift i >>= return . Just . Right)
 
+
+------------------------------------------------------------------------------
 -- | Sends the request body through an iteratee (data consumer) and
 -- returns the result.
 runRequestBody :: Iteratee IO a -> Snap a
@@ -164,12 +179,14 @@ runRequestBody iter = do
     return result
 
 
+------------------------------------------------------------------------------
 -- | Returns the request body as a bytestring.
 getRequestBody :: Snap L.ByteString
 getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 {-# INLINE getRequestBody #-}
 
 
+------------------------------------------------------------------------------
 -- | Detaches the request body's 'Enumerator' from the 'Request' and
 -- returns it. You would want to use this if you needed to send the
 -- HTTP request body (transformed or otherwise) through to the output
@@ -191,18 +208,24 @@ unsafeDetachRequestBody = do
                (SomeEnumerator $ return . Iter.joinI . Iter.take 0)
     return enum
 
+
+------------------------------------------------------------------------------
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
 finishWith :: Response -> Snap ()
 finishWith = Snap . return . Just . Left
 {-# INLINE finishWith #-}
 
+
+------------------------------------------------------------------------------
 -- | Fails out of a 'Snap' monad action.  This is used to indicate
 -- that you choose not to handle the given request within the given
 -- handler.
 pass :: Snap a
 pass = empty
 
+
+------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only if the request's HTTP method matches
 -- the given method.
 method :: Method -> Snap a -> Snap a
@@ -213,6 +236,7 @@ method m action = do
 {-# INLINE method #-}
 
 
+------------------------------------------------------------------------------
 -- Appends n bytes of the path info to the context path with a
 -- trailing slash.
 updateContextPath :: Int -> Request -> Request
@@ -224,6 +248,8 @@ updateContextPath n req | n > 0     = req { rqContextPath = ctx
     ctx   = B.concat [rqContextPath req, ctx', "/"]
     pinfo = B.drop (n+1) (rqPathInfo req)
 
+
+------------------------------------------------------------------------------
 -- Runs a 'Snap' monad action only if the 'rqPathInfo' matches the given
 -- predicate.
 pathWith :: (ByteString -> ByteString -> Bool)
@@ -236,6 +262,7 @@ pathWith c p action = do
     localRequest (updateContextPath $ B.length p) action
 
 
+------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only when the 'rqPathInfo' of the request
 -- starts with the given path. For example,
 --
@@ -254,6 +281,7 @@ dir = pathWith f
 {-# INLINE dir #-}
 
 
+------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only for requests where 'rqPathInfo' is exactly
 -- equal to the given string. If the path matches, locally sets 'rqContextPath'
 -- to the old value of 'rqPathInfo', sets 'rqPathInfo'=\"\", and runs the given
@@ -265,53 +293,70 @@ path = pathWith (==)
 {-# INLINE path #-}
 
 
+------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only when 'rqPathInfo' is empty.
 ifTop :: Snap a -> Snap a
 ifTop = path ""
 {-# INLINE ifTop #-}
 
 
+------------------------------------------------------------------------------
 -- | Local Snap version of 'get'.
 sget :: Snap SnapState
 sget = Snap $ liftM (Just . Right) get
 {-# INLINE sget #-}
 
+
+------------------------------------------------------------------------------
 -- | Local Snap monad version of 'modify'.
 smodify :: (SnapState -> SnapState) -> Snap ()
 smodify f = Snap $ modify f >> return (Just $ Right ())
 {-# INLINE smodify #-}
 
+
+------------------------------------------------------------------------------
 -- | Grabs the 'Request' object out of the 'Snap' monad.
 getRequest :: Snap Request
 getRequest = liftM _snapRequest sget
 {-# INLINE getRequest #-}
 
+
+------------------------------------------------------------------------------
 -- | Grabs the 'Response' object out of the 'Snap' monad.
 getResponse :: Snap Response
 getResponse = liftM _snapResponse sget
 {-# INLINE getResponse #-}
 
+
+------------------------------------------------------------------------------
 -- | Puts a new 'Response' object into the 'Snap' monad.
 putResponse :: Response -> Snap ()
 putResponse r = smodify $ \ss -> ss { _snapResponse = r }
 {-# INLINE putResponse #-}
 
+
+------------------------------------------------------------------------------
 -- | Puts a new 'Request' object into the 'Snap' monad.
 putRequest :: Request -> Snap ()
 putRequest r = smodify $ \ss -> ss { _snapRequest = r }
 {-# INLINE putRequest #-}
 
+
+------------------------------------------------------------------------------
 -- | Modifies the 'Request' object stored in a 'Snap' monad.
 modifyRequest :: (Request -> Request) -> Snap ()
 modifyRequest f = smodify $ \ss -> ss { _snapRequest = f $ _snapRequest ss }
 {-# INLINE modifyRequest #-}
 
+
+------------------------------------------------------------------------------
 -- | Modifes the 'Response' object stored in a 'Snap' monad.
 modifyResponse :: (Response -> Response) -> Snap () 
 modifyResponse f = smodify $ \ss -> ss { _snapResponse = f $ _snapResponse ss }
 {-# INLINE modifyResponse #-}
 
 
+------------------------------------------------------------------------------
 -- | Adds the output from the given enumerator to the 'Response'
 -- stored in the 'Snap' monad state.
 addToOutput :: (forall a . Enumerator a)   -- ^ output to add
@@ -319,29 +364,35 @@ addToOutput :: (forall a . Enumerator a)   -- ^ output to add
 addToOutput enum = modifyResponse $ modifyResponseBody (>. enum)
 
 
+------------------------------------------------------------------------------
 -- | Adds the given strict 'ByteString' to the body of the 'Response' stored in
 -- the 'Snap' monad state.
 writeBS :: ByteString -> Snap ()
 writeBS s = addToOutput $ enumBS s
 
 
+------------------------------------------------------------------------------
 -- | Adds the given lazy 'L.ByteString' to the body of the 'Response' stored in
 -- the 'Snap' monad state.
 writeLBS :: L.ByteString -> Snap ()
 writeLBS s = addToOutput $ enumLBS s
 
+
+------------------------------------------------------------------------------
 -- | Adds the given strict 'T.Text' to the body of the 'Response' stored in the
 -- 'Snap' monad state.
 writeText :: T.Text -> Snap ()
 writeText s = writeBS $ T.encodeUtf8 s
 
 
+------------------------------------------------------------------------------
 -- | Adds the given lazy 'LT.Text' to the body of the 'Response' stored in the
 -- 'Snap' monad state.
 writeLazyText :: LT.Text -> Snap ()
 writeLazyText s = writeLBS $ LT.encodeUtf8 s
 
 
+------------------------------------------------------------------------------
 -- | Sets the output to be the contents of the specified file.
 --
 -- Calling 'sendFile' will overwrite any output queued to be sent in the
@@ -355,6 +406,7 @@ sendFile :: FilePath -> Snap ()
 sendFile f = modifyResponse $ \r -> r { rspBody = SendFile f }
 
 
+------------------------------------------------------------------------------
 -- | Runs a 'Snap' action with a locally-modified 'Request' state
 -- object. The 'Request' object in the Snap monad state after the call
 -- to localRequest will be unchanged.
@@ -368,16 +420,22 @@ localRequest f m = do
 {-# INLINE localRequest #-}
 
 
+------------------------------------------------------------------------------
 -- | This exception is thrown if the handler you supply to 'runSnap' fails.
 data NoHandlerException = NoHandlerException
    deriving (Eq, Typeable)
 
+
+------------------------------------------------------------------------------
 instance Show NoHandlerException where
     show NoHandlerException = "No handler for request"
 
+
+------------------------------------------------------------------------------
 instance Exception NoHandlerException
 
 
+------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
 runSnap :: Snap a -> Request -> Iteratee IO (Request,Response)
 runSnap (Snap m) req = do
@@ -406,6 +464,7 @@ runSnap (Snap m) req = do
 {-# INLINE runSnap #-}
 
 
+------------------------------------------------------------------------------
 evalSnap :: Snap a -> Request -> Iteratee IO a
 evalSnap (Snap m) req = do
     (r, _) <- runStateT m ss
@@ -422,3 +481,4 @@ evalSnap (Snap m) req = do
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
     ss = SnapState req dresp
 {-# INLINE evalSnap #-}
+

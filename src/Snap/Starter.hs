@@ -1,9 +1,13 @@
 module Main where
 
+------------------------------------------------------------------------------
 import System
 import System.Directory
 import System.FilePath.Posix
+------------------------------------------------------------------------------
 
+
+------------------------------------------------------------------------------
 usage :: String
 usage = unlines
     ["Usage:"
@@ -14,6 +18,8 @@ usage = unlines
     ,"      init - create a new project directory structure in the current directory"
     ]
 
+
+------------------------------------------------------------------------------
 initProject :: IO ()
 initProject = do
     cur <- getCurrentDirectory
@@ -23,6 +29,8 @@ initProject = do
     createDirectory "src"
     writeFile "src/Main.hs" mainFile
 
+
+------------------------------------------------------------------------------
 main :: IO ()
 main = do
     args <- getArgs
@@ -31,6 +39,8 @@ main = do
         _        -> do putStrLn usage
                        exitFailure
 
+
+------------------------------------------------------------------------------
 cabalFile :: String -> String
 cabalFile projName = unlines
     ["Name:                "++projName
@@ -63,6 +73,8 @@ cabalFile projName = unlines
     ,"  Extensions: OverloadedStrings"
     ]
 
+
+------------------------------------------------------------------------------
 mainFile :: String
 mainFile = unlines
     ["module Main where"

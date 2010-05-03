@@ -216,6 +216,7 @@ fileServeSingle fp =
     fileServeSingle' (fileType defaultMimeTypes (takeFileName fp)) fp
 {-# INLINE fileServeSingle #-}
 
+
 ------------------------------------------------------------------------------
 -- | Same as 'fileServeSingle', with control over the MIME mapping used.
 fileServeSingle' :: ByteString        -- ^ MIME type mapping

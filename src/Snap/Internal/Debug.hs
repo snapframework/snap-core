@@ -21,10 +21,15 @@ import           Foreign.C.Error
 import           System.IO
 import           System.IO.Unsafe
 import           Text.Printf
+------------------------------------------------------------------------------
 
+
+------------------------------------------------------------------------------
 _debugMVar :: MVar ()
 _debugMVar = unsafePerformIO $ newMVar ()
 
+
+------------------------------------------------------------------------------
 debug :: (MonadIO m) => String -> m ()
 debug s = liftIO $ withMVar _debugMVar $ \_ -> do
               tid <- myThreadId
@@ -38,6 +43,8 @@ debug s = liftIO $ withMVar _debugMVar $ \_ -> do
 
 {-# INLINE debug #-}
 
+
+------------------------------------------------------------------------------
 debugErrno :: (MonadIO m) => String -> m ()
 debugErrno loc = liftIO $ do
     err <- getErrno

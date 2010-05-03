@@ -13,6 +13,8 @@
 
 module Snap.Internal.Http.Types where
 
+
+------------------------------------------------------------------------------
 import           Control.Applicative hiding (empty)
 import           Control.Monad (liftM, when)
 import qualified Data.Attoparsec as Atto
@@ -44,12 +46,17 @@ import           Data.CIByteString
 import qualified Snap.Iteratee as I
 
 
+------------------------------------------------------------------------------
 foreign import ccall unsafe "set_c_locale"
         set_c_locale :: IO ()
 
+
+------------------------------------------------------------------------------
 foreign import ccall unsafe "c_parse_http_time"
         c_parse_http_time :: CString -> IO CTime
 
+
+------------------------------------------------------------------------------
 foreign import ccall unsafe "c_format_http_time"
         c_format_http_time :: CTime -> CString -> IO ()
 
@@ -61,6 +68,7 @@ type Enumerator a = I.Enumerator IO a
 type Headers = Map CIByteString [ByteString]
 
 
+------------------------------------------------------------------------------
 -- | A typeclass for datatypes which contain HTTP headers.
 class HasHeaders a where
 
@@ -71,29 +79,34 @@ class HasHeaders a where
     headers       :: a -> Headers
 
 
+------------------------------------------------------------------------------
 -- | Adds a header key-value-pair to the 'HasHeaders' datatype. If a header with
 -- the same name already exists, the new value is appended to the headers list.
 addHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
 addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
 
+
+------------------------------------------------------------------------------
 -- | Sets a header key-value-pair in a 'HasHeaders' datatype. If a header with
 -- the same name already exists, it is overwritten with the new value.
 setHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
 setHeader k v = updateHeaders $ Map.insert k [v]
 
+
+------------------------------------------------------------------------------
 -- | Gets all of the values for a given header.
 getHeaders :: (HasHeaders a) => CIByteString -> a -> Maybe [ByteString]
 getHeaders k a = Map.lookup k $ headers a
 
--- | Gets a header value out of a 'HasHeaders' datatype. If many headers came in
--- with the same name, they will be catenated together.
+
+------------------------------------------------------------------------------
+-- | Gets a header value out of a 'HasHeaders' datatype. If many headers came
+-- in with the same name, they will be catenated together.
 getHeader :: (HasHeaders a) => CIByteString -> a -> Maybe ByteString
 getHeader k a = liftM (S.intercalate " ") (Map.lookup k $ headers a)
 
 
-
 ------------------------------------------------------------------------------
-
 -- | Enumerates the HTTP method values (see
 -- <http://tools.ietf.org/html/rfc2068.html#section-5.1.1>).
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
@@ -103,6 +116,8 @@ data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
 ------------------------------------------------------------------------------
 type HttpVersion = (Int,Int)
 
+
+------------------------------------------------------------------------------
 -- | A datatype representing an HTTP cookie.
 data Cookie = Cookie {
       -- | The name of the cookie.
@@ -121,11 +136,14 @@ data Cookie = Cookie {
     , cookiePath    :: !(Maybe ByteString)
 } deriving (Eq, Show)
 
+
+------------------------------------------------------------------------------
 -- | A type alias for the HTTP parameters mapping. Each parameter
 -- key maps to a list of ByteString values; if a parameter is specified
 -- multiple times (e.g.: \"@GET /foo?param=bar1&param=bar2@\"), looking up
 -- \"@param@\" in the mapping will give you @[\"bar1\", \"bar2\"]@.
 type Params = Map ByteString [ByteString]
+
 
 ------------------------------------------------------------------------------
 -- request type
@@ -133,6 +151,8 @@ type Params = Map ByteString [ByteString]
 
 data SomeEnumerator = SomeEnumerator (forall a . Enumerator a)
 
+
+------------------------------------------------------------------------------
 -- | Contains all of the information about an incoming HTTP request.
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
@@ -216,6 +236,8 @@ data Request = Request
     , rqParams         :: Params
     }
 
+
+------------------------------------------------------------------------------
 instance Show Request where
   show r = concat [ "Request <\n"
                   , body
@@ -278,11 +300,13 @@ instance Show Request where
                              ]
 
 
+------------------------------------------------------------------------------
 instance HasHeaders Request where
     headers           = rqHeaders
     updateHeaders f r = r { rqHeaders = f (rqHeaders r) }
 
 
+------------------------------------------------------------------------------
 instance HasHeaders Headers where
     headers       = id
     updateHeaders = id
@@ -294,17 +318,21 @@ instance HasHeaders Headers where
 data ResponseBody = Enum (forall a . Enumerator a) -- ^ output body is enumerator
                   | SendFile FilePath              -- ^ output body is sendfile()
 
+
+------------------------------------------------------------------------------
 rspBodyMap :: (forall a . Enumerator a -> Enumerator a)
            -> ResponseBody
            -> ResponseBody
 rspBodyMap f b      = Enum $ f $ rspBodyToEnum b
 
 
+------------------------------------------------------------------------------
 rspBodyToEnum :: ResponseBody -> Enumerator a
 rspBodyToEnum (Enum e) = e
 rspBodyToEnum (SendFile fp) = I.enumFile fp
 
 
+------------------------------------------------------------------------------
 -- | Represents an HTTP response.
 data Response = Response
     { rspHeaders       :: Headers
@@ -323,6 +351,8 @@ data Response = Response
     , rspStatusReason  :: !ByteString
     }
 
+
+------------------------------------------------------------------------------
 instance Show Response where
   show r = concat [ "Response <\n"
                   , body
@@ -345,12 +375,13 @@ instance Show Response where
       reason  = concat [ "reason: ", toStr $ rspStatusReason r ]
 
 
+------------------------------------------------------------------------------
 instance HasHeaders Response where
     headers = rspHeaders
     updateHeaders f r = r { rspHeaders = f (rspHeaders r) }
 
 
-
+------------------------------------------------------------------------------
 -- | Looks up the value(s) for the given named parameter. Parameters initially
 -- come from the request's query string and any decoded POST body (if the
 -- request's @Content-Type@ is @application\/x-www-form-urlencoded@). Parameter
@@ -362,6 +393,7 @@ rqParam k rq = Map.lookup k $ rqParams rq
 {-# INLINE rqParam #-}
 
 
+------------------------------------------------------------------------------
 -- | See 'rqParam'. Looks up a value for the given named parameter. If more
 -- than one value was entered for the given parameter name, 'getParam' gloms
 -- the values together with:
@@ -374,6 +406,7 @@ getParam :: ByteString          -- ^ parameter name to look up
 getParam k rq = liftM (S.intercalate " ") $ rqParam k rq
 
 
+------------------------------------------------------------------------------
 -- | Modifies the parameters mapping (which is a @Map ByteString ByteString@) in
 -- a 'Request' using the given function.
 rqModifyParams :: (Params -> Params) -> Request -> Request
@@ -383,6 +416,7 @@ rqModifyParams f r = r { rqParams = p }
 {-# INLINE rqModifyParams #-}
 
 
+------------------------------------------------------------------------------
 -- | Writes a key-value pair to the parameters mapping within the given request.
 rqSetParam :: ByteString        -- ^ parameter name
            -> [ByteString]      -- ^ parameter values
@@ -399,6 +433,8 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 emptyResponse       :: Response
 emptyResponse       = Response Map.empty (1,1) Nothing (Enum return) 200 "OK"
 
+
+------------------------------------------------------------------------------
 -- | Sets an HTTP response body to the given 'Enumerator' value.
 setResponseBody     :: (forall a . Enumerator a)  -- ^ new response body
                                                   -- enumerator
@@ -407,6 +443,8 @@ setResponseBody     :: (forall a . Enumerator a)  -- ^ new response body
 setResponseBody e r = r { rspBody = Enum e }
 {-# INLINE setResponseBody #-}
 
+
+------------------------------------------------------------------------------
 -- | Sets the HTTP response status.
 setResponseStatus   :: Int        -- ^ HTTP response integer code
                     -> ByteString -- ^ HTTP response explanation
@@ -416,6 +454,7 @@ setResponseStatus s reason r = r { rspStatus=s, rspStatusReason=reason }
 {-# INLINE setResponseStatus #-}
 
 
+------------------------------------------------------------------------------
 -- | Modifies a response body.
 modifyResponseBody  :: (forall a . Enumerator a -> Enumerator a)
                     -> Response
@@ -424,12 +463,14 @@ modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }
 {-# INLINE modifyResponseBody #-}
 
 
+------------------------------------------------------------------------------
 -- | Sets the @Content-Type@ in the 'Response' headers.
 setContentType      :: ByteString -> Response -> Response
 setContentType = setHeader "Content-Type"
 {-# INLINE setContentType #-}
 
 
+------------------------------------------------------------------------------
 -- | Adds an HTTP 'Cookie' to the 'Response' headers.
 addCookie :: Cookie            -- ^ cookie value
           -> Response          -- ^ response to modify
@@ -444,6 +485,7 @@ addCookie (Cookie k v mbExpTime mbDomain mbPath) = updateHeaders f
     fmt     = fromStr . formatTime defaultTimeLocale "%a, %d-%b-%Y %H:%M:%S GMT"
 
 
+------------------------------------------------------------------------------
 -- | A note here: if you want to set the @Content-Length@ for the response,
 -- Snap forces you to do it with this function rather than by setting it in the
 -- headers; the @Content-Length@ in the headers will be ignored.
@@ -461,6 +503,7 @@ setContentLength l r = r { rspContentLength = Just l }
 {-# INLINE setContentLength #-}
 
 
+------------------------------------------------------------------------------
 -- | Removes any @Content-Length@ set in the 'Response'.
 clearContentLength :: Response -> Response
 clearContentLength r = r { rspContentLength = Nothing }
@@ -489,6 +532,8 @@ formatHttpTime t = allocaBytes 40 $ \ptr -> do
     c_format_http_time t ptr
     S.packCString ptr
 
+
+------------------------------------------------------------------------------
 -- | Converts an HTTP timestamp into a 'CTime'.
 parseHttpTime :: ByteString -> IO CTime
 parseHttpTime s = S.useAsCString s $ \ptr ->
@@ -508,6 +553,7 @@ parseToCompletion p s = toResult $ finish r
     toResult _               = Nothing
 
 
+------------------------------------------------------------------------------
 pUrlEscaped :: Parser ByteString
 pUrlEscaped = do
     sq <- nextChunk DL.empty
@@ -544,12 +590,14 @@ pUrlEscaped = do
     plusSpace l = nextChunk (DL.snoc l (S.singleton $ c2w ' '))
 
 
+------------------------------------------------------------------------------
 -- | Decodes an URL-escaped string (see
 -- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
 urlDecode :: ByteString -> Maybe ByteString
 urlDecode = parseToCompletion pUrlEscaped
 
 
+------------------------------------------------------------------------------
 -- "...Only alphanumerics [0-9a-zA-Z], the special characters "$-_.+!*'(),"
 -- [not including the quotes - ed], and reserved characters used for their
 -- reserved purposes may be used unencoded within a URL."
@@ -572,6 +620,8 @@ urlEncode = toByteString . S.foldl' f empty
       where
         c = w2c w
 
+
+------------------------------------------------------------------------------
 hexd :: Word8 -> Builder
 hexd c = singleton (c2w '%') `mappend` singleton hi `mappend` singleton low
   where
@@ -580,10 +630,13 @@ hexd c = singleton (c2w '%') `mappend` singleton hi `mappend` singleton low
     hi  = d $ fromEnum $ (c .&. 0xf0) `shift` (-4)
 
 
+------------------------------------------------------------------------------
 finish :: Atto.Result a -> Atto.Result a
 finish (Atto.Partial f) = flip feed "" $ f ""
 finish x                = x
 
+
+------------------------------------------------------------------------------
 char :: Char -> Parser Word8
 char = word8 . c2w
 
