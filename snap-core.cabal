@@ -29,6 +29,15 @@ description:
   .
   /Quick start/: The 'Snap' monad and HTTP definitions are in "Snap.Types",
   some iteratee utilities are in "Snap.Iteratee".
+  .
+  Higher-level facilities for building web applications (like user/session
+  management, component interfaces, data modeling, etc.) are planned but not
+  yet implemented, so this release will mostly be of interest for those who:
+  .
+  * need a fast and minimal HTTP API at roughly the same level of abstraction
+    as Java servlets, or
+  .
+  * are interested in contributing to the Snap Framework project.
 
 license:        BSD3
 license-file:   LICENSE
