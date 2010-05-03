@@ -6,10 +6,39 @@ for HTTP as well as the 'Snap' monad, which is used for web handlers.
 -}
 module Snap.Types
   ( 
-    -- * HTTP
+    -- * The Snap Monad
+    Snap
+  , runSnap
+  , NoHandlerException(..)
+
+    -- ** Functions for control flow and early termination
+  , finishWith
+  , pass
+
+    -- ** Routing
+  , method
+  , path
+  , dir
+  , ifTop
+  , route
+
+    -- ** Access to state
+  , getRequest
+  , getResponse
+  , putRequest
+  , putResponse
+  , modifyRequest
+  , modifyResponse
+  , localRequest
+
+    -- ** Grabbing request bodies
+  , runRequestBody
+  , getRequestBody
+  , unsafeDetachRequestBody
+    -- * HTTP Datatypes and Functions
     -- $httpDoc
-    -- ** Datatypes
-    Request
+    --
+  , Request
   , Response
   , Headers
   , HasHeaders(..)
@@ -64,36 +93,6 @@ module Snap.Types
   , writeText
   , writeLBS
   , sendFile
-
-    -- * The Snap Monad
-  , Snap
-  , runSnap
-  , NoHandlerException(..)
-
-    -- ** Functions for control flow and early termination
-  , finishWith
-  , pass
-
-    -- ** Routing
-  , method
-  , path
-  , dir
-  , ifTop
-  , route
-
-    -- ** Access to state
-  , getRequest
-  , getResponse
-  , putRequest
-  , putResponse
-  , modifyRequest
-  , modifyResponse
-  , localRequest
-
-    -- ** Grabbing request bodies
-  , runRequestBody
-  , getRequestBody
-  , unsafeDetachRequestBody
 
     -- * Iteratee
   , Enumerator

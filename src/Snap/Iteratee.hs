@@ -7,7 +7,7 @@
 -- @iteratee@ library.
 --
 -- /WARNING/: Note that all of these types are scheduled to change in the
--- @darcs@ head version of the @iteratee@ library; John Lato et. al are working
+-- @darcs@ head version of the @iteratee@ library; John Lato et al. are working
 -- on a much improved iteratee formulation.
 
 module Snap.Iteratee
