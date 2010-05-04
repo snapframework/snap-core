@@ -61,7 +61,7 @@ cabalFile projName = unlines
     ,"  Build-depends:"
     ,"    base >= 4,"
     ,"    haskell98,"
-    ,"    transformers,"
+    ,"    monads-fd,"
     ,"    bytestring,"
     ,"    snap-core,"
     ,"    snap-server,"
