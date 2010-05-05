@@ -15,11 +15,11 @@ import           Control.Monad.Trans
 #ifdef DEBUG_TEST
 
 debug :: (MonadIO m) => String -> m ()
-debug s = return $ s `seq` ()
+debug !s = return $ s `seq` ()
 {-# INLINE debug #-}
 
 debugErrno :: (MonadIO m) => String -> m ()
-debugErrno s = return $ s `seq` ()
+debugErrno !s = return $ s `seq` ()
 
 #elif defined(DEBUG)
 
