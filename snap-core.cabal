@@ -52,11 +52,19 @@ Flag debug
   Description: Enable debug logging to stderr
   Default: False
 
+Flag testsuite
+  Description: Are we running the testsuite? Causes arguments to \"debug\" to
+               be evaluated but not printed.
+  Default: False
+
 Library
   hs-source-dirs: src
 
   if flag(debug)
     cpp-options: -DDEBUG
+
+  if flag(testsuite)
+    cpp-options: -DDEBUG_TEST
 
   c-sources: cbits/timefuncs.c
   include-dirs: cbits

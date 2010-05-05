@@ -5,13 +5,23 @@
 -- /N.B./ this is an internal interface, please don't write external code that
 -- depends on it.
 
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 
 module Snap.Internal.Debug where
 
 import           Control.Monad.Trans
 
-#ifdef DEBUG
+#ifdef DEBUG_TEST
+
+debug :: (MonadIO m) => String -> m ()
+debug s = return $ s `seq` ()
+{-# INLINE debug #-}
+
+debugErrno :: (MonadIO m) => String -> m ()
+debugErrno s = return $ s `seq` ()
+
+#elif defined(DEBUG)
 
 ------------------------------------------------------------------------------
 import           Control.Concurrent
