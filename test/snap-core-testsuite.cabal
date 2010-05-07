@@ -7,6 +7,11 @@ Flag debug
   Description: Enable debug logging to stderr
   Default: False
 
+Flag testsuite
+  Description: Are we running the testsuite? Causes arguments to \"debug\" to
+               be evaluated but not printed.
+  Default: False
+
 Executable testsuite
   c-sources: ../cbits/timefuncs.c
   include-dirs: ../cbits
@@ -15,6 +20,9 @@ Executable testsuite
 
   if flag(debug)
     cpp-options: -DDEBUG
+
+  if flag(testsuite)
+    cpp-options: -DDEBUG_TEST
 
   build-depends:
     QuickCheck >= 2,

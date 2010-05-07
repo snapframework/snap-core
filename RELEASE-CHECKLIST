@@ -12,6 +12,8 @@
 
     - [ ] grep for FIXME/TODO
 
+  - [ ] does "snap init" work??
+
   - [ ] kill any warnings, both in library & testsuite
 
   - [ ] all modules exported? correct modules exported?
