@@ -66,7 +66,7 @@ import           Snap.Internal.Http.Types
 
    > a :: Snap ()
    > a = do
-   >   modifyResponse $ setResponseStatus 500
+   >   modifyResponse $ setResponseStatus 500 "Internal Server Error"
    >   writeBS "500 error"
    >   r <- getResponse
    >   finishWith r
