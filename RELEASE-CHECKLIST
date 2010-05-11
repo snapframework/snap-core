@@ -1,6 +1,6 @@
 -*- org -*-
 
-* TODO Release Checklist [0/10]
+* TODO Release Checklist [0/11]
 
   - [ ] generate and review haddock docs, copy to website
 
@@ -23,3 +23,5 @@
   - [ ] run benchmarks, check for regressions
 
   - [ ] check accompanying info files (READMEs, LICENSE, CONTRIBUTORS, etc)
+
+  - [ ] check that sdist works, cabal contains all extra files/etc

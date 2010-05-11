@@ -1,30 +1,31 @@
 -*- org -*-
 
-* TODO [#A] Website material
-  :LOGBOOK:
-  - Note taken on [2010-04-13 Tue 02:46] \\
-    Website requirements:
-    
-     - tutorial info, or at least a description of how to obtain and install the
-       software
-    
-     - hpc reports, haddock for all released versions
-    
-     - news section w/ rss (maybe for version 2)
-    
-     - general info
-    
-       - mailing list
-    
-       - contributors (photos?)
-    
-       - links to source control
-  :END:
+* TODO [#A] remaining website items
+  - [ ] benchmarks (splash page graph, details page)
+
+  - [ ] splash page
+
+  - [ ] page footer
+
+  - [ ] test coverage reports
+
+  - [ ] final review for fixmes/etc
+
+
+* TODO [#A] Remaining heist items
+  - [ ] onLoad/pre/post hooks for template processing
+
+  - [ ] implement <static> tag
+
+  - [ ] implement <cache> tag
+
+
+* TODO [#A] remaining code items (snap-server/snap-core)
+  - [ ] final checklist
+
+
 * TODO [#A] Finish HTTP server test suite
 
-* TODO [#A] Review HTTP server code for exception safety
-
-* TODO [#B] GIT submodule setup for the various snap-* libraries
 
 * TODO [#B] Better benchmarks
   :LOGBOOK:
@@ -41,8 +42,25 @@
        - test performance for larger streams with/without compression, etc
   :END:
 
-* TODO [#C] Setup a CI server, either buildbot or hudson
+
+------------------------------------------------------------------------
+* TODO [#A] release code
+  - [ ] push snap-core, snap-server, heist, snap-website, snap-benchmarks to github
+
+  - [ ] push website out, check all links work
+
+  - [ ] tag version numbers in git repos.
+
+  - [ ] push code to hackage
+
+------------------------------------------------------------------------
+
+
+
+* DONE [#C] Setup a CI server, either buildbot or hudson
+  CLOSED: [2010-05-10 Mon 22:50]
   :LOGBOOK:
+  - State "DONE"       from "TODO"       [2010-05-10 Mon 22:50]
   - Note taken on [2010-04-13 Tue 02:51] \\
     Buildbot should track:
     
@@ -53,67 +71,17 @@
      - benchmarks over time
   :END:
 
-
-
-
-* DONE [#A] Add fileServe
-  CLOSED: [2010-04-17 Sat 18:20]
+* CANCELLED [#B] GIT submodule setup for the various snap-* libraries
+  CLOSED: [2010-05-10 Mon 22:50]
   :LOGBOOK:
-  - State "DONE"       from "STARTED"    [2010-04-17 Sat 18:20]
-  - State "STARTED"    from "TODO"       [2010-04-14 Wed 22:55]
-  - Note taken on [2010-04-13 Tue 18:36] \\
-    Executive decision: defer directory indices for another version
-  - Note taken on [2010-04-13 Tue 02:42] \\
-    fileServe :: FilePath -> Snap ()
-    fileServe' :: MimeMap -> FilePath -> Snap ()
-    
-     - Files served relative to root dir + rqPathInfo
-    
-     - check and prohibit ".." outside of root dir
-    
-     - mime map done by extension, or by suffix? e.g. ".tar.gz"?
-       - search efficiency -- reverse the filename and lookup in a trie?
-  :END:
-** DONE [#A] fileserve testsuite
-   CLOSED: [2010-04-17 Sat 18:20]
-   :LOGBOOK:
-   - State "DONE"       from "TODO"       [2010-04-17 Sat 18:20]
-   :END:
-
-* DONE [#A] improve git email hook
-  CLOSED: [2010-04-17 Sat 18:20]
-  :LOGBOOK:
-  - State "DONE"       from "STARTED"    [2010-04-17 Sat 18:20]
-  - Note taken on [2010-04-14 Wed 23:29] \\ git email hook is annoying!
-    extremely annoying! i mean really! will the subject be set correctly this
-    time? or am I condemned to eternal torment
-  - State "STARTED"    from "TODO"       [2010-04-14 Wed 23:18]
+  - State "CANCELLED"  from "TODO"       [2010-05-10 Mon 22:50] \\
+    dumb idea, submodules are frustratingly limited
   :END:
 
-* DONE [#B] Provide URI escaping/unescaping utilities
-  CLOSED: [2010-04-19 Mon 23:40]
+
+* DONE [#A] Review HTTP server code for exception safety
+  CLOSED: [2010-05-10 Mon 22:50]
   :LOGBOOK:
-  - State "DONE"       from "TODO"       [2010-04-19 Mon 23:40]
+  - State "DONE"       from "TODO"       [2010-05-10 Mon 22:50]
   :END:
 
-* DONE [#A] split rqContextPath out into rqSnapletPath and rqContextPath
-  CLOSED: [2010-04-20 Tue 23:27]
-  :LOGBOOK:
-  - State "DONE"       from "TODO"       [2010-04-20 Tue 23:27]
-  :END:
-* DONE [#A] Regression test for transfer-encoding: chunked on http/1.0
-  CLOSED: [2010-04-24 Sat 00:55]
-  :LOGBOOK:
-  - State "DONE"       from "TODO"       [2010-04-24 Sat 00:55]
-  :END:
-
-* DONE [#A] Mention that Snap is for unix systems only
-   CLOSED: [2010-04-29 Thu 11:57]
-   :LOGBOOK:
-   - State "DONE"       from "TODO"       [2010-04-29 Thu 11:57]
-   :END:
-* DONE [#A] Limit the amount of data read from POST bodies to prevent server OOM denial of service
-  CLOSED: [2010-05-01 Sat 14:05]
-  :LOGBOOK:
-  - State "DONE"       from "TODO"       [2010-05-01 Sat 14:05]
-  :END:
