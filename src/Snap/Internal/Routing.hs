@@ -119,7 +119,7 @@ instance Monoid (Route a) where
 -- >       , ("login",       method POST doLogin) ]
 --
 route :: [(ByteString, Snap a)] -> Snap a
-route rts = route' rts' []
+route rts = route' rts'
   where
     rts' = mconcat (map pRoute rts)
 
@@ -135,26 +135,25 @@ pRoute (r, a) = foldr f (Action a) hier
 
 
 ------------------------------------------------------------------------------
-route' :: Route a -> [Route a] -> Snap a
-route' (Action action) _ = action
+route' :: Route a -> Snap a
+route' (Action action) = action
 
-route' (Capture param rt fb) fbs = do
+route' (Capture param rt fb) = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     if B.null cwd
-      then route' fb fbs
+      then route' fb
       else do modifyRequest $ updateContextPath (B.length cwd) . (f cwd)
-              route' rt (fb:fbs)
+              route' rt
   where
     f v req = req { rqParams = Map.insertWith (++) param [v] (rqParams req) }
 
-route' (Dir rtm fb) fbs = do
+route' (Dir rtm fb) = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     case Map.lookup cwd rtm of
       Just rt -> do
           modifyRequest $ updateContextPath (B.length cwd)
-          route' rt (fb:fbs)
-      Nothing -> route' fb fbs
+          route' rt
+      Nothing -> route' fb
 
-route' NoRoute       [] = pass
-route' NoRoute (fb:fbs) = route' fb fbs
+route' NoRoute = pass
 

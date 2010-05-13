@@ -396,19 +396,6 @@ rqParam k rq = Map.lookup k $ rqParams rq
 
 
 ------------------------------------------------------------------------------
--- | See 'rqParam'. Looks up a value for the given named parameter. If more
--- than one value was entered for the given parameter name, 'getParam' gloms
--- the values together with:
---
--- @    'S.intercalate' \" \"@
---
-getParam :: ByteString          -- ^ parameter name to look up
-         -> Request             -- ^ HTTP request
-         -> Maybe ByteString
-getParam k rq = liftM (S.intercalate " ") $ rqParam k rq
-
-
-------------------------------------------------------------------------------
 -- | Modifies the parameters mapping (which is a @Map ByteString ByteString@) in
 -- a 'Request' using the given function.
 rqModifyParams :: (Params -> Params) -> Request -> Request
@@ -637,10 +624,6 @@ finish :: Atto.Result a -> Atto.Result a
 finish (Atto.Partial f) = flip feed "" $ f ""
 finish x                = x
 
-
-------------------------------------------------------------------------------
-char :: Char -> Parser Word8
-char = word8 . c2w
 
 ------------------------------------------------------------------------------
 -- local definitions

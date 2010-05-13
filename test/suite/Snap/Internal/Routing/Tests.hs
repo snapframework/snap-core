@@ -32,7 +32,15 @@ tests = [ testRouting1
         , testRouting7
         , testRouting8
         , testRouting9
-        , testRouting10 ]
+        , testRouting10
+        , testRouting11
+        , testRouting12
+        , testRouting13
+        , testRouting14
+        , testRouting15
+        , testRouting16
+        , testRouting17
+        , testRouting18 ]
 
 expectException :: IO a -> IO ()
 expectException m = do
@@ -57,17 +65,62 @@ go m s = do
 
 
 routes :: Snap ByteString
-routes = route [ ("foo"             , topFoo    )
-               , ("foo/bar"         , fooBar    )
-               , ("foo/bar/baz"     , fooBarBaz )
-               , ("foo/:id"         , fooCapture)
-               , ("bar/:id"         , fooCapture)
-               , ("bar/quux"        , barQuux   )
-               , ("bar"             , bar       ) ]
+routes = route [ ("foo"          , topFoo    )
+               , ("foo/bar"      , fooBar    )
+               , ("foo/bar/baz"  , fooBarBaz )
+               , ("foo/:id"      , fooCapture)
+               , ("bar/:id"      , fooCapture)
+               , ("bar/quux"     , barQuux   )
+               , ("bar"          , bar       )
+               , ("z/:a/:b/:c/d" , zabc      ) ]
+
+routes2 :: Snap ByteString
+routes2 = route [ (""    , topTop )
+                , ("foo" , topFoo ) ]
+
+routes3 :: Snap ByteString
+routes3 = route [ (":foo" , topCapture )
+                , (""     , topTop     ) ]
+
+routes4 :: Snap ByteString
+routes4 = route [ (":foo" , pass       )
+                , (":foo" , topCapture ) ]
+
+routes5 :: Snap ByteString
+routes5 = route [ ("" , pass       )
+                , ("" , topTop ) ]
+
+routes6 :: Snap ByteString
+routes6 = route [ (":a/:a" , dblA ) ]
 
 
-topFoo, fooBar, fooCapture, fooBarBaz, bar, barQuux :: Snap ByteString
+topTop, topFoo, fooBar, fooCapture, fooBarBaz, bar, barQuux :: Snap ByteString
+dblA, zabc, topCapture :: Snap ByteString
 
+dblA = do
+    ma <- getParam "a"
+
+    unless (ma == Just "a a") pass
+    return "ok"
+
+
+zabc = do
+    ma <- getParam "a"
+    mb <- getParam "b"
+    mc <- getParam "c"
+
+    unless (   ma == Just "a"
+            && mb == Just "b"
+            && mc == Just "c" ) pass
+
+    return "ok"
+
+
+topCapture = do
+    mp <- getParam "foo"
+    maybe pass return mp
+
+topTop = return "topTop"
 topFoo = return "topFoo"
 fooBar = return "fooBar"
 fooCapture = liftM (head . fromJust . rqParam "id") getRequest
@@ -125,3 +178,42 @@ testRouting10 = testCase "routing10" $ do
     r4 <- go routes "bar/quux/whatever"
     assertEqual "/bar/quux/whatever" "barQuux" r4
 
+testRouting11 :: Test
+testRouting11 = testCase "routing11" $ do
+    r1 <- go routes2 ""
+    assertEqual "/" "topTop" r1
+
+testRouting12 :: Test
+testRouting12 = testCase "routing12" $ do
+    r1 <- go routes2 "foo"
+    assertEqual "/foo" "topFoo" r1
+
+testRouting13 :: Test
+testRouting13 = testCase "routing13" $ do
+    r1 <- go routes3 "zzzz"
+    assertEqual "/zzzz" "zzzz" r1
+
+testRouting14 :: Test
+testRouting14 = testCase "routing14" $ do
+    r1 <- go routes3 ""
+    assertEqual "/" "topTop" r1
+
+testRouting15 :: Test
+testRouting15 = testCase "routing15" $ do
+    r1 <- go routes4 "zzzz"
+    assertEqual "/zzzz" "zzzz" r1
+
+testRouting16 :: Test
+testRouting16 = testCase "routing16" $ do
+    r1 <- go routes5 ""
+    assertEqual "/" "topTop" r1
+
+testRouting17 :: Test
+testRouting17 = testCase "routing17" $ do
+    r1 <- go routes "z/a/b/c/d"
+    assertEqual "/z/a/b/c/d" "ok" r1
+
+testRouting18 :: Test
+testRouting18 = testCase "routing18" $ do
+    r1 <- go routes6 "a/a"
+    assertEqual "/a/a" "ok" r1

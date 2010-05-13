@@ -7,11 +7,10 @@ module Snap.Types.Tests
 
 import           Control.Applicative
 import           Control.Concurrent.MVar
-import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
 import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
 import           Data.Iteratee
@@ -36,6 +35,7 @@ tests = [ testFail
         , testMethod
         , testDir
         , testWrites
+        , testParam
         , testURLEncode1
         , testURLEncode2 ]
 
@@ -48,7 +48,8 @@ expect404 m = do
 expectNo404 :: IO (Request,Response) -> IO ()
 expectNo404 m = do
     (_,r) <- m
-    assertBool "expected 200" (rspStatus r /= 404)
+    assertBool ("expected 200, got " ++ show (rspStatus r))
+               (rspStatus r /= 404)
 
 
 mkRequest :: ByteString -> IO Request
@@ -57,7 +58,19 @@ mkRequest uri = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                      enum Nothing GET (1,1) [] "" uri "/"
-                     (B.concat ["/",uri]) "" Map.empty
+                     (S.concat ["/",uri]) "" Map.empty
+
+mkRequestQuery :: ByteString -> ByteString -> [ByteString] -> IO Request
+mkRequestQuery uri k v = do
+    enum <- newIORef $ SomeEnumerator return
+
+    let mp = Map.fromList [(k,v)]
+    let q  = S.concat [k,"=", S.concat v]
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+                     enum Nothing GET (1,1) [] "" uri "/"
+                     (S.concat ["/",uri,"?",q]) q mp
+
 
 mkZomgRq :: IO Request
 mkZomgRq = do
@@ -84,6 +97,16 @@ go m = do
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
+    run $ runSnap m $ rq
+
+
+goPathQuery :: ByteString
+            -> ByteString
+            -> [ByteString]
+            -> Snap a
+            -> IO (Request,Response)
+goPathQuery s k v m = do
+    rq <- mkRequestQuery s k v
     run $ runSnap m $ rq
 
 
@@ -200,6 +223,18 @@ testDir = testCase "dir" $ do
    expect404 $ goPath "foo/bar/z" (path "foo/bar" $ return ())
    expectNo404 $ goPath "" (ifTop $ return ())
    expect404 $ goPath "a" (ifTop $ return ())
+
+
+testParam :: Test
+testParam = testCase "getParam" $ do
+    expect404 $ goPath "/foo" f
+    expectNo404 $ goPathQuery "/foo" "param" ["foo"] f
+  where
+    f = do
+        mp <- getParam "param"
+        maybe pass
+              (\s -> if s == "foo" then return () else pass)
+              mp
 
 
 getBody :: Response -> IO L.ByteString

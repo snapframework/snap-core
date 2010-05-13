@@ -11,7 +11,7 @@ import           Control.Exception (throwIO, ErrorCall(..))
 import           Control.Monad.CatchIO
 import           Control.Monad.State.Strict
 import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
 import qualified Data.Iteratee as Iter
@@ -244,9 +244,9 @@ updateContextPath n req | n > 0     = req { rqContextPath = ctx
                                           , rqPathInfo    = pinfo }
                         | otherwise = req
   where
-    ctx'  = B.take n (rqPathInfo req)
-    ctx   = B.concat [rqContextPath req, ctx', "/"]
-    pinfo = B.drop (n+1) (rqPathInfo req)
+    ctx'  = S.take n (rqPathInfo req)
+    ctx   = S.concat [rqContextPath req, ctx', "/"]
+    pinfo = S.drop (n+1) (rqPathInfo req)
 
 
 ------------------------------------------------------------------------------
@@ -259,7 +259,7 @@ pathWith :: (ByteString -> ByteString -> Bool)
 pathWith c p action = do
     req <- getRequest
     unless (c p (rqPathInfo req)) pass
-    localRequest (updateContextPath $ B.length p) action
+    localRequest (updateContextPath $ S.length p) action
 
 
 ------------------------------------------------------------------------------
@@ -277,7 +277,7 @@ dir = pathWith f
   where
     f dr pinfo = dr == x
       where
-        (x,_) = B.break (=='/') pinfo
+        (x,_) = S.break (=='/') pinfo
 {-# INLINE dir #-}
 
 
@@ -481,4 +481,20 @@ evalSnap (Snap m) req = do
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
     ss = SnapState req dresp
 {-# INLINE evalSnap #-}
+
+
+
+------------------------------------------------------------------------------
+-- | See 'rqParam'. Looks up a value for the given named parameter in the
+-- 'Request'. If more than one value was entered for the given parameter name,
+-- 'getParam' gloms the values together with:
+--
+-- @    'S.intercalate' \" \"@
+--
+getParam :: ByteString          -- ^ parameter name to look up
+         -> Snap (Maybe ByteString)
+getParam k = do
+    rq <- getRequest
+    return $ liftM (S.intercalate " ") $ rqParam k rq
+
 
