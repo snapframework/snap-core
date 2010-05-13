@@ -53,10 +53,12 @@ instance Monoid (Route a) where
       NoRoute           -> l
 
     mappend l@(Capture p r' fb) r = case r of
-      (Action _)      -> Capture p r' (mappend fb r)
-      (Capture _ _ _) -> r
-      (Dir rm fb')    -> Dir rm (mappend fb' l)
-      NoRoute         -> l
+      (Action _)           -> Capture p r' (mappend fb r)
+      (Capture p' r'' fb')
+               | p == p'   -> Capture p (mappend r' r'') (mappend fb fb')
+               | otherwise -> r
+      (Dir rm fb')         -> Dir rm (mappend fb' l)
+      NoRoute              -> l
 
     mappend l@(Dir rm fb) r = case r of
       (Action _)      -> Dir rm (mappend fb r)
@@ -119,7 +121,7 @@ instance Monoid (Route a) where
 -- >       , ("login",       method POST doLogin) ]
 --
 route :: [(ByteString, Snap a)] -> Snap a
-route rts = route' rts'
+route rts = route' rts' []
   where
     rts' = mconcat (map pRoute rts)
 
@@ -135,25 +137,25 @@ pRoute (r, a) = foldr f (Action a) hier
 
 
 ------------------------------------------------------------------------------
-route' :: Route a -> Snap a
-route' (Action action) = action
+route' :: Route a -> [Route a] -> Snap a
+route' (Action action) _ = action
 
-route' (Capture param rt fb) = do
+route' (Capture param rt fb) fbs = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     if B.null cwd
-      then route' fb
+      then route' fb fbs
       else do modifyRequest $ updateContextPath (B.length cwd) . (f cwd)
-              route' rt
+              route' rt (fb:fbs)
   where
     f v req = req { rqParams = Map.insertWith (++) param [v] (rqParams req) }
 
-route' (Dir rtm fb) = do
+route' (Dir rtm fb) fbs = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     case Map.lookup cwd rtm of
       Just rt -> do
           modifyRequest $ updateContextPath (B.length cwd)
-          route' rt
-      Nothing -> route' fb
+          route' rt (fb:fbs)
+      Nothing -> route' fb fbs
 
-route' NoRoute = pass
-
+route' NoRoute       [] = pass
+route' NoRoute (fb:fbs) = route' fb fbs
