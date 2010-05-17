@@ -13,9 +13,9 @@
 
 
 * TODO [#A] Remaining heist items
-  - [ ] onLoad/pre/post hooks for template processing
+  - [X] onLoad/pre/post hooks for template processing
 
-  - [ ] implement <static> tag
+  - [X] implement <static> tag
 
   - [ ] implement <cache> tag
 

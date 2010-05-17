@@ -421,6 +421,20 @@ localRequest f m = do
 
 
 ------------------------------------------------------------------------------
+-- | Fetch the 'Request' from state and hand it to the given action
+withRequest :: (Request -> Snap a) -> Snap a
+withRequest = (getRequest >>=)
+{-# INLINE withRequest #-}
+
+
+------------------------------------------------------------------------------
+-- | Fetch the 'Response' from state and hand it to the given action
+withResponse :: (Response -> Snap a) -> Snap a
+withResponse = (getResponse >>=)
+{-# INLINE withResponse #-}
+
+
+------------------------------------------------------------------------------
 -- | This exception is thrown if the handler you supply to 'runSnap' fails.
 data NoHandlerException = NoHandlerException
    deriving (Eq, Typeable)

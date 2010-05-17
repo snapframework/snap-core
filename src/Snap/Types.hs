@@ -30,6 +30,8 @@ module Snap.Types
   , modifyRequest
   , modifyResponse
   , localRequest
+  , withRequest
+  , withResponse
 
     -- ** Grabbing request bodies
   , runRequestBody
