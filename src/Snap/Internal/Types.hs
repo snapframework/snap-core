@@ -421,14 +421,14 @@ localRequest f m = do
 
 
 ------------------------------------------------------------------------------
--- | Fetches the 'Request' from state and hand it to the given action.
+-- | Fetches the 'Request' from state and hands it to the given action.
 withRequest :: (Request -> Snap a) -> Snap a
 withRequest = (getRequest >>=)
 {-# INLINE withRequest #-}
 
 
 ------------------------------------------------------------------------------
--- | Fetches the 'Response' from state and hand it to the given action.
+-- | Fetches the 'Response' from state and hands it to the given action.
 withResponse :: (Response -> Snap a) -> Snap a
 withResponse = (getResponse >>=)
 {-# INLINE withResponse #-}
