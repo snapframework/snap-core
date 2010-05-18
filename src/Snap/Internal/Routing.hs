@@ -144,8 +144,8 @@ route' (Capture param rt fb) fbs = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     if B.null cwd
       then route' fb fbs
-      else do modifyRequest $ updateContextPath (B.length cwd) . (f cwd)
-              route' rt (fb:fbs)
+      else do localRequest (updateContextPath (B.length cwd) . (f cwd)) $
+                           route' rt (fb:fbs)
   where
     f v req = req { rqParams = Map.insertWith (++) param [v] (rqParams req) }
 
@@ -153,8 +153,8 @@ route' (Dir rtm fb) fbs = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     case Map.lookup cwd rtm of
       Just rt -> do
-          modifyRequest $ updateContextPath (B.length cwd)
-          route' rt (fb:fbs)
+          localRequest (updateContextPath (B.length cwd)) $
+                       route' rt (fb:fbs)
       Nothing -> route' fb fbs
 
 route' NoRoute       [] = pass
