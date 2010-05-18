@@ -413,10 +413,15 @@ sendFile f = modifyResponse $ \r -> r { rspBody = SendFile f }
 localRequest :: (Request -> Request) -> Snap a -> Snap a
 localRequest f m = do
     req <- getRequest
-    modifyRequest f
-    result <- m
-    putRequest req
-    return result
+
+    runAct req <|> (putRequest req >> pass)
+
+  where
+    runAct req = do
+        modifyRequest f
+        result <- m
+        putRequest req
+        return result
 {-# INLINE localRequest #-}
 
 
