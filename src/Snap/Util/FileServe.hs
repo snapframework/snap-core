@@ -21,11 +21,9 @@ import           Data.ByteString.Char8 (ByteString)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
-import           Foreign.C.Types
 import           System.Directory
 import           System.FilePath
 import           System.Posix.Files
-import           System.Time
 
 ------------------------------------------------------------------------------
 import           Snap.Types
@@ -231,11 +229,11 @@ fileServeSingle' mime fp = do
                                (Just s) -> liftM Just $ parseHttpTime s
 
     -- check modification time and bug out early if the file is not modified.
-    mt <- liftIO $ liftM clock2time $ getModificationTime fp
+    filestat <- liftIO $ getFileStatus fp
+    let mt = modificationTime filestat
     maybe (return ()) (chkModificationTime mt) mbIfModified
 
-    sz <- liftIO $ liftM (fromEnum . fileSize) $ getFileStatus fp
-
+    let sz = fromEnum $ fileSize filestat
     lm <- liftIO $ formatHttpTime mt
 
     modifyResponse $ setHeader "Last-Modified" lm
@@ -268,8 +266,3 @@ fileType mm f =
 ------------------------------------------------------------------------------
 defaultMimeType :: ByteString
 defaultMimeType = "application/octet-stream"
-
-
-------------------------------------------------------------------------------
-clock2time :: ClockTime -> CTime
-clock2time (TOD x _) = fromInteger x
