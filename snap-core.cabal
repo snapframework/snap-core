@@ -48,6 +48,49 @@ cabal-version:  >= 1.6
 homepage:       http://snapframework.com/
 category:       Web
 
+extra-source-files:
+  test/suite/TestSuite.hs,
+  cbits/timefuncs.c,
+  CONTRIBUTORS,
+  extra/fonts/DroidSerif-Bold.eot,
+  extra/fonts/DroidSerif-Bold.svg,
+  extra/fonts/DroidSerif-Bold.ttf,
+  extra/fonts/DroidSerif-Bold.woff,
+  extra/fonts/DroidSerif-BoldItalic.eot,
+  extra/fonts/DroidSerif-BoldItalic.svg,
+  extra/fonts/DroidSerif-BoldItalic.ttf,
+  extra/fonts/DroidSerif-BoldItalic.woff,
+  extra/fonts/DroidSerif-Italic.eot,
+  extra/fonts/DroidSerif-Italic.svg,
+  extra/fonts/DroidSerif-Italic.ttf,
+  extra/fonts/DroidSerif-Italic.woff,
+  extra/fonts/DroidSerif-Regular.eot,
+  extra/fonts/DroidSerif-Regular.svg,
+  extra/fonts/DroidSerif-Regular.ttf,
+  extra/fonts/DroidSerif-Regular.woff,
+  extra/haddock.css,
+  extra/hscolour.css,
+  extra/logo.gif,
+  haddock.sh,
+  LICENSE,
+  README.md,
+  README.SNAP.md,
+  Setup.hs,
+  test/data/fileServe/foo.bin,
+  test/data/fileServe/foo.bin.bin.bin,
+  test/data/fileServe/foo.html,
+  test/data/fileServe/foo.txt,
+  test/runTestsAndCoverage.sh,
+  test/snap-core-testsuite.cabal,
+  test/suite/Snap/Internal/Http/Types/Tests.hs,
+  test/suite/Snap/Internal/Routing/Tests.hs,
+  test/suite/Snap/Iteratee/Tests.hs,
+  test/suite/Snap/Test/Common.hs,
+  test/suite/Snap/Types/Tests.hs,
+  test/suite/Snap/Util/FileServe/Tests.hs,
+  test/suite/Snap/Util/GZip/Tests.hs
+
+
 Flag debug
   Description: Enable debug logging to stderr
   Default: False
