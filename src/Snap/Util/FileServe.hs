@@ -161,11 +161,6 @@ getSafePath = do
     req <- getRequest
     let p = S.unpack $ rqPathInfo req
 
-    -- relative paths only!
-    -- Given that p comes from rqPathInfo, is this check really
-    -- necessary?
-    when (not $ isRelative p) pass
-
     -- check that we don't have any sneaky .. paths
     let dirs = splitDirectories p
     when (elem ".." dirs) pass
