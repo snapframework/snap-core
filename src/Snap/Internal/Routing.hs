@@ -2,6 +2,7 @@ module Snap.Internal.Routing where
 
 
 ------------------------------------------------------------------------------
+import           Control.Applicative ((<|>))
 import           Data.ByteString (ByteString)
 import           Data.ByteString.Internal (c2w)
 import qualified Data.ByteString as B
@@ -126,6 +127,25 @@ route rts = route' rts' []
     rts' = mconcat (map pRoute rts)
 
 
+------------------------------------------------------------------------------
+-- | The 'routeLocal' function is the same as 'route', except it doesn't change
+-- the request's context path. This is useful if you want to route to a
+-- particular handler but you want that handler to receive the 'rqPathInfo' as
+-- it is.
+routeLocal :: [(ByteString, Snap a)] -> Snap a
+routeLocal rts = do
+    req    <- getRequest
+    let ctx = rqContextPath req
+    let p   = rqPathInfo req
+    route (f ctx p)
+
+  where
+    f ctx p =
+        let md      = modifyRequest $ \r -> r {rqContextPath=ctx, rqPathInfo=p}
+            reset h = (md >> h >>= \x -> md >> return x) <|> (md >> pass)
+        in map (\(x,y) -> (x, reset y)) rts
+
+          
 ------------------------------------------------------------------------------
 pRoute :: (ByteString, Snap a) -> Route a
 pRoute (r, a) = foldr f (Action a) hier

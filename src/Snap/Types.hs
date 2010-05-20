@@ -21,6 +21,7 @@ module Snap.Types
   , dir
   , ifTop
   , route
+  , routeLocal
 
     -- ** Access to state
   , getRequest

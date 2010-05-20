@@ -47,7 +47,8 @@ tests = [ testRouting1
         , testRouting22
         , testRouting23
         , testRouting24
-        , testRouting25 ]
+        , testRouting25
+        , testRouteLocal ]
 
 expectException :: IO a -> IO ()
 expectException m = do
@@ -80,6 +81,10 @@ routes = route [ ("foo"          , topFoo    )
                , ("bar/quux"     , barQuux   )
                , ("bar"          , bar       )
                , ("z/:a/:b/:c/d" , zabc      ) ]
+
+routesLocal :: Snap ByteString
+routesLocal = routeLocal [ ("foo/bar/baz"  , fooBarBaz )
+                         , ("bar"          , pass ) ]
 
 routes2 :: Snap ByteString
 routes2 = route [ (""    , topTop )
@@ -267,3 +272,9 @@ testRouting25 :: Test
 testRouting25 = testCase "routing25" $ do
     r1 <- go routes7 "foooo/bar/baz"
     assertEqual "/foooo/bar/baz" "bar" r1
+
+testRouteLocal :: Test
+testRouteLocal = testCase "routeLocal" $ do
+    r4 <- go routesLocal "foo/bar/baz/quux"
+    assertEqual "/foo/bar/baz/quux" "foo/bar/baz/quux" r4
+    expectException $ go routesLocal "bar"

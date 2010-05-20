@@ -8,17 +8,17 @@
 
   - [ ] check tutorial material for consistency, update docs on website
 
-  - [ ] check code for style & hygiene
+  - [X] check code for style & hygiene
 
     - [X] grep for FIXME/TODO
 
-  - [ ] does "snap init" work??
+  - [X] does "snap init" work??
 
-  - [ ] kill any warnings, both in library & testsuite
+  - [X] kill any warnings
 
   - [ ] all modules exported? correct modules exported?
 
-  - [ ] review code for space leaks
+  - [X] review code for space leaks
 
   - [ ] run benchmarks, check for regressions
 
