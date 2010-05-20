@@ -156,7 +156,12 @@ pRoute (r, a) = foldr f (Action a) hier
 
 
 ------------------------------------------------------------------------------
-route' :: Snap () -> Route a -> [Route a] -> Snap a
+route' :: Snap ()               -- ^ an action to be run before any user
+                                -- handler
+       -> Route a               -- ^ currently active routing table
+       -> [Route a]             -- ^ list of fallback routing tables in case
+                                -- the current table fails
+       -> Snap a
 route' pre (Action action) _ = pre >> action
 
 route' pre (Capture param rt fb) fbs = do
