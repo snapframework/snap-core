@@ -1,6 +1,6 @@
 -*- org -*-
 
-* TODO Release Checklist [0/11]
+* TODO Release Checklist [1/11]
 
   - [ ] generate and review haddock docs, copy to website
 
@@ -10,7 +10,7 @@
 
   - [ ] check code for style & hygiene
 
-    - [ ] grep for FIXME/TODO
+    - [X] grep for FIXME/TODO
 
   - [ ] does "snap init" work??
 

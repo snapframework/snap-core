@@ -53,5 +53,3 @@ Where are we going?
 2. Second prerelease: component system with a collection of useful stock
 modules (called "Snaplets") for things like user and session management,
 caching, an administrative interface, etc.
-
-3. Third prerelease: where we figure out what to do about data access
