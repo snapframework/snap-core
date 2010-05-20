@@ -122,7 +122,7 @@ instance Monoid (Route a) where
 -- >       , ("login",       method POST doLogin) ]
 --
 route :: [(ByteString, Snap a)] -> Snap a
-route rts = route' rts' []
+route rts = route' (return ()) rts' []
   where
     rts' = mconcat (map pRoute rts)
 
@@ -133,17 +133,16 @@ route rts = route' rts' []
 -- particular handler but you want that handler to receive the 'rqPathInfo' as
 -- it is.
 routeLocal :: [(ByteString, Snap a)] -> Snap a
-routeLocal rts = do
+routeLocal rts' = do
     req    <- getRequest
     let ctx = rqContextPath req
     let p   = rqPathInfo req
-    route (f ctx p)
+    let md  = modifyRequest $ \r -> r {rqContextPath=ctx, rqPathInfo=p}
+
+    route' md rts []   <|>   (md >> pass)
 
   where
-    f ctx p =
-        let md      = modifyRequest $ \r -> r {rqContextPath=ctx, rqPathInfo=p}
-            reset h = (md >> h >>= \x -> md >> return x) <|> (md >> pass)
-        in map (\(x,y) -> (x, reset y)) rts
+    rts = mconcat (map pRoute rts')
 
           
 ------------------------------------------------------------------------------
@@ -157,25 +156,25 @@ pRoute (r, a) = foldr f (Action a) hier
 
 
 ------------------------------------------------------------------------------
-route' :: Route a -> [Route a] -> Snap a
-route' (Action action) _ = action
+route' :: Snap () -> Route a -> [Route a] -> Snap a
+route' pre (Action action) _ = pre >> action
 
-route' (Capture param rt fb) fbs = do
+route' pre (Capture param rt fb) fbs = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     if B.null cwd
-      then route' fb fbs
+      then route' pre fb fbs
       else do localRequest (updateContextPath (B.length cwd) . (f cwd)) $
-                           route' rt (fb:fbs)
+                           route' pre rt (fb:fbs)
   where
     f v req = req { rqParams = Map.insertWith (++) param [v] (rqParams req) }
 
-route' (Dir rtm fb) fbs = do
+route' pre (Dir rtm fb) fbs = do
     cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
     case Map.lookup cwd rtm of
       Just rt -> do
           localRequest (updateContextPath (B.length cwd)) $
-                       route' rt (fb:fbs)
-      Nothing -> route' fb fbs
+                       route' pre rt (fb:fbs)
+      Nothing -> route' pre fb fbs
 
-route' NoRoute       [] = pass
-route' NoRoute (fb:fbs) = route' fb fbs
+route' _ NoRoute       []   = pass
+route' pre NoRoute (fb:fbs) = route' pre fb fbs
