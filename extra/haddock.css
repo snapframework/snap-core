@@ -50,7 +50,7 @@ HTML {
 BODY { 
   -moz-border-radius:5px;
   -webkit-border-radius:5px;
-  width: 90ex;
+  width: 50em;
   margin: 2em auto;
   padding: 0;
   background-color: #ffffff;
