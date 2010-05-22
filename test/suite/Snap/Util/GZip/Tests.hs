@@ -52,7 +52,7 @@ liftQ = QC.run
 ------------------------------------------------------------------------------
 gzipHdrs, badHdrs, compressHdrs, emptyHdrs :: Headers
 emptyHdrs = Map.empty
-gzipHdrs = setHeader "Accept-Encoding" "froz,gzip" emptyHdrs
+gzipHdrs = setHeader "Accept-Encoding" "froz,gzip, x-gzip" emptyHdrs
 badHdrs = setHeader "Accept-Encoding" "*&%^&^$%&%&*^\023" emptyHdrs
 compressHdrs = setHeader "Accept-Encoding" "compress" emptyHdrs
 

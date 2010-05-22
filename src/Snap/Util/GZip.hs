@@ -298,7 +298,9 @@ acceptParser = do
         float
         return ()
 
-    coding = string "*" <|> takeWhile isAlpha_ascii
+    coding = string "*" <|> takeWhile isCodingChar
+
+    isCodingChar c = isAlpha_ascii c || c == '-'
 
     float = takeWhile isDigit >>
             option () (char '.' >> takeWhile isDigit >> pure ())
