@@ -41,7 +41,7 @@ description:
 
 license:        BSD3
 license-file:   LICENSE
-author:         James Sanders, Gregory Collins, Doug Beardsley
+author:         James Sanders, Shu-yu Guo, Gregory Collins, Doug Beardsley
 maintainer:     snap@snapframework.com
 build-type:     Simple
 cabal-version:  >= 1.6
