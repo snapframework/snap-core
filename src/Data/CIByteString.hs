@@ -19,6 +19,7 @@ module Data.CIByteString
  ( CIByteString
  , toCI
  , unCI
+ , ciToLower
  ) where
 
 -- for IsString instance
@@ -38,6 +39,9 @@ toCI :: ByteString -> CIByteString
 toCI s = CIByteString s t
   where
     t = lowercase s
+
+ciToLower :: CIByteString -> ByteString
+ciToLower = _lowercased
 
 instance Show CIByteString where
     show (CIByteString s _) = show s
