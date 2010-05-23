@@ -3,6 +3,7 @@ module Main where
 ------------------------------------------------------------------------------
 import System
 import System.Directory
+import System.Console.GetOpt
 import System.FilePath.Posix
 ------------------------------------------------------------------------------
 
@@ -20,14 +21,47 @@ usage = unlines
 
 
 ------------------------------------------------------------------------------
-initProject :: IO ()
-initProject = do
-    cur <- getCurrentDirectory
-    let dirs = splitDirectories cur
-        projName = last dirs
-    writeFile (projName++".cabal") (cabalFile projName)
-    createDirectory "src"
-    writeFile "src/Main.hs" mainFile
+data InitFlag = InitBareBones
+              | InitHelp
+  deriving (Show, Eq)
+
+
+------------------------------------------------------------------------------
+initProject :: [String] -> IO ()
+initProject args = do
+    case getOpt Permute options args of
+      (flags, _, [])
+        | InitHelp `elem` flags -> do putStrLn initUsage
+                                      exitFailure
+        | otherwise             -> init' (InitBareBones `elem` flags)
+
+      (_, _, errs) -> do putStrLn $ concat errs
+                         putStrLn initUsage
+                         exitFailure
+  where
+    initUsage = unlines
+        ["Usage:"
+        ,""
+        ,"  snap init"
+        ,""
+        ,"    -b  --barebones   Depend only on -core and -server"
+        ,"    -h  --help        Print this message"
+        ]
+
+    options =
+        [ Option ['b'] ["barebones"] (NoArg InitBareBones)
+                 "Depend only on -core and -server"
+        , Option ['h'] ["help"]      (NoArg InitHelp)
+                 "Print this message"
+        ]
+
+    init' isBareBones = do
+        cur <- getCurrentDirectory
+        let dirs = splitDirectories cur
+            projName = last dirs
+        writeFile (projName++".cabal") (cabalFile projName isBareBones)
+        createDirectory "src"
+        writeFile "src/Main.hs" (mainFile isBareBones)
 
 
 ------------------------------------------------------------------------------
@@ -35,14 +69,14 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of
-        ["init"] -> initProject
-        _        -> do putStrLn usage
-                       exitFailure
+        ("init":args') -> initProject args'
+        _              -> do putStrLn usage
+                             exitFailure
 
 
 ------------------------------------------------------------------------------
-cabalFile :: String -> String
-cabalFile projName = unlines
+cabalFile :: String -> Bool -> String
+cabalFile projName isBareBones = unlines $
     ["Name:                "++projName
     ,"Version:             0.1"
     ,"Synopsis:            Project Synopsis Here"
@@ -66,8 +100,8 @@ cabalFile projName = unlines
     ,"    bytestring >= 0.9.1 && <0.10,"
     ,"    snap-core >= 0.1 && <0.2,"
     ,"    snap-server >= 0.1 && <0.2,"
-    ,"    heist >= 0.1 && <0.2,"
-    ,"    filepath >= 1.1 && <1.2"
+    ] ++ (if isBareBones then [] else ["    heist >= 0.1 && <0.2,"]) ++
+    ["    filepath >= 1.1 && <1.2"
     ,""
     ,"  ghc-options: -O2 -Wall -fwarn-tabs -funbox-strict-fields -threaded -fno-warn-unused-imports"
     ,""
@@ -76,8 +110,8 @@ cabalFile projName = unlines
 
 
 ------------------------------------------------------------------------------
-mainFile :: String
-mainFile = unlines
+mainFile :: Bool -> String
+mainFile isBareBones = unlines $
     ["module Main where"
     ,""
     ,"import           System"
@@ -86,8 +120,8 @@ mainFile = unlines
     ,"import           Snap.Http.Server"
     ,"import           Snap.Types"
     ,"import           Snap.Util.FileServe"
-    ,"import           Text.Templating.Heist"
-    ,""
+    ] ++ (if isBareBones then [] else ["import           Text.Templating.Heist"]) ++
+    [""
     ,"site :: Snap ()"
     ,"site ="
     ,"    ifTop (writeBS \"hello world\") <|>"
