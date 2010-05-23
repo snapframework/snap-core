@@ -70,15 +70,14 @@ cabalFile projName = unlines
     ,"    filepath >= 1.1 && <1.2"
     ,""
     ,"  ghc-options: -O2 -Wall -fwarn-tabs -funbox-strict-fields -threaded -fno-warn-unused-imports"
-    ,""
-    ,"  Extensions: OverloadedStrings"
     ]
 
 
 ------------------------------------------------------------------------------
 mainFile :: String
 mainFile = unlines
-    ["module Main where"
+    ["{-# LANGUAGE OverloadedStrings #-}"
+    ,"module Main where"
     ,""
     ,"import           System"
     ,"import           Control.Applicative"
