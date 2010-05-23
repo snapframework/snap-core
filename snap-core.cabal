@@ -1,5 +1,5 @@
 name:           snap-core
-version:        0.1.4
+version:        0.2.1
 synopsis:       Snap: A Haskell Web Framework (Core)
 
 description:
