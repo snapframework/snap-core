@@ -5,6 +5,7 @@
 -- unsafe/encapsulation-breaking ones) are re-exported from "Snap.Types".
 
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE ForeignFunctionInterface #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -36,15 +37,22 @@ import           Data.Time.Clock
 import           Data.Time.Format
 import           Data.Word
 import           Foreign hiding (new)
-import           Foreign.C.String
 import           Foreign.C.Types
 import           Prelude hiding (take)
 import           System.Locale (defaultTimeLocale)
+
+#ifdef WIN32
+import           Data.Time.Clock.POSIX
+#else
+import           Foreign.C.String
+#endif
 
 ------------------------------------------------------------------------------
 import           Data.CIByteString
 import qualified Snap.Iteratee as I
 
+
+#ifndef WIN32
 
 ------------------------------------------------------------------------------
 foreign import ccall unsafe "set_c_locale"
@@ -59,6 +67,8 @@ foreign import ccall unsafe "c_parse_http_time"
 ------------------------------------------------------------------------------
 foreign import ccall unsafe "c_format_http_time"
         c_format_http_time :: CTime -> CString -> IO ()
+
+#endif
 
 ------------------------------------------------------------------------------
 type Enumerator a = I.Enumerator IO a
@@ -502,31 +512,41 @@ clearContentLength r = r { rspContentLength = Nothing }
 ------------------------------------------------------------------------------
 -- HTTP dates
 
-{-
--- | Converts a 'ClockTime' into an HTTP timestamp.
-formatHttpTime :: UTCTime -> ByteString
-formatHttpTime = fromStr . formatTime defaultTimeLocale "%a, %d %b %Y %X GMT"
-
--- | Converts an HTTP timestamp into a 'UTCTime'.
-parseHttpTime :: ByteString -> Maybe UTCTime
-parseHttpTime s' =
-    parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT" s
-  where
-    s = toStr s'
--}
-
 -- | Converts a 'CTime' into an HTTP timestamp.
 formatHttpTime :: CTime -> IO ByteString
+
+-- | Converts an HTTP timestamp into a 'CTime'.
+parseHttpTime :: ByteString -> IO CTime
+
+#ifdef WIN32
+
+formatHttpTime = return . format . posixSecondsToUTCTime . toPOSIXTime
+  where
+    format :: UTCTime -> ByteString
+    format = fromStr . formatTime defaultTimeLocale "%a, %d %b %Y %X GMT"
+
+    toPOSIXTime :: CTime -> POSIXTime
+    toPOSIXTime = realToFrac
+
+parseHttpTime = return . toCTime . parse . toStr
+  where
+    parse :: String -> Maybe UTCTime
+    parse = parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT"
+
+    toCTime :: Maybe UTCTime -> CTime
+    toCTime (Just t) = fromInteger $ truncate $ utcTimeToPOSIXSeconds t
+    toCTime Nothing  = fromInteger 0
+
+#else
+
 formatHttpTime t = allocaBytes 40 $ \ptr -> do
     c_format_http_time t ptr
     S.packCString ptr
 
-
-------------------------------------------------------------------------------
--- | Converts an HTTP timestamp into a 'CTime'.
-parseHttpTime :: ByteString -> IO CTime
 parseHttpTime s = S.useAsCString s $ \ptr ->
     c_parse_http_time ptr
+
+#endif
 
 
 ------------------------------------------------------------------------------

@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -40,7 +41,6 @@ module Snap.Iteratee
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Exception (SomeException)
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Data.ByteString (ByteString)
@@ -48,13 +48,22 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Lazy as L
 import           Data.Iteratee
+import           Data.Iteratee.IO (enumHandle)
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
 import           Data.Monoid (mappend)
 import           Foreign
 import           Prelude hiding (catch,drop)
-import           System.IO.Posix.MMap
 import qualified Data.DList as D
+
+#ifdef WIN32
+import           Control.Monad.Trans (liftIO)
+import           System.IO
+#else
+import           Control.Exception (SomeException)
+import           System.IO.Posix.MMap
+#endif
+
 ------------------------------------------------------------------------------
 
 type Stream         = StreamG WrappedByteString Word8
@@ -332,6 +341,19 @@ takeNoMoreThan n' iter =
 
 ------------------------------------------------------------------------------
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
+
+#ifdef WIN32
+
+enumFile fp iter = do
+    h  <- liftIO $ openBinaryFile fp ReadMode
+    i' <- enumHandle h iter
+    return $ do
+        x <- i'
+        liftIO (hClose h)
+        return x
+
+#else
+
 enumFile fp iter = do
     es <- (try $
            liftM WrapBS $
@@ -340,3 +362,5 @@ enumFile fp iter = do
     case es of
       (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
       (Right s) -> liftM liftI $ runIter iter $ Chunk s
+
+#endif

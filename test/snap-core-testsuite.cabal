@@ -13,8 +13,6 @@ Flag testsuite
   Default: False
 
 Executable testsuite
-  c-sources: ../cbits/timefuncs.c
-  include-dirs: ../cbits
   hs-source-dirs:  ../src suite
   main-is:         TestSuite.hs
 
@@ -24,12 +22,18 @@ Executable testsuite
   if flag(testsuite)
     cpp-options: -DDEBUG_TEST
 
+  if os(windows)
+    cpp-options: -DWIN32
+  else
+    c-sources: ../cbits/timefuncs.c
+    include-dirs: ../cbits
+    build-depends: bytestring-mmap >= 0.2.1 && <0.3
+
   build-depends:
     QuickCheck >= 2,
     attoparsec >= 0.8.0.2 && < 0.9,
     base >= 4 && < 5,
     bytestring,
-    bytestring-mmap >= 0.2.1 && <0.3,
     bytestring-nums,
     cereal >= 0.2 && < 0.3,
     containers,
@@ -49,7 +53,7 @@ Executable testsuite
     text >= 0.7.1 && <0.8,
     time,
     transformers,
-    unix,
+    unix-compat,
     zlib
     
   ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
