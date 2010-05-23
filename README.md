@@ -1,5 +1,5 @@
-Snap Framework Core 0.1.1
-==========================
+Snap Framework Core
+===================
 
 This is the first developer prerelease of the Snap Framework Core library.  For
 more information about Snap, read the `README.SNAP.md` or visit the Snap

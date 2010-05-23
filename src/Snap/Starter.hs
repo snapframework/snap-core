@@ -98,8 +98,8 @@ cabalFile projName isBareBones = unlines $
     ,"    haskell98,"
     ,"    monads-fd >= 0.1 && <0.2,"
     ,"    bytestring >= 0.9.1 && <0.10,"
-    ,"    snap-core >= 0.1 && <0.2,"
-    ,"    snap-server >= 0.1 && <0.2,"
+    ,"    snap-core >= 0.2 && <0.3,"
+    ,"    snap-server >= 0.3 && <0.3,"
     ] ++ (if isBareBones then [] else ["    heist >= 0.1 && <0.2,"]) ++
     ["    filepath >= 1.1 && <1.2"
     ,""

@@ -1,5 +1,5 @@
-Snap Framework 0.1.1
---------------------
+Snap Framework
+--------------
 
 This is the first developer prerelease of the Snap framework.  Snap is a simple
 and fast web development framework and server written in Haskell. For more
