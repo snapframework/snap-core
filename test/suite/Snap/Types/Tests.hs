@@ -91,13 +91,13 @@ mkRqWithBody = do
 go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
-    run $ runSnap m zomgRq
+    run $ runSnap m zomgRq (const $ return ())
 
 
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
-    run $ runSnap m $ rq
+    run $ runSnap m rq (const $ return ())
 
 
 goPathQuery :: ByteString
@@ -107,13 +107,13 @@ goPathQuery :: ByteString
             -> IO (Request,Response)
 goPathQuery s k v m = do
     rq <- mkRequestQuery s k v
-    run $ runSnap m $ rq
+    run $ runSnap m rq (const $ return ())
 
 
 goBody :: Snap a -> IO (Request,Response)
 goBody m = do
     rq <- mkRqWithBody
-    run $ runSnap m rq
+    run $ runSnap m rq (const $ return ())
 
 
 testFail :: Test

@@ -87,15 +87,15 @@ mkBadRq = do
 goGZip, goCompress, goBad :: Snap a -> IO (Request,Response)
 goGZip m = do
     gzipRq <- mkGzipRq
-    run $ runSnap m gzipRq
+    run $ runSnap m gzipRq (const $ return ())
 
 goCompress m = do
     compressRq <- mkCompressRq
-    run $ runSnap m compressRq
+    run $ runSnap m compressRq (const $ return ())
 
 goBad m = do
     badRq <- mkBadRq
-    run $ runSnap m badRq
+    run $ runSnap m badRq (const $ return ())
 
 ------------------------------------------------------------------------------
 textPlain :: L.ByteString -> Snap ()
