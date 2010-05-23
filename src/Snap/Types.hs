@@ -34,6 +34,9 @@ module Snap.Types
   , withRequest
   , withResponse
 
+    -- ** Logging
+  , logError
+
     -- ** Grabbing request bodies
   , runRequestBody
   , getRequestBody

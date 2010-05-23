@@ -90,7 +90,8 @@ newtype Snap a = Snap {
 ------------------------------------------------------------------------------
 data SnapState = SnapState
     { _snapRequest  :: Request
-    , _snapResponse :: Response }
+    , _snapResponse :: Response
+    , _snapLogError :: ByteString -> IO () }
 
 
 ------------------------------------------------------------------------------
@@ -357,6 +358,14 @@ modifyResponse f = smodify $ \ss -> ss { _snapResponse = f $ _snapResponse ss }
 
 
 ------------------------------------------------------------------------------
+-- | Log an error message in the 'Snap' monad
+logError :: ByteString -> Snap ()
+logError s = Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
+                                       >>  return (Just $ Right ())
+{-# INLINE logError #-}
+
+
+------------------------------------------------------------------------------
 -- | Adds the output from the given enumerator to the 'Response'
 -- stored in the 'Snap' monad state.
 addToOutput :: (forall a . Enumerator a)   -- ^ output to add
@@ -456,8 +465,11 @@ instance Exception NoHandlerException
 
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
-runSnap :: Snap a -> Request -> Iteratee IO (Request,Response)
-runSnap (Snap m) req = do
+runSnap :: Snap a
+        -> Request
+        -> (ByteString -> IO ())
+        -> Iteratee IO (Request,Response)
+runSnap (Snap m) req logerr = do
     (r, ss') <- runStateT m ss
 
     e <- maybe (return $ Left fourohfour)
@@ -479,13 +491,16 @@ runSnap (Snap m) req = do
 
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
 
-    ss = SnapState req dresp
+    ss = SnapState req dresp logerr
 {-# INLINE runSnap #-}
 
 
 ------------------------------------------------------------------------------
-evalSnap :: Snap a -> Request -> Iteratee IO a
-evalSnap (Snap m) req = do
+evalSnap :: Snap a
+         -> Request
+         -> (ByteString -> IO ())
+         -> Iteratee IO a
+evalSnap (Snap m) req logerr = do
     (r, _) <- runStateT m ss
 
     e <- maybe (liftIO $ throwIO NoHandlerException)
@@ -498,7 +513,7 @@ evalSnap (Snap m) req = do
       Right x -> return x
   where
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
-    ss = SnapState req dresp
+    ss = SnapState req dresp logerr
 {-# INLINE evalSnap #-}
 
 
