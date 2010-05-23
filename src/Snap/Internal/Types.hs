@@ -466,10 +466,10 @@ instance Exception NoHandlerException
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
 runSnap :: Snap a
-        -> Request
         -> (ByteString -> IO ())
+        -> Request
         -> Iteratee IO (Request,Response)
-runSnap (Snap m) req logerr = do
+runSnap (Snap m) logerr req = do
     (r, ss') <- runStateT m ss
 
     e <- maybe (return $ Left fourohfour)
@@ -497,10 +497,10 @@ runSnap (Snap m) req logerr = do
 
 ------------------------------------------------------------------------------
 evalSnap :: Snap a
-         -> Request
          -> (ByteString -> IO ())
+         -> Request
          -> Iteratee IO a
-evalSnap (Snap m) req logerr = do
+evalSnap (Snap m) logerr req = do
     (r, _) <- runStateT m ss
 
     e <- maybe (liftIO $ throwIO NoHandlerException)

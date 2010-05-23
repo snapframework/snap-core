@@ -39,13 +39,13 @@ getBody r = liftM fromWrap ((rspBodyToEnum $ rspBody r) stream2stream >>= run)
 go :: Snap a -> ByteString -> IO Response
 go m s = do
     rq <- mkRequest s
-    liftM snd (run $ runSnap m rq (const $ return ()))
+    liftM snd (run $ runSnap m (const $ return ()) rq)
 
 goIfModifiedSince :: Snap a -> ByteString -> ByteString -> IO Response
 goIfModifiedSince m s lm = do
     rq <- mkRequest s
     let r = setHeader "if-modified-since" lm rq
-    liftM snd (run $ runSnap m r (const $ return ()))
+    liftM snd (run $ runSnap m (const $ return ()) r)
 
 
 mkRequest :: ByteString -> IO Request
