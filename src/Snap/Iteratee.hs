@@ -107,11 +107,11 @@ countBytes = go 0
 --
 -- Our enumerators produce a lot of little strings; rather than spending all
 -- our time doing kernel context switches for 4-byte write() calls, we buffer
--- the iteratee to send 2KB at a time.
+-- the iteratee to send 8KB at a time.
 bufferIteratee :: (Monad m) => Enumerator m a
 bufferIteratee = return . go (D.empty,0)
   where
-    blocksize = 2048
+    blocksize = 8192
 
     --go :: (DList ByteString, Int) -> Iteratee m a -> Iteratee m a
     go (!dl,!n) iter = IterateeG $! f (dl,n) iter
@@ -154,10 +154,14 @@ enumBS bs = enumPure1Chunk $ WrapBS bs
 ------------------------------------------------------------------------------
 -- | Enumerates a lazy bytestring.
 enumLBS :: (Monad m) => L.ByteString -> Enumerator m a
-enumLBS lbs iter = foldM k iter enums
+enumLBS lbs = el chunks
   where
-    enums = map (enumPure1Chunk . WrapBS) $ L.toChunks lbs
-    k i e = e i
+    el [] i     = return i
+    el (x:xs) i = do
+        i' <- enumBS x i
+        el xs i'
+
+    chunks = L.toChunks lbs
 
 
 ------------------------------------------------------------------------------
