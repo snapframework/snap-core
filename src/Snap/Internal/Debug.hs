@@ -37,7 +37,7 @@ import           Text.Printf
 ------------------------------------------------------------------------------
 _debugMVar :: MVar ()
 _debugMVar = unsafePerformIO $ newMVar ()
-
+{-# NOINLINE _debugMVar #-}
 
 ------------------------------------------------------------------------------
 debug :: (MonadIO m) => String -> m ()
