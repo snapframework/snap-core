@@ -36,6 +36,7 @@ module Snap.Iteratee
   , takeNoMoreThan
   , countBytes
   , bufferIteratee
+  , unsafeBufferIteratee
   ) where
 
 ------------------------------------------------------------------------------
@@ -44,12 +45,13 @@ import           Control.Monad
 import           Control.Monad.CatchIO
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Lazy as L
 import           Data.Iteratee
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
 import           Data.Monoid (mappend)
-import           Data.Word (Word8)
+import           Foreign
 import           Prelude hiding (catch,drop)
 import           System.IO.Posix.MMap
 import qualified Data.DList as D
@@ -142,8 +144,87 @@ bufferIteratee = return . go (D.empty,0)
         n'  = n+m
         dl' = D.snoc dl s
         big = toWrap $ L.fromChunks [S.concat $ D.toList dl']
-        
 
+
+------------------------------------------------------------------------------
+-- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer which
+-- we'll re-use, meaning that if you hold on to any of the bytestring data
+-- passed into your iteratee (instead of, let's say, shoving it right out a
+-- socket) it'll get changed out from underneath you, breaking referential
+-- transparency. Use with caution!
+--
+unsafeBufferIteratee :: Enumerator IO a
+unsafeBufferIteratee iteratee = do
+    buf <- mallocForeignPtrBytes bufsiz
+    return $ go 0 buf iteratee
+
+  where
+    bufsiz = 8192
+
+    go bytesSoFar buf iter = IterateeG $! f bytesSoFar buf iter
+
+    sendBuf n buf iter = withForeignPtr buf $ \ptr -> do
+        s <- S.unsafePackCStringLen (ptr, n)
+        runIter iter $ Chunk $ WrapBS s
+
+    copy c@(EOF _) = c
+    copy c@(Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
+
+    f _ _ iter ch@(EOF (Just _)) = runIter iter ch
+
+    f !n buf iter ch@(EOF Nothing) =
+        if n == 0
+          then runIter iter ch
+          else do
+              iterv <- sendBuf n buf iter
+              case iterv of
+                Done x rest     -> return $ Done x $ copy rest
+                Cont i (Just e) -> return $ Cont i (Just e)
+                Cont i Nothing  -> runIter i ch
+
+    f !n buf iter (Chunk (WrapBS s)) = do
+        let m = S.length s
+        if m+n > bufsiz
+          then overflow n buf iter s m
+          else copyAndCont n buf iter s m
+
+    copyAndCont n buf iter s m = do
+        S.unsafeUseAsCStringLen s $ \(p,sz) ->
+            withForeignPtr buf $ \bufp -> do
+                let b' = plusPtr bufp n
+                copyBytes b' p sz
+
+        return $ Cont (go (n+m) buf iter) Nothing
+
+
+    overflow n buf iter s m = do
+        let rest = bufsiz - n
+        let m2   = m - rest
+        let (s1,s2) = S.splitAt rest s
+
+        S.unsafeUseAsCStringLen s1 $ \(p,_) ->
+          withForeignPtr buf $ \bufp -> do
+            let b' = plusPtr bufp n
+            copyBytes b' p rest
+
+            iv <- sendBuf bufsiz buf iter
+            case iv of
+              Done x r        -> return $
+                                 Done x (copy r `mappend` (Chunk $ WrapBS s2))
+              Cont i (Just e) -> return $ Cont i (Just e)
+              Cont i Nothing  -> do
+                  -- check the size of the remainder; if it's bigger than the
+                  -- buffer size then just send it
+                  if m2 >= bufsiz
+                    then do
+                        iv' <- runIter i (Chunk $ WrapBS s2)
+                        case iv' of
+                          Done x r         -> return $ Done x (copy r)
+                          Cont i' (Just e) -> return $ Cont i' (Just e)
+                          Cont i' Nothing  -> return $ Cont (go 0 buf i') Nothing
+                    else copyAndCont 0 buf i s2 m2
+
+                 
 ------------------------------------------------------------------------------
 -- | Enumerates a strict bytestring.
 enumBS :: (Monad m) => ByteString -> Enumerator m a

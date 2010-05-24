@@ -11,6 +11,9 @@ import           Control.Monad
 import           Control.Monad.Identity
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.Monoid
+import           Data.Iteratee.WrappedByteString
+import           Data.Word
 import           Prelude hiding (drop, take)
 import           Test.Framework 
 import           Test.Framework.Providers.QuickCheck2
@@ -19,6 +22,7 @@ import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic hiding (run)
 import           Test.Framework.Providers.HUnit
 import qualified Test.HUnit as H
+import           System.IO.Unsafe
 
 import           Snap.Iteratee
 import           Snap.Test.Common ()
@@ -41,6 +45,11 @@ tests = [ testEnumBS
         , testBuffer2
         , testBuffer3
         , testBuffer4
+        , testUnsafeBuffer
+        , testUnsafeBuffer2
+        , testUnsafeBuffer3
+        , testUnsafeBuffer4
+        , testUnsafeBuffer5
         , testTakeExactly1
         , testTakeExactly2
         , testTakeExactly3
@@ -113,6 +122,91 @@ testBuffer4 = testProperty "testBuffer4" $
         
         k <- liftQ $ enumErr "foo" j
         expectException $ run k
+
+
+copyingStream2stream :: Iteratee IO (WrappedByteString Word8)
+copyingStream2stream = IterateeG (step mempty)
+  where
+  step acc (Chunk (WrapBS ls))
+    | S.null ls = return $ Cont (IterateeG (step acc)) Nothing
+    | otherwise = do
+          let !ls' = S.copy ls
+          let !bs' = WrapBS $! ls'
+          return $ Cont (IterateeG (step (acc `mappend` bs')))
+                        Nothing
+
+  step acc str        = return $ Done acc str
+
+
+bufferAndRun :: Iteratee IO a -> L.ByteString -> IO a
+bufferAndRun ii s = do
+    i    <- unsafeBufferIteratee ii
+    iter <- enumLBS s i
+    run iter
+
+
+testUnsafeBuffer :: Test
+testUnsafeBuffer = testProperty "testUnsafeBuffer" $
+                   monadicIO $ forAllM arbitrary prop
+  where
+    prop s = do
+        pre $ s /= L.empty
+        x <- liftQ $ bufferAndRun copyingStream2stream s'
+        assert $ fromWrap x == s'
+
+      where
+        s' = L.take 20000 $ L.cycle s
+
+
+testUnsafeBuffer2 :: Test
+testUnsafeBuffer2 = testCase "testUnsafeBuffer2" prop
+  where
+    prop = do
+        i <- unsafeBufferIteratee $ drop 4 >> copyingStream2stream
+
+        s <- enumLBS "abcdefgh" i >>= run >>= return . fromWrap
+        H.assertEqual "s == 'efgh'" "efgh" s
+
+
+testUnsafeBuffer3 :: Test
+testUnsafeBuffer3 = testProperty "testUnsafeBuffer3" $
+                    monadicIO $ forAllM arbitrary prop
+  where
+    prop s = do
+        pre $ s /= L.empty
+        x <- liftQ $ bufferAndRun (ss >>= \x -> drop 1 >> return x) s'
+
+        assert $ fromWrap x == (L.take 19999 s')
+      where
+        s' = L.take 20000 $ L.cycle s
+        ss = joinI $ take 19999 copyingStream2stream
+
+
+testUnsafeBuffer4 :: Test
+testUnsafeBuffer4 = testProperty "testUnsafeBuffer4" $
+                    monadicIO $ forAllM arbitrary prop
+  where
+    prop s = do
+        i <- liftQ $ unsafeBufferIteratee (copyingStream2stream >> throwErr (Err "foo"))
+        i' <- liftQ $ enumLBS s i
+        expectException $ run i'
+
+        j <- liftQ $ unsafeBufferIteratee (throwErr (Err "foo") >> copyingStream2stream)
+        j' <- liftQ $ enumLBS s j
+        expectException $ run j'
+        
+        k <- liftQ $ enumErr "foo" j
+        expectException $ run k
+
+
+testUnsafeBuffer5 :: Test
+testUnsafeBuffer5 = testProperty "testUnsafeBuffer5" $
+                    monadicIO $ forAllM arbitrary prop
+  where
+    prop s = do
+        pre $ s /= L.empty
+        x <- liftQ $ bufferAndRun copyingStream2stream s
+        assert $ fromWrap x == s
 
 
 testTakeExactly1 :: Test
