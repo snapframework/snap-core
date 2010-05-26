@@ -4,7 +4,7 @@ module Main where
 import System
 import System.Directory
 import System.Console.GetOpt
-import System.FilePath.Posix
+import System.FilePath
 ------------------------------------------------------------------------------
 
 
