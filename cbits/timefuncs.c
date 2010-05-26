@@ -11,7 +11,7 @@ void set_c_locale() {
 time_t c_parse_http_time(char* s) {
     struct tm dest;
     strptime(s, "%a, %d %b %Y %H:%M:%S GMT", &dest);
-    return mktime(&dest);
+    return timegm(&dest);
 }
 
 void c_format_http_time(time_t src, char* dest) {
