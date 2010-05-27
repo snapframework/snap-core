@@ -140,8 +140,8 @@ copyingStream2stream = IterateeG (step mempty)
 
 bufferAndRun :: Iteratee IO a -> L.ByteString -> IO a
 bufferAndRun ii s = do
-    i    <- unsafeBufferIteratee ii
-    iter <- enumLBS s i
+    (i,_) <- unsafeBufferIteratee ii
+    iter  <- enumLBS s i
     run iter
 
 
@@ -162,7 +162,7 @@ testUnsafeBuffer2 :: Test
 testUnsafeBuffer2 = testCase "testUnsafeBuffer2" prop
   where
     prop = do
-        i <- unsafeBufferIteratee $ drop 4 >> copyingStream2stream
+        (i,_) <- unsafeBufferIteratee $ drop 4 >> copyingStream2stream
 
         s <- enumLBS "abcdefgh" i >>= run >>= return . fromWrap
         H.assertEqual "s == 'efgh'" "efgh" s
@@ -187,11 +187,13 @@ testUnsafeBuffer4 = testProperty "testUnsafeBuffer4" $
                     monadicIO $ forAllM arbitrary prop
   where
     prop s = do
-        i <- liftQ $ unsafeBufferIteratee (copyingStream2stream >> throwErr (Err "foo"))
+        (i,_) <- liftQ $
+                 unsafeBufferIteratee (copyingStream2stream >> throwErr (Err "foo"))
         i' <- liftQ $ enumLBS s i
         expectException $ run i'
 
-        j <- liftQ $ unsafeBufferIteratee (throwErr (Err "foo") >> copyingStream2stream)
+        (j,_) <- liftQ $
+                 unsafeBufferIteratee (throwErr (Err "foo") >> copyingStream2stream)
         j' <- liftQ $ enumLBS s j
         expectException $ run j'
         
