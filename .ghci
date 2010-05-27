@@ -1,7 +1,0 @@
-:set -XOverloadedStrings
-:set -XTemplateHaskell
-:set -XNoMonomorphismRestriction
-:set -Wall
-:set -isrc
-:set -itest/suite
-:set -hide-package mtl

@@ -168,7 +168,7 @@ unsafeBufferIteratee iteratee = do
         runIter iter $ Chunk $ WrapBS s
 
     copy c@(EOF _) = c
-    copy (Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
+    copy c@(Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
 
     f _ _ iter ch@(EOF (Just _)) = runIter iter ch
 
