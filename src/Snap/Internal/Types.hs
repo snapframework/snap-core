@@ -84,7 +84,7 @@ import           Snap.Internal.Http.Types
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
       unSnap :: StateT SnapState (Iteratee IO) (Maybe (Either Response a))
-}
+} deriving Typeable
 
 
 ------------------------------------------------------------------------------
