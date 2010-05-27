@@ -173,12 +173,13 @@ unsafeBufferIteratee :: Iteratee IO a -> IO (Iteratee IO a, IORef Bool)
 unsafeBufferIteratee iteratee = do
     buf <- mallocForeignPtrBytes bufsiz
     esc <- newIORef False
-    return $! (go esc 0 buf iteratee, esc)
+    return $! (start esc 0 buf iteratee, esc)
 
   where
     bufsiz = 8192
 
-    go esc bytesSoFar buf iter = IterateeG $! checkRef esc bytesSoFar buf iter
+    start esc bytesSoFar buf iter = IterateeG $! checkRef esc bytesSoFar buf iter
+    go bytesSoFar buf iter = IterateeG $! f bytesSoFar buf iter
 
     checkRef esc bytesSoFar buf iter ch = do
         quit <- readIORef esc
@@ -188,7 +189,7 @@ unsafeBufferIteratee iteratee = do
                      i <- liftM liftI $ sendBuf bytesSoFar buf iter
                      runIter i $ ch
                  else runIter iter ch
-          else f esc bytesSoFar buf iter ch
+          else f bytesSoFar buf iter ch
 
     sendBuf n buf iter = withForeignPtr buf $ \ptr -> do
         s <- S.unsafePackCStringLen (ptr, n)
@@ -197,9 +198,9 @@ unsafeBufferIteratee iteratee = do
     copy c@(EOF _) = c
     copy (Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
 
-    f _ _ _ iter ch@(EOF (Just _)) = runIter iter ch
+    f _ _ iter ch@(EOF (Just _)) = runIter iter ch
 
-    f _ !n buf iter ch@(EOF Nothing) =
+    f !n buf iter ch@(EOF Nothing) =
         if n == 0
           then runIter iter ch
           else do
@@ -209,22 +210,22 @@ unsafeBufferIteratee iteratee = do
                 Cont i (Just e) -> return $ Cont i (Just e)
                 Cont i Nothing  -> runIter i ch
 
-    f esc !n buf iter (Chunk (WrapBS s)) = do
+    f !n buf iter (Chunk (WrapBS s)) = do
         let m = S.length s
         if m+n > bufsiz
-          then overflow esc n buf iter s m
-          else copyAndCont esc n buf iter s m
+          then overflow n buf iter s m
+          else copyAndCont n buf iter s m
 
-    copyAndCont esc n buf iter s m = do
+    copyAndCont n buf iter s m = do
         S.unsafeUseAsCStringLen s $ \(p,sz) ->
             withForeignPtr buf $ \bufp -> do
                 let b' = plusPtr bufp n
                 copyBytes b' p sz
 
-        return $ Cont (go esc (n+m) buf iter) Nothing
+        return $ Cont (go (n+m) buf iter) Nothing
 
 
-    overflow esc n buf iter s m = do
+    overflow n buf iter s m = do
         let rest = bufsiz - n
         let m2   = m - rest
         let (s1,s2) = S.splitAt rest s
@@ -248,8 +249,8 @@ unsafeBufferIteratee iteratee = do
                         case iv' of
                           Done x r         -> return $ Done x (copy r)
                           Cont i' (Just e) -> return $ Cont i' (Just e)
-                          Cont i' Nothing  -> return $ Cont (go esc 0 buf i') Nothing
-                    else copyAndCont esc 0 buf i s2 m2
+                          Cont i' Nothing  -> return $ Cont (go 0 buf i') Nothing
+                    else copyAndCont 0 buf i s2 m2
 
                  
 ------------------------------------------------------------------------------
