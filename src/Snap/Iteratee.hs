@@ -81,11 +81,11 @@ instance (Functor m, MonadCatchIO m) =>
     --catch  :: Exception  e => m a -> (e -> m a) -> m a
     catch m handler = IterateeG $ \str -> do
         ee <- try $ runIter m str
-        case ee of 
+        case ee of
           (Left e)  -> runIter (handler e) str
           (Right v) -> return v
 
-    --block :: m a -> m a        
+    --block :: m a -> m a
     block m = IterateeG $ \str -> block $ runIter m str
     unblock m = IterateeG $ \str -> unblock $ runIter m str
 
@@ -140,7 +140,7 @@ bufferIteratee = return . go (D.empty,0)
           Cont i Nothing  -> runIter i ch
       where
         big = toWrap $ L.fromChunks [S.concat $ D.toList dl]
-        
+
     f (!dl,!n) iter (Chunk ws) =
         if n' > blocksize
            then do
@@ -173,27 +173,27 @@ unsafeBufferIteratee :: Iteratee IO a -> IO (Iteratee IO a, IORef Bool)
 unsafeBufferIteratee iteratee = do
     buf <- mallocForeignPtrBytes bufsiz
     esc <- newIORef False
-    return $! (start esc 0 buf iteratee, esc)
+    return $! (start esc buf iteratee, esc)
 
   where
     bufsiz = 8192
 
-    start esc bytesSoFar buf iter = IterateeG $! checkRef esc bytesSoFar buf iter
-    go bytesSoFar buf iter = IterateeG $! f bytesSoFar buf iter
+    start esc buf iter = IterateeG $! checkRef esc buf iter
+    go bytesSoFar buf iter =
+        {-# SCC "unsafeBufferIteratee/go" #-}
+        IterateeG $! f bytesSoFar buf iter
 
-    checkRef esc bytesSoFar buf iter ch = do
+    checkRef esc buf iter ch = do
         quit <- readIORef esc
         if quit
-          then if bytesSoFar /= 0
-                 then do
-                     i <- liftM liftI $ sendBuf bytesSoFar buf iter
-                     runIter i $ ch
-                 else runIter iter ch
-          else f bytesSoFar buf iter ch
+          then runIter iter ch
+          else f 0 buf iter ch
 
-    sendBuf n buf iter = withForeignPtr buf $ \ptr -> do
-        s <- S.unsafePackCStringLen (ptr, n)
-        runIter iter $ Chunk $ WrapBS s
+    sendBuf n buf iter =
+        {-# SCC "unsafeBufferIteratee/sendBuf" #-}
+        withForeignPtr buf $ \ptr -> do
+            s <- S.unsafePackCStringLen (ptr, n)
+            runIter iter $ Chunk $ WrapBS s
 
     copy c@(EOF _) = c
     copy (Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
@@ -216,7 +216,8 @@ unsafeBufferIteratee iteratee = do
           then overflow n buf iter s m
           else copyAndCont n buf iter s m
 
-    copyAndCont n buf iter s m = do
+    copyAndCont n buf iter s m =
+      {-# SCC "unsafeBufferIteratee/copyAndCont" #-} do
         S.unsafeUseAsCStringLen s $ \(p,sz) ->
             withForeignPtr buf $ \bufp -> do
                 let b' = plusPtr bufp n
@@ -225,7 +226,8 @@ unsafeBufferIteratee iteratee = do
         return $ Cont (go (n+m) buf iter) Nothing
 
 
-    overflow n buf iter s m = do
+    overflow n buf iter s m =
+      {-# SCC "unsafeBufferIteratee/overflow" #-} do
         let rest = bufsiz - n
         let m2   = m - rest
         let (s1,s2) = S.splitAt rest s
@@ -252,7 +254,7 @@ unsafeBufferIteratee iteratee = do
                           Cont i' Nothing  -> return $ Cont (go 0 buf i') Nothing
                     else copyAndCont 0 buf i s2 m2
 
-                 
+
 ------------------------------------------------------------------------------
 -- | Enumerates a strict bytestring.
 enumBS :: (Monad m) => ByteString -> Enumerator m a
@@ -377,7 +379,7 @@ enumFile fp iter = do
     es <- (try $
            liftM WrapBS $
            unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
-    
+
     case es of
       (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
       (Right s) -> liftM liftI $ runIter iter $ Chunk s
