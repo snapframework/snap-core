@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -23,7 +24,7 @@ import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
 import           System.Directory
 import           System.FilePath
-import           System.Posix.Files
+import           System.PosixCompat.Files
 
 ------------------------------------------------------------------------------
 import           Snap.Types

@@ -109,8 +109,12 @@ Library
   if flag(testsuite)
     cpp-options: -DDEBUG_TEST
 
-  c-sources: cbits/timefuncs.c
-  include-dirs: cbits
+  if os(windows)
+    cpp-options: -DWIN32
+  else
+    c-sources: cbits/timefuncs.c
+    include-dirs: cbits
+    build-depends: bytestring-mmap >= 0.2.1 && <0.3
 
   exposed-modules:
     Data.CIByteString,
@@ -130,7 +134,6 @@ Library
     attoparsec >= 0.8.0.2 && < 0.9,
     base >= 4 && < 5,
     bytestring,
-    bytestring-mmap >= 0.2.1 && <0.3,
     bytestring-nums,
     cereal >= 0.2 && < 0.3,
     containers,
@@ -145,7 +148,7 @@ Library
     text >= 0.7.1 && <0.8,
     time,
     transformers,
-    unix,
+    unix-compat,
     zlib
 
   ghc-prof-options: -prof -auto-all
@@ -178,7 +181,7 @@ Executable snap
     text >= 0.7.1 && <0.8,
     time,
     transformers,
-    unix,
+    unix-compat,
     zlib
 
   ghc-prof-options: -prof -auto-all
