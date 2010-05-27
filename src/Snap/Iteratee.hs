@@ -48,7 +48,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Lazy as L
 import           Data.Iteratee
-import           Data.Iteratee.IO (enumHandle)
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
 import           Data.Monoid (mappend)
@@ -177,7 +176,7 @@ unsafeBufferIteratee iteratee = do
         runIter iter $ Chunk $ WrapBS s
 
     copy c@(EOF _) = c
-    copy c@(Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
+    copy (Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
 
     f _ _ iter ch@(EOF (Just _)) = runIter iter ch
 
