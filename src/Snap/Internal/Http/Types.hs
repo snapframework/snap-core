@@ -527,26 +527,24 @@ parseHttpTime :: ByteString -> IO CTime
 
 #ifdef WIN32
 
-formatHttpTime = return . format . posixSecondsToUTCTime . toPOSIXTime
+formatHttpTime = return . format . toUTCTime
   where
     format :: UTCTime -> ByteString
     format = fromStr . formatTime defaultTimeLocale "%a, %d %b %Y %X GMT"
 
-    toPOSIXTime :: CTime -> POSIXTime
-    toPOSIXTime = realToFrac
+    toUTCTime :: CTime -> UTCTime
+    toUTCTime = posixSecondsToUTCTime . realToFrac
 
-formatLogTime = do
-    t <- utcToLocalZonedTime .
-         posixSecondsToUTCTime .
-         toPOSIXTime
-    return $ format t
+formatLogTime ctime = do
+  t <- utcToLocalZonedTime $ toUTCTime ctime
+  return $ format t
 
   where
     format :: ZonedTime -> ByteString
     format = fromStr . formatTime defaultTimeLocale "%d/%b/%Y:%H:%M:%S %z"
 
-    toPOSIXTime :: CTime -> POSIXTime
-    toPOSIXTime = realToFrac
+    toUTCTime :: CTime -> UTCTime
+    toUTCTime = posixSecondsToUTCTime . realToFrac
 
 
 parseHttpTime = return . toCTime . parse . toStr
