@@ -300,7 +300,7 @@ acceptParser = do
 
     coding = string "*" <|> takeWhile isCodingChar
 
-    isCodingChar ch = isAlpha_ascii ch || ch == '-'
+    isCodingChar ch = isDigit ch || isAlpha_ascii ch || ch == '-' || ch == '_'
 
     float = takeWhile isDigit >>
             option () (char '.' >> takeWhile isDigit >> pure ())
