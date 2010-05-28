@@ -43,7 +43,7 @@ import           Prelude hiding (take)
 import           System.Locale (defaultTimeLocale)
 
 
-#ifdef WIN32
+#ifdef PORTABLE
 import           Data.Time.LocalTime
 import           Data.Time.Clock.POSIX
 #else
@@ -55,7 +55,7 @@ import           Data.CIByteString
 import qualified Snap.Iteratee as I
 
 
-#ifndef WIN32
+#ifndef PORTABLE
 
 ------------------------------------------------------------------------------
 -- foreign imports from cbits
@@ -525,7 +525,7 @@ formatLogTime :: CTime -> IO ByteString
 -- | Converts an HTTP timestamp into a 'CTime'.
 parseHttpTime :: ByteString -> IO CTime
 
-#ifdef WIN32
+#ifdef PORTABLE
 
 formatHttpTime = return . format . toUTCTime
   where

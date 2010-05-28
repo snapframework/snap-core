@@ -49,7 +49,7 @@ import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Lazy as L
 import           Data.IORef
 import           Data.Iteratee
-#ifdef WIN32
+#ifdef PORTABLE
 import           Data.Iteratee.IO (enumHandle)
 #endif
 import qualified Data.Iteratee.Base.StreamChunk as SC
@@ -59,7 +59,7 @@ import           Foreign
 import           Prelude hiding (catch,drop)
 import qualified Data.DList as D
 
-#ifdef WIN32
+#ifdef PORTABLE
 import           Control.Monad.Trans (liftIO)
 import           System.IO
 #else
@@ -363,7 +363,7 @@ takeNoMoreThan n' iter =
 ------------------------------------------------------------------------------
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
 
-#ifdef WIN32
+#ifdef PORTABLE
 
 enumFile fp iter = do
     h  <- liftIO $ openBinaryFile fp ReadMode

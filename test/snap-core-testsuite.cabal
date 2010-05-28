@@ -12,6 +12,11 @@ Flag testsuite
                be evaluated but not printed.
   Default: False
 
+Flag portable
+  Description: Compile in cross-platform mode. No platform-specific code or
+               optimizations such as C routines will be used.
+  Default: False
+
 Executable testsuite
   hs-source-dirs:  ../src suite
   main-is:         TestSuite.hs
@@ -22,8 +27,8 @@ Executable testsuite
   if flag(testsuite)
     cpp-options: -DDEBUG_TEST
 
-  if os(windows)
-    cpp-options: -DWIN32
+  if flag(portable) || os(windows)
+    cpp-options: -DPORTABLE
   else
     c-sources: ../cbits/timefuncs.c
     include-dirs: ../cbits
