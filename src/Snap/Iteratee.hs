@@ -267,9 +267,9 @@ enumBS bs = enumPure1Chunk $ WrapBS bs
 enumLBS :: (Monad m) => L.ByteString -> Enumerator m a
 enumLBS lbs = el chunks
   where
-    el [] i     = return i
+    el [] i     = liftM liftI $ runIter i (EOF Nothing)
     el (x:xs) i = do
-        i' <- enumBS x i
+        i' <- liftM liftI $ runIter i (Chunk $ WrapBS x)
         el xs i'
 
     chunks = L.toChunks lbs

@@ -25,6 +25,7 @@ import           Data.ByteString (ByteString)
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString.Nums.Careless.Hex as Cvt
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Unsafe as S
 import           Data.Char
 import           Data.DList (DList)
 import qualified Data.DList as DL
@@ -41,7 +42,9 @@ import           Foreign.C.Types
 import           Prelude hiding (take)
 import           System.Locale (defaultTimeLocale)
 
+
 #ifdef WIN32
+import           Data.Time.LocalTime
 import           Data.Time.Clock.POSIX
 #else
 import           Foreign.C.String
@@ -55,18 +58,19 @@ import qualified Snap.Iteratee as I
 #ifndef WIN32
 
 ------------------------------------------------------------------------------
+-- foreign imports from cbits
+
 foreign import ccall unsafe "set_c_locale"
         set_c_locale :: IO ()
 
-
-------------------------------------------------------------------------------
 foreign import ccall unsafe "c_parse_http_time"
         c_parse_http_time :: CString -> IO CTime
 
-
-------------------------------------------------------------------------------
 foreign import ccall unsafe "c_format_http_time"
         c_format_http_time :: CTime -> CString -> IO ()
+
+foreign import ccall unsafe "c_format_log_time"
+        c_format_log_time :: CTime -> CString -> IO ()
 
 #endif
 
@@ -515,6 +519,9 @@ clearContentLength r = r { rspContentLength = Nothing }
 -- | Converts a 'CTime' into an HTTP timestamp.
 formatHttpTime :: CTime -> IO ByteString
 
+-- | Converts a 'CTime' into common log entry format.
+formatLogTime :: CTime -> IO ByteString
+
 -- | Converts an HTTP timestamp into a 'CTime'.
 parseHttpTime :: ByteString -> IO CTime
 
@@ -528,6 +535,20 @@ formatHttpTime = return . format . posixSecondsToUTCTime . toPOSIXTime
     toPOSIXTime :: CTime -> POSIXTime
     toPOSIXTime = realToFrac
 
+formatLogTime = do
+    t <- utcToLocalZonedTime .
+         posixSecondsToUTCTime .
+         toPOSIXTime
+    return $ format t
+
+  where
+    format :: ZonedTime -> ByteString
+    format = fromStr . formatTime defaultTimeLocale "%d/%b/%Y:%H:%M:%S %z"
+
+    toPOSIXTime :: CTime -> POSIXTime
+    toPOSIXTime = realToFrac
+
+
 parseHttpTime = return . toCTime . parse . toStr
   where
     parse :: String -> Maybe UTCTime
@@ -539,11 +560,17 @@ parseHttpTime = return . toCTime . parse . toStr
 
 #else
 
-formatHttpTime t = allocaBytes 40 $ \ptr -> do
-    c_format_http_time t ptr
-    S.packCString ptr
+formatLogTime t = do
+    ptr <- mallocBytes 40
+    c_format_log_time t ptr
+    S.unsafePackMallocCString ptr
 
-parseHttpTime s = S.useAsCString s $ \ptr ->
+formatHttpTime t = do
+    ptr <- mallocBytes 40
+    c_format_http_time t ptr
+    S.unsafePackMallocCString ptr
+
+parseHttpTime s = S.unsafeUseAsCString s $ \ptr ->
     c_parse_http_time ptr
 
 #endif
