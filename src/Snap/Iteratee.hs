@@ -56,6 +56,7 @@ import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
 import           Data.Monoid (mappend)
 import           Foreign
+import           Foreign.C.Types
 import           Prelude hiding (catch,drop)
 import qualified Data.DList as D
 
@@ -158,6 +159,13 @@ bufferIteratee = return . go (D.empty,0)
         big = toWrap $ L.fromChunks [S.concat $ D.toList dl']
 
 
+bUFSIZ :: Int
+bUFSIZ = 8192
+
+
+mkIterateeBuffer :: IO (ForeignPtr CChar)
+mkIterateeBuffer = mallocForeignPtrBytes bUFSIZ
+
 ------------------------------------------------------------------------------
 -- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer which
 -- we'll re-use, meaning that if you hold on to any of the bytestring data
@@ -170,26 +178,44 @@ bufferIteratee = return . go (D.empty,0)
 -- doesn't need /its/ output buffered) can switch the outer buffer off.
 --
 unsafeBufferIteratee :: Iteratee IO a -> IO (Iteratee IO a, IORef Bool)
-unsafeBufferIteratee iteratee = do
-    buf <- mallocForeignPtrBytes bufsiz
+unsafeBufferIteratee iter = do
+    buf <- mkIterateeBuffer
+    unsafeBufferIterateeWithBuffer buf iter
+
+
+------------------------------------------------------------------------------
+-- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer which
+-- we'll re-use, meaning that if you hold on to any of the bytestring data
+-- passed into your iteratee (instead of, let's say, shoving it right out a
+-- socket) it'll get changed out from underneath you, breaking referential
+-- transparency. Use with caution!
+--
+-- This version accepts a buffer created by 'mkIterateeBuffer'.
+--
+-- The IORef returned can be set to True to "cancel" buffering. We added this
+-- so that transfer-encoding: chunked (which needs its own buffer and therefore
+-- doesn't need /its/ output buffered) can switch the outer buffer off.
+--
+unsafeBufferIterateeWithBuffer :: ForeignPtr CChar
+                               -> Iteratee IO a
+                               -> IO (Iteratee IO a, IORef Bool)
+unsafeBufferIterateeWithBuffer buf iteratee = do
     esc <- newIORef False
-    return $! (start esc buf iteratee, esc)
+    return $! (start esc iteratee, esc)
 
   where
-    bufsiz = 8192
-
-    start esc buf iter = IterateeG $! checkRef esc buf iter
-    go bytesSoFar buf iter =
+    start esc iter = IterateeG $! checkRef esc iter
+    go bytesSoFar iter =
         {-# SCC "unsafeBufferIteratee/go" #-}
-        IterateeG $! f bytesSoFar buf iter
+        IterateeG $! f bytesSoFar iter
 
-    checkRef esc buf iter ch = do
+    checkRef esc iter ch = do
         quit <- readIORef esc
         if quit
           then runIter iter ch
-          else f 0 buf iter ch
+          else f 0 iter ch
 
-    sendBuf n buf iter =
+    sendBuf n iter =
         {-# SCC "unsafeBufferIteratee/sendBuf" #-}
         withForeignPtr buf $ \ptr -> do
             s <- S.unsafePackCStringLen (ptr, n)
@@ -198,37 +224,37 @@ unsafeBufferIteratee iteratee = do
     copy c@(EOF _) = c
     copy (Chunk (WrapBS s)) = Chunk $ WrapBS $ S.copy s
 
-    f _ _ iter ch@(EOF (Just _)) = runIter iter ch
+    f _ iter ch@(EOF (Just _)) = runIter iter ch
 
-    f !n buf iter ch@(EOF Nothing) =
+    f !n iter ch@(EOF Nothing) =
         if n == 0
           then runIter iter ch
           else do
-              iterv <- sendBuf n buf iter
+              iterv <- sendBuf n iter
               case iterv of
                 Done x rest     -> return $ Done x $ copy rest
                 Cont i (Just e) -> return $ Cont i (Just e)
                 Cont i Nothing  -> runIter i ch
 
-    f !n buf iter (Chunk (WrapBS s)) = do
+    f !n iter (Chunk (WrapBS s)) = do
         let m = S.length s
-        if m+n > bufsiz
-          then overflow n buf iter s m
-          else copyAndCont n buf iter s m
+        if m+n > bUFSIZ
+          then overflow n iter s m
+          else copyAndCont n iter s m
 
-    copyAndCont n buf iter s m =
+    copyAndCont n iter s m =
       {-# SCC "unsafeBufferIteratee/copyAndCont" #-} do
         S.unsafeUseAsCStringLen s $ \(p,sz) ->
             withForeignPtr buf $ \bufp -> do
                 let b' = plusPtr bufp n
                 copyBytes b' p sz
 
-        return $ Cont (go (n+m) buf iter) Nothing
+        return $ Cont (go (n+m) iter) Nothing
 
 
-    overflow n buf iter s m =
+    overflow n iter s m =
       {-# SCC "unsafeBufferIteratee/overflow" #-} do
-        let rest = bufsiz - n
+        let rest = bUFSIZ - n
         let m2   = m - rest
         let (s1,s2) = S.splitAt rest s
 
@@ -237,7 +263,7 @@ unsafeBufferIteratee iteratee = do
             let b' = plusPtr bufp n
             copyBytes b' p rest
 
-            iv <- sendBuf bufsiz buf iter
+            iv <- sendBuf bUFSIZ iter
             case iv of
               Done x r        -> return $
                                  Done x (copy r `mappend` (Chunk $ WrapBS s2))
@@ -245,14 +271,14 @@ unsafeBufferIteratee iteratee = do
               Cont i Nothing  -> do
                   -- check the size of the remainder; if it's bigger than the
                   -- buffer size then just send it
-                  if m2 >= bufsiz
+                  if m2 >= bUFSIZ
                     then do
                         iv' <- runIter i (Chunk $ WrapBS s2)
                         case iv' of
                           Done x r         -> return $ Done x (copy r)
                           Cont i' (Just e) -> return $ Cont i' (Just e)
-                          Cont i' Nothing  -> return $ Cont (go 0 buf i') Nothing
-                    else copyAndCont 0 buf i s2 m2
+                          Cont i' Nothing  -> return $ Cont (go 0 i') Nothing
+                    else copyAndCont 0 i s2 m2
 
 
 ------------------------------------------------------------------------------
