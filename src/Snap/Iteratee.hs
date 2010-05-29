@@ -37,6 +37,8 @@ module Snap.Iteratee
   , takeNoMoreThan
   , countBytes
   , bufferIteratee
+  , mkIterateeBuffer
+  , unsafeBufferIterateeWithBuffer
   , unsafeBufferIteratee
   ) where
 
@@ -163,6 +165,7 @@ bUFSIZ :: Int
 bUFSIZ = 8192
 
 
+-- | Creates a buffer to be passed into 'unsafeBufferIterateeWithBuffer'.
 mkIterateeBuffer :: IO (ForeignPtr CChar)
 mkIterateeBuffer = mallocForeignPtrBytes bUFSIZ
 
