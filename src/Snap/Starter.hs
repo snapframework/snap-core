@@ -2,11 +2,12 @@
 module Main where
 
 ------------------------------------------------------------------------------
-import Data.List
+import           Data.List
 import qualified Data.Text as T
-import System
-import System.Directory
-import System.FilePath
+import           System
+import           System.Directory
+import           System.Console.GetOpt
+import           System.FilePath
 ------------------------------------------------------------------------------
 
 import Snap.StarterTH
@@ -14,7 +15,8 @@ import Snap.StarterTH
 
 ------------------------------------------------------------------------------
 -- Creates a value tDir :: ([String], [(String, String)])
-$(buildData "tDir")
+$(buildData "tDirDefault"   "default")
+$(buildData "tDirBareBones" "barebones")
 
 
 ------------------------------------------------------------------------------
@@ -35,8 +37,8 @@ data InitFlag = InitBareBones
   deriving (Show, Eq)
 
 
-setup :: String -> IO ()
-setup projName = do
+setup :: String -> ([FilePath], [(String, String)]) -> IO ()
+setup projName tDir = do
     mapM createDirectory (fst tDir)
     mapM_ write (snd tDir)
   where
@@ -49,12 +51,39 @@ setup projName = do
                            (T.pack projName) c
 
 ------------------------------------------------------------------------------
-initProject :: IO ()
-initProject = do
-    cur <- getCurrentDirectory
-    let dirs = splitDirectories cur
-        projName = last dirs
-    setup projName
+initProject :: [String] -> IO ()
+initProject args = do
+    case getOpt Permute options args of
+      (flags, _, [])
+        | InitHelp `elem` flags -> do putStrLn initUsage
+                                      exitFailure
+        | otherwise             -> init' (InitBareBones `elem` flags)
+
+      (_, _, errs) -> do putStrLn $ concat errs
+                         putStrLn initUsage
+                         exitFailure
+  where
+    initUsage = unlines
+        ["Usage:"
+        ,""
+        ,"  snap init"
+        ,""
+        ,"    -b  --barebones   Depend only on -core and -server"
+        ,"    -h  --help        Print this message"
+        ]
+
+    options =
+        [ Option ['b'] ["barebones"] (NoArg InitBareBones)
+                 "Depend only on -core and -server"
+        , Option ['h'] ["help"]      (NoArg InitHelp)
+                 "Print this message"
+        ]
+
+    init' isBareBones = do
+        cur <- getCurrentDirectory
+        let dirs = splitDirectories cur
+            projName = last dirs
+        setup projName (if isBareBones then tDirBareBones else tDirDefault)
 
 
 ------------------------------------------------------------------------------
@@ -62,7 +91,7 @@ main :: IO ()
 main = do
     args <- getArgs
     case args of
-        ("init":_) -> initProject
-        _          -> do putStrLn usage
-                         exitFailure
+        ("init":args') -> initProject args'
+        _              -> do putStrLn usage
+                             exitFailure
 

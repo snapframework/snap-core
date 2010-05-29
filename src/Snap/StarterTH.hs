@@ -12,12 +12,12 @@ import           System.Directory.Tree
 ------------------------------------------------------------------------------
 -- Convenience types
 type FileData = (String, String)
-type DirData = String
+type DirData = FilePath
 
 
 ------------------------------------------------------------------------------
 -- Gets all the directorys in a DirTree
-getDirs :: [String] -> DirTree a -> [String]
+getDirs :: [FilePath] -> DirTree a -> [FilePath]
 getDirs prefix (Dir n c) = (intercalate "/" (reverse (n:prefix))) : concatMap (getDirs (n:prefix)) c
 getDirs _ (File _ _) = []
 getDirs _ (Failed _ _) = []
@@ -26,7 +26,7 @@ getDirs _ (Failed _ _) = []
 ------------------------------------------------------------------------------
 -- Reads a directory and returns a tuple of the list of all directories
 -- encountered and a list of filenames and content strings.
-readTree :: String -> IO ([DirData], [FileData])
+readTree :: FilePath -> IO ([DirData], [FileData])
 readTree dir = do
     d <- readDirectory $ dir++"/."
     let ps = zipPaths $ "" :/ (free d)
@@ -37,19 +37,19 @@ readTree dir = do
 
 ------------------------------------------------------------------------------
 -- Calls readTree and returns it's value in a quasiquote.
-dirQ :: Q Exp
-dirQ = do
-    d <- runIO $ readTree "project_template"
+dirQ :: FilePath -> Q Exp
+dirQ tplDir = do
+    d <- runIO $ readTree $ "project_template/"++tplDir
     runQ [| d |]
 
 
 ------------------------------------------------------------------------------
 -- Creates a declaration assigning the specified name the value returned by
 -- dirQ.
-buildData :: String -> Q [Dec]
-buildData dirName = do
+buildData :: String -> FilePath -> Q [Dec]
+buildData dirName tplDir = do
     v <- valD (varP (mkName dirName))
-                    (normalB dirQ)
+                    (normalB $ dirQ tplDir)
                     []
     return [v]
 
