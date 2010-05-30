@@ -59,6 +59,7 @@ import           Data.Iteratee.WrappedByteString
 import           Data.Monoid (mappend)
 import           Foreign
 import           Foreign.C.Types
+import           GHC.ForeignPtr
 import           Prelude hiding (catch,drop)
 import qualified Data.DList as D
 
@@ -167,7 +168,7 @@ bUFSIZ = 8192
 
 -- | Creates a buffer to be passed into 'unsafeBufferIterateeWithBuffer'.
 mkIterateeBuffer :: IO (ForeignPtr CChar)
-mkIterateeBuffer = mallocForeignPtrBytes bUFSIZ
+mkIterateeBuffer = mallocPlainForeignPtrBytes bUFSIZ
 
 ------------------------------------------------------------------------------
 -- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer which
