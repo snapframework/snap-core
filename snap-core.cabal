@@ -73,6 +73,12 @@ extra-source-files:
   extra/logo.gif,
   haddock.sh,
   LICENSE,
+  project_template/barebones/foo.cabal,
+  project_template/barebones/src/Common.hs,
+  project_template/barebones/src/Main.hs,
+  project_template/default/foo.cabal,
+  project_template/default/src/Common.hs,
+  project_template/default/src/Main.hs,
   README.md,
   README.SNAP.md,
   Setup.hs,
@@ -167,6 +173,8 @@ Library
 Executable snap
   hs-source-dirs: src
   main-is: Snap/Starter.hs
+
+  other-modules: Snap.StarterTH
 
   build-depends:
     attoparsec >= 0.8.0.2 && < 0.9,
