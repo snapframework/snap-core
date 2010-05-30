@@ -145,7 +145,7 @@ bufferIteratee = return . go (D.empty,0)
       where
         big = toWrap $ L.fromChunks [S.concat $ D.toList dl]
 
-    f (!dl,!n) iter (Chunk ws) =
+    f (!dl,!n) iter (Chunk (WrapBS s)) =
         if n' > blocksize
            then do
                iterv <- runIter iter (Chunk big)
@@ -155,7 +155,6 @@ bufferIteratee = return . go (D.empty,0)
                   Cont i Nothing  -> return $ Cont (go (D.empty,0) i) Nothing
            else return $ Cont (go (dl',n') iter) Nothing
       where
-        s   = S.concat $ L.toChunks $ fromWrap ws
         m   = S.length s
         n'  = n+m
         dl' = D.snoc dl s
