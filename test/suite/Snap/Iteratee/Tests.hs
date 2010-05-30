@@ -78,46 +78,58 @@ testEnumLBS = testProperty "enumLBS" prop
 
 
 testBuffer :: Test
-testBuffer = testProperty "testBuffer" prop
+testBuffer = testProperty "testBuffer" $
+             monadicIO $ forAllM arbitrary prop
   where
-    prop s = s /= L.empty ==> fromWrap (runIdentity (run iter)) == s'
+    prop s = do
+        pre (s /= L.empty)
+
+        (i,_) <- liftQ $ bufferIteratee stream2stream
+        iter  <- liftQ $ enumLBS s' i
+        x     <- liftQ $ run iter
+
+        QC.assert $ fromWrap x == s'
       where
         s' = L.take 20000 $ L.cycle s
-        i = runIdentity $ bufferIteratee stream2stream
-        iter = runIdentity $ enumLBS s' i
 
 
 testBuffer2 :: Test
 testBuffer2 = testCase "testBuffer2" prop
   where
     prop = do
-        i <- bufferIteratee $ drop 4 >> stream2stream
+        (i,_) <- bufferIteratee $ drop 4 >> stream2stream
 
         s <- enumLBS "abcdefgh" i >>= run >>= return . fromWrap
         H.assertEqual "s == 'efgh'" "efgh" s
 
 
 testBuffer3 :: Test
-testBuffer3 = testProperty "testBuffer3" prop
+testBuffer3 = testProperty "testBuffer3" $
+              monadicIO $ forAllM arbitrary prop
   where
-    prop s = s /= L.empty ==> fromWrap (runIdentity (run iter)) == (L.take 19999 s')
+    prop s = do
+        pre (s /= L.empty)
+        (i,_) <- liftQ $ bufferIteratee (ss >>= \x -> drop 1 >> return x)
+        iter  <- liftQ $ enumLBS s' i
+        x     <- liftQ $ run iter
+
+        QC.assert $ fromWrap x == (L.take 19999 s')
       where
         s' = L.take 20000 $ L.cycle s
         ss = joinI $ take 19999 stream2stream
-        i = runIdentity $ bufferIteratee (ss >>= \x -> drop 1 >> return x)
-        iter = runIdentity $ enumLBS s' i
+
 
 testBuffer4 :: Test
 testBuffer4 = testProperty "testBuffer4" $
               monadicIO $ forAllM arbitrary prop
   where
     prop s = do
-        i <- liftQ $ bufferIteratee (stream2stream >> throwErr (Err "foo"))
-        i' <- liftQ $ enumLBS s i
+        (i,_) <- liftQ $ bufferIteratee (stream2stream >> throwErr (Err "foo"))
+        i'    <- liftQ $ enumLBS s i
         expectException $ run i'
 
-        j <- liftQ $ bufferIteratee (throwErr (Err "foo") >> stream2stream)
-        j' <- liftQ $ enumLBS s j
+        (j,_) <- liftQ $ bufferIteratee (throwErr (Err "foo") >> stream2stream)
+        j'    <- liftQ $ enumLBS s j
         expectException $ run j'
         
         k <- liftQ $ enumErr "foo" j

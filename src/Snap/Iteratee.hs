@@ -126,10 +126,21 @@ countBytes = go 0
 -- Our enumerators produce a lot of little strings; rather than spending all
 -- our time doing kernel context switches for 4-byte write() calls, we buffer
 -- the iteratee to send 8KB at a time.
-bufferIteratee :: (Monad m) => Enumerator m a
-bufferIteratee = return . go (D.empty,0)
+bufferIteratee :: Iteratee IO a -> IO (Iteratee IO a, IORef Bool)
+bufferIteratee iteratee = do
+    esc <- newIORef False
+    return $ (start esc iteratee, esc)
+
   where
     blocksize = 8192
+
+    start esc iter = IterateeG $! checkRef esc iter
+
+    checkRef esc iter ch = do
+        quit <- readIORef esc
+        if quit
+          then runIter iter ch
+          else f (D.empty,0) iter ch
 
     --go :: (DList ByteString, Int) -> Iteratee m a -> Iteratee m a
     go (!dl,!n) iter = IterateeG $! f (dl,n) iter
