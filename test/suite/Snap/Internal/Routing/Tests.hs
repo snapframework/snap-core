@@ -48,6 +48,9 @@ tests = [ testRouting1
         , testRouting23
         , testRouting24
         , testRouting25
+        , testRouting26
+        , testRouting27
+        , testRouting28
         , testRouteLocal ]
 
 expectException :: IO a -> IO ()
@@ -95,8 +98,10 @@ routes3 = route [ (":foo" , topCapture )
                 , (""     , topTop     ) ]
 
 routes4 :: Snap ByteString
-routes4 = route [ (":foo" , pass       )
-                , (":foo" , topCapture ) ]
+routes4 = route [ (":foo"     , pass        )
+                , (":foo"     , topCapture  )
+                , (":qqq/:id" , fooCapture  )
+                , (":id2/baz" , fooCapture2 ) ]
 
 routes5 :: Snap ByteString
 routes5 = route [ ("" , pass       )
@@ -148,11 +153,12 @@ fooBarBaz = liftM rqPathInfo getRequest
 barQuux = return "barQuux"
 bar     = return "bar"
 
+-- TODO more useful test names
+
 testRouting1 :: Test
 testRouting1 = testCase "routing1" $ do
     r1 <- go routes "foo"
     assertEqual "/foo" "topFoo" r1
-
 
 testRouting2 :: Test
 testRouting2 = testCase "routing2" $ do
@@ -272,6 +278,21 @@ testRouting25 :: Test
 testRouting25 = testCase "routing25" $ do
     r1 <- go routes7 "foooo/bar/baz"
     assertEqual "/foooo/bar/baz" "bar" r1
+
+testRouting26 :: Test
+testRouting26 = testCase "routing26" $ do
+    r1 <- go routes4 "foo/bar"
+    assertEqual "capture union" "bar" r1
+
+testRouting27 :: Test
+testRouting27 = testCase "routing27" $ do
+    r1 <- go routes4 "foo"
+    assertEqual "capture union" "foo" r1
+
+testRouting28 :: Test
+testRouting28 = testCase "routing28" $ do
+    r1 <- go routes4 "quux/baz"
+    assertEqual "capture union" "quux" r1
 
 testRouteLocal :: Test
 testRouteLocal = testCase "routeLocal" $ do

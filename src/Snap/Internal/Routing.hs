@@ -44,20 +44,32 @@ data Route a = Action (Snap a)                        -- wraps a 'Snap' action
 instance Monoid (Route a) where
     mempty = NoRoute
 
-    -- Unions two routes, favoring the right-hand side
     mappend NoRoute r = r
 
-    mappend l@(Action _) r = case r of
-      (Action _)        -> r
+    mappend l@(Action a) r = case r of
+      (Action a')       -> Action (a <|> a')
       (Capture p r' fb) -> Capture p r' (mappend fb l)
       (Dir _ _)         -> mappend (Dir Map.empty l) r
       NoRoute           -> l
 
+    -- Whenever we're unioning two Captures and their capture variables
+    -- differ, we have an ambiguity. We resolve this in the following order:
+    --   1. Prefer whichever route is longer
+    --   2. Else, prefer whichever has the earliest non-capture
+    --   3. Else, prefer the right-hand side
     mappend l@(Capture p r' fb) r = case r of
       (Action _)           -> Capture p r' (mappend fb r)
       (Capture p' r'' fb')
-               | p == p'   -> Capture p (mappend r' r'') (mappend fb fb')
-               | otherwise -> r
+              | p == p'    -> Capture p (mappend r' r'') (mappend fb fb')
+              | rh' > rh'' -> Capture p r' (mappend fb r)
+              | rh' < rh'' -> Capture p' r'' (mappend fb' l)
+              | en' < en'' -> Capture p r' (mappend fb r)
+              | otherwise  -> Capture p' r'' (mappend fb' l)
+        where
+          rh'  = routeHeight r'
+          rh'' = routeHeight r''
+          en'  = routeEarliestNC r' 1
+          en'' = routeEarliestNC r'' 1
       (Dir rm fb')         -> Dir rm (mappend fb' l)
       NoRoute              -> l
 
@@ -66,6 +78,22 @@ instance Monoid (Route a) where
       (Capture _ _ _) -> Dir rm (mappend fb r)
       (Dir rm' fb')   -> Dir (Map.unionWith mappend rm rm') (mappend fb fb')
       NoRoute         -> l
+
+
+------------------------------------------------------------------------------
+routeHeight :: Route a -> Int
+routeHeight r = case r of
+  NoRoute          -> 1
+  (Action _)       -> 1
+  (Capture _ r' _) -> 1+routeHeight r'
+  (Dir rm _)       -> 1+foldl max 1 (map routeHeight $ Map.elems rm)
+
+routeEarliestNC :: Route a -> Int -> Int
+routeEarliestNC r n = case r of
+  NoRoute           -> n
+  (Action _)        -> n
+  (Capture _ r' _)  -> routeEarliestNC r' n+1
+  (Dir _ _)         -> n
 
 
 ------------------------------------------------------------------------------
@@ -118,29 +146,35 @@ instance Monoid (Route a) where
 -- >       , ("login",       method POST doLogin) ]
 --
 route :: [(ByteString, Snap a)] -> Snap a
-route rts = route' (return ()) rts' []
+route rts = do
+  p <- getRequest >>= return . rqPathInfo
+  route' (return ()) ([], splitPath p) Map.empty rts'
   where
     rts' = mconcat (map pRoute rts)
 
 
 ------------------------------------------------------------------------------
--- | The 'routeLocal' function is the same as 'route', except it doesn't change
+-- | The 'routeLocal' function is the same as 'route'', except it doesn't change
 -- the request's context path. This is useful if you want to route to a
 -- particular handler but you want that handler to receive the 'rqPathInfo' as
 -- it is.
 routeLocal :: [(ByteString, Snap a)] -> Snap a
-routeLocal rts' = do
+routeLocal rts = do
     req    <- getRequest
     let ctx = rqContextPath req
     let p   = rqPathInfo req
     let md  = modifyRequest $ \r -> r {rqContextPath=ctx, rqPathInfo=p}
 
-    route' md rts []   <|>   (md >> pass)
+    (route' md ([], splitPath p) Map.empty rts') <|> (md >> pass)
 
   where
-    rts = mconcat (map pRoute rts')
+    rts' = mconcat (map pRoute rts)
 
-          
+------------------------------------------------------------------------------
+splitPath :: ByteString -> [ByteString]
+splitPath = B.splitWith (== (c2w '/'))
+
+
 ------------------------------------------------------------------------------
 pRoute :: (ByteString, Snap a) -> Route a
 pRoute (r, a) = foldr f (Action a) hier
@@ -152,30 +186,33 @@ pRoute (r, a) = foldr f (Action a) hier
 
 
 ------------------------------------------------------------------------------
-route' :: Snap ()               -- ^ an action to be run before any user
-                                -- handler
-       -> Route a               -- ^ currently active routing table
-       -> [Route a]             -- ^ list of fallback routing tables in case
-                                -- the current table fails
+route' :: Snap ()
+       -> ([ByteString], [ByteString])
+       -> Params
+       -> Route a
        -> Snap a
-route' pre (Action action) _ = pre >> action
-
-route' pre (Capture param rt fb) fbs = do
-    cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
-    if B.null cwd
-      then route' pre fb fbs
-      else do localRequest (updateContextPath (B.length cwd) . (f cwd)) $
-                           route' pre rt (fb:fbs)
+route' pre (ctx, _) params (Action action) =
+    localRequest (updateContextPath (B.length ctx') . updateParams)
+                 (pre >> action)
   where
-    f v req = req { rqParams = Map.insertWith (++) param [v] (rqParams req) }
+    ctx' = B.intercalate (B.pack [c2w '/']) (reverse ctx)
+    updateParams req = req
+      { rqParams = Map.unionWith (++) params (rqParams req) }
 
-route' pre (Dir rtm fb) fbs = do
-    cwd <- getRequest >>= return . B.takeWhile (/= (c2w '/')) . rqPathInfo
+route' pre (ctx, [])       params (Capture _ _  fb) =
+    route' pre (ctx, []) params fb
+route' pre (ctx, cwd:rest) params (Capture p rt fb) =
+    (route' pre (cwd:ctx, rest) params' rt) <|>
+    (route' pre (ctx, cwd:rest) params  fb)
+  where
+    params' = Map.insertWith (++) p [cwd] params
+
+route' pre (ctx, [])       params (Dir _   fb) =
+    route' pre (ctx, []) params fb
+route' pre (ctx, cwd:rest) params (Dir rtm fb) =
     case Map.lookup cwd rtm of
-      Just rt -> do
-          localRequest (updateContextPath (B.length cwd)) $
-                       route' pre rt (fb:fbs)
-      Nothing -> route' pre fb fbs
+      Just rt -> (route' pre (cwd:ctx, rest) params rt) <|>
+                 (route' pre (ctx, cwd:rest) params fb)
+      Nothing -> route' pre (ctx, cwd:rest) params fb
 
-route' _ NoRoute       []   = pass
-route' pre NoRoute (fb:fbs) = route' pre fb fbs
+route' _ _ _ NoRoute = pass
