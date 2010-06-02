@@ -146,15 +146,15 @@ bufferIteratee iteratee = do
     go (!dl,!n) iter = IterateeG $! f (dl,n) iter
 
     --f :: (DList ByteString, Int) -> Iteratee m a -> Stream -> m (IterV m a)
-    f _      !iter ch@(EOF (Just _)) = runIter iter ch
-    f (!dl,_) !iter ch@(EOF Nothing) = do
-        iterv <- runIter iter $ Chunk big
-        case iterv of
-          Done x rest     -> return $ Done x rest
-          Cont i (Just e) -> return $ Cont i (Just e)
-          Cont i Nothing  -> runIter i ch
+    f _       !iter ch@(EOF (Just _)) = runIter iter ch
+    f (!dl,_) !iter ch@(EOF Nothing)  = do
+        iter' <- if S.null str
+                   then return iter
+                   else liftM liftI $ runIter iter $ Chunk big
+        runIter iter' ch
       where
-        big = toWrap $ L.fromChunks [S.concat $ D.toList dl]
+        str = S.concat $ D.toList dl
+        big = WrapBS str
 
     f (!dl,!n) iter (Chunk (WrapBS s)) =
         if n' > blocksize
@@ -169,7 +169,7 @@ bufferIteratee iteratee = do
         m   = S.length s
         n'  = n+m
         dl' = D.snoc dl s
-        big = toWrap $ L.fromChunks [S.concat $ D.toList dl']
+        big = WrapBS $ S.concat $ D.toList dl'
 
 
 bUFSIZ :: Int
@@ -244,11 +244,8 @@ unsafeBufferIterateeWithBuffer buf iteratee = do
         if n == 0
           then runIter iter ch
           else do
-              iterv <- sendBuf n iter
-              case iterv of
-                Done x rest     -> return $ Done x $ copy rest
-                Cont i (Just e) -> return $ Cont i (Just e)
-                Cont i Nothing  -> runIter i ch
+              iter' <- liftM liftI $ sendBuf n iter
+              runIter iter' ch
 
     f !n iter (Chunk (WrapBS s)) = do
         let m = S.length s
