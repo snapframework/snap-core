@@ -126,6 +126,11 @@ countBytes = go 0
 -- Our enumerators produce a lot of little strings; rather than spending all
 -- our time doing kernel context switches for 4-byte write() calls, we buffer
 -- the iteratee to send 8KB at a time.
+--
+-- The IORef returned can be set to True to "cancel" buffering. We added this
+-- so that transfer-encoding: chunked (which needs its own buffer and therefore
+-- doesn't need /its/ output buffered) can switch the outer buffer off.
+--
 bufferIteratee :: Iteratee IO a -> IO (Iteratee IO a, IORef Bool)
 bufferIteratee iteratee = do
     esc <- newIORef False
@@ -157,7 +162,7 @@ bufferIteratee iteratee = do
         big = WrapBS str
 
     f (!dl,!n) iter (Chunk (WrapBS s)) =
-        if n' > blocksize
+        if n' >= blocksize
            then do
                iterv <- runIter iter (Chunk big)
                case iterv of

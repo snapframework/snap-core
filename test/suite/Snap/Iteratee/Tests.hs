@@ -12,6 +12,7 @@ import           Control.Monad.Identity
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Monoid
+import           Data.IORef
 import           Data.Iteratee.WrappedByteString
 import           Data.Word
 import           Prelude hiding (drop, take)
@@ -45,6 +46,8 @@ tests = [ testEnumBS
         , testBuffer2
         , testBuffer3
         , testBuffer4
+        , testBufferChain
+        , testBufferChainEscape
         , testUnsafeBuffer
         , testUnsafeBuffer2
         , testUnsafeBuffer3
@@ -134,6 +137,43 @@ testBuffer4 = testProperty "testBuffer4" $
         
         k <- liftQ $ enumErr "foo" j
         expectException $ run k
+
+
+testBufferChain :: Test
+testBufferChain = testProperty "testBufferChain" $
+                  monadicIO $ forAllM arbitrary prop
+  where
+    prop s = do
+        pre (s /= L.empty)
+
+        (j,_) <- liftQ $ bufferIteratee stream2stream
+        (i,_) <- liftQ $ bufferIteratee j
+        iter  <- liftQ $ enumLBS s' i
+        x     <- liftQ $ run iter
+
+        QC.assert $ fromWrap x == s'
+      where
+        s' = L.take 20000 $ L.cycle s
+
+
+testBufferChainEscape :: Test
+testBufferChainEscape = testProperty "testBufferChainEscape" $
+                        monadicIO $ forAllM arbitrary prop
+  where
+    prop s = do
+        pre (s /= L.empty)
+
+        (j,esc) <- liftQ $ bufferIteratee stream2stream
+        (i,_)   <- liftQ $ bufferIteratee j
+
+        liftQ $ writeIORef esc True
+
+        iter    <- liftQ $ enumLBS s' i
+        x       <- liftQ $ run iter
+
+        QC.assert $ fromWrap x == s'
+      where
+        s' = L.take 20000 $ L.cycle s
 
 
 copyingStream2stream :: Iteratee IO (WrappedByteString Word8)
