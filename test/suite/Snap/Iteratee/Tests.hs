@@ -12,6 +12,7 @@ import           Control.Monad.Identity
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Monoid
+import           Data.Int
 import           Data.IORef
 import           Data.Iteratee.WrappedByteString
 import           Data.Word
@@ -27,6 +28,10 @@ import           System.IO.Unsafe
 
 import           Snap.Iteratee
 import           Snap.Test.Common ()
+
+instance Arbitrary Int64 where
+    arbitrary = arbitraryBoundedIntegral
+    shrink    = shrinkIntegral
 
 liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
 liftQ = QC.run
@@ -342,7 +347,7 @@ testTakeNoMoreThan3 :: Test
 testTakeNoMoreThan3 = testProperty "takeNoMoreLong" $
                       monadicIO $ forAllM arbitrary prop
   where
-    prop :: (Int,L.ByteString) -> PropertyM IO ()
+    prop :: (Int64,L.ByteString) -> PropertyM IO ()
     prop (m,s) = do
         v <- liftQ $ enumLBS "" (joinI (takeNoMoreThan 0 stream2stream)) >>= run
         assert $ fromWrap v == ""
@@ -356,7 +361,7 @@ testTakeNoMoreThan3 = testProperty "takeNoMoreLong" $
         
       where
         doIter = enumLBS s (joinI (takeNoMoreThan (n-abs m) stream2stream))
-        n = fromIntegral $ L.length s
+        n = L.length s
 
 
 testCountBytes :: Test
@@ -379,7 +384,7 @@ testCountBytes = testProperty "count bytes" $
        erriter = countBytes $ throwErr $ Err "foo"
        g iter = enumLBS s iter >>= run
        f = liftQ . g
-       n = fromEnum $ L.length s
+       n = L.length s
 
 
 testCountBytes2 :: Test

@@ -47,6 +47,7 @@ Executable testsuite
     filepath,
     HUnit >= 1.2 && < 2,
     iteratee >= 0.3.1 && < 0.4,
+    ListLike >= 1 && < 2,
     MonadCatchIO-transformers >= 0.2 && < 0.3,
     monads-fd,
     old-locale,

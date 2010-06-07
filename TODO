@@ -1,12 +1,5 @@
 -*- org -*-
 
-* TODO [#A] Large file support
-  :LOGBOOK:
-  - Note taken on [2010-06-06 Sun 17:04] \\
-    We can't support it right now because drop/take in iteratee is hard-
-    coded to Int, so we can't enumFile if filesize > 2Gb
-  :END:
-
 * TODO [#B] ipv6 support
   :LOGBOOK:
   - Note taken on [2010-05-22 Sat 03:31] \\

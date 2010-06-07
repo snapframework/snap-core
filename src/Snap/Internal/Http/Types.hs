@@ -29,6 +29,7 @@ import qualified Data.ByteString.Unsafe as S
 import           Data.Char
 import           Data.DList (DList)
 import qualified Data.DList as DL
+import           Data.Int
 import           Data.IORef
 import           Data.Map (Map)
 import qualified Data.Map as Map
@@ -357,7 +358,7 @@ data Response = Response
       -- | We will need to inspect the content length no matter what, and
       --   looking up \"content-length\" in the headers and parsing the number
       --   out of the text will be too expensive.
-    , rspContentLength :: !(Maybe Int)
+    , rspContentLength :: !(Maybe Int64)
     , rspBody          :: ResponseBody
 
       -- | Returns the HTTP status code.
@@ -501,7 +502,7 @@ addCookie (Cookie k v mbExpTime mbDomain mbPath) = updateHeaders f
 -- disabled for HTTP\/1.0 clients, forcing a @Connection: close@. For HTTP\/1.1
 -- clients, Snap will switch to the chunked transfer encoding if
 -- @Content-Length@ is not specified.
-setContentLength    :: Int -> Response -> Response
+setContentLength    :: Int64 -> Response -> Response
 setContentLength l r = r { rspContentLength = Just l }
 {-# INLINE setContentLength #-}
 

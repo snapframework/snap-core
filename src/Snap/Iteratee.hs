@@ -33,6 +33,7 @@ module Snap.Iteratee
   , toWrap
 
     -- ** Iteratee utilities
+  , drop'
   , takeExactly
   , takeNoMoreThan
   , countBytes
@@ -49,6 +50,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Lazy as L
+import           Data.Int
 import           Data.IORef
 import           Data.Iteratee
 #ifdef PORTABLE
@@ -56,6 +58,7 @@ import           Data.Iteratee.IO (enumHandle)
 #endif
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
+import qualified Data.ListLike as LL
 import           Data.Monoid (mappend)
 import           Foreign
 import           Foreign.C.Types
@@ -96,7 +99,7 @@ instance (Functor m, MonadCatchIO m) =>
 
 ------------------------------------------------------------------------------
 -- | Wraps an 'Iteratee', counting the number of bytes consumed by it.
-countBytes :: (Monad m) => Iteratee m a -> Iteratee m (a, Int)
+countBytes :: (Monad m) => Iteratee m a -> Iteratee m (a, Int64)
 countBytes = go 0
   where
     go !n iter = IterateeG $ f n iter
@@ -108,10 +111,10 @@ countBytes = go 0
                          in return $! Done (x, n') rest
           Cont i err  -> return $ Cont ((go $! n + m) i) err
       where
-        m = S.length $ unWrap ws
+        m = fromIntegral $ S.length (unWrap ws)
 
-        len (EOF _) = 0
-        len (Chunk s) = S.length $ unWrap s
+        len (EOF _)   = 0
+        len (Chunk s) = fromIntegral $ S.length (unWrap s)
 
     f !n !iter stream = do
         iterv <- runIter iter stream
@@ -332,12 +335,29 @@ fromWrap = L.fromChunks . (:[]) . unWrap
 
 
 ------------------------------------------------------------------------------
+-- | Skip n elements of the stream, if there are that many
+-- This is the Int64 version of the drop function in the iteratee library
+drop' :: (SC.StreamChunk s el, Monad m)
+       => Int64
+       -> IterateeG s el m ()
+drop' 0 = return ()
+drop' n = IterateeG step
+  where
+  step (Chunk str)
+    | strlen <= n  = return $ Cont (drop' (n - strlen)) Nothing
+      where
+        strlen = fromIntegral $ SC.length str
+  step (Chunk str) = return $ Done () (Chunk (LL.drop (fromIntegral n) str))
+  step stream      = return $ Done () stream
+
+
+------------------------------------------------------------------------------
 -- | Reads n elements from a stream and applies the given iteratee to
 -- the stream of the read elements. Reads exactly n elements, and if
 -- the stream is short propagates an error.
-takeExactly :: (SC.StreamChunk s el, Monad m) =>
-               Int ->
-               EnumeratorN s el s el m a
+takeExactly :: (SC.StreamChunk s el, Monad m)
+            => Int64
+            -> EnumeratorN s el s el m a
 takeExactly 0 iter = return iter
 takeExactly n' iter =
     if n' < 0
@@ -346,15 +366,17 @@ takeExactly n' iter =
   where
   step n chk@(Chunk str)
     | SC.null str = return $ Cont (takeExactly n iter) Nothing
-    | SC.length str < n = liftM (flip Cont Nothing) inner
-      where inner = liftM (check (n - SC.length str)) (runIter iter chk)
-  step n (Chunk str) = done (Chunk s1) (Chunk s2)
-    where (s1, s2) = SC.splitAt n str
+    | strlen < n  = liftM (flip Cont Nothing) inner
+    | otherwise   = done (Chunk s1) (Chunk s2)
+      where
+        strlen = fromIntegral $ SC.length str
+        inner  = liftM (check (n - strlen)) (runIter iter chk)
+        (s1, s2) = SC.splitAt (fromIntegral n) str
   step _n (EOF (Just e))    = return $ Cont undefined (Just e)
   step _n (EOF Nothing)     = return $ Cont undefined (Just (Err "short write"))
-  check n (Done x _)        = drop n >> return (return x)
+  check n (Done x _)        = drop' n >> return (return x)
   check n (Cont x Nothing)  = takeExactly n x
-  check n (Cont _ (Just e)) = drop n >> throwErr e
+  check n (Cont _ (Just e)) = drop' n >> throwErr e
   done s1 s2 = liftM (flip Done s2) (runIter iter s1 >>= checkIfDone return)
 
 
@@ -362,9 +384,9 @@ takeExactly n' iter =
 -- | Reads up to n elements from a stream and applies the given iteratee to the
 -- stream of the read elements. If more than n elements are read, propagates an
 -- error.
-takeNoMoreThan :: (SC.StreamChunk s el, Monad m) =>
-                  Int ->
-                  EnumeratorN s el s el m a
+takeNoMoreThan :: (SC.StreamChunk s el, Monad m)
+               => Int64
+               -> EnumeratorN s el s el m a
 takeNoMoreThan n' iter =
     if n' < 0
       then takeNoMoreThan 0 iter
@@ -372,10 +394,12 @@ takeNoMoreThan n' iter =
   where
     step n chk@(Chunk str)
       | SC.null str = return $ Cont (takeNoMoreThan n iter) Nothing
-      | SC.length str < n = liftM (flip Cont Nothing) inner
-      | otherwise = done (Chunk s1) (Chunk s2)
-          where inner    = liftM (check (n - SC.length str)) (runIter iter chk)
-                (s1, s2) = SC.splitAt n str
+      | strlen < n  = liftM (flip Cont Nothing) inner
+      | otherwise   = done (Chunk s1) (Chunk s2)
+          where
+            strlen   = fromIntegral $ SC.length str
+            inner    = liftM (check (n - strlen)) (runIter iter chk)
+            (s1, s2) = SC.splitAt (fromIntegral n) str
 
     step _n (EOF (Just e))    = return $ Cont undefined (Just e)
     step _n chk@(EOF Nothing) = do

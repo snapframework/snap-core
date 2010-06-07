@@ -229,7 +229,7 @@ fileServeSingle' mime fp = do
     let mt = modificationTime filestat
     maybe (return ()) (chkModificationTime mt) mbIfModified
 
-    let sz = fromEnum $ fileSize filestat
+    let sz = fromIntegral $ fileSize filestat
     lm <- liftIO $ formatHttpTime mt
 
     modifyResponse $ setHeader "Last-Modified" lm
