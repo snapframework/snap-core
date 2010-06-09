@@ -22,6 +22,7 @@ import qualified Data.Attoparsec as Atto
 import           Data.Attoparsec hiding (many, Result(..))
 import           Data.Bits
 import           Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as B
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString.Nums.Careless.Hex as Cvt
 import qualified Data.ByteString as S
@@ -31,6 +32,7 @@ import           Data.DList (DList)
 import qualified Data.DList as DL
 import           Data.Int
 import           Data.IORef
+import           Data.List hiding (take)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Monoid
@@ -291,7 +293,9 @@ instance Show Request where
                              ]
       beginheaders  = "Headers:\n      ========================================"
       endheaders    = "  ========================================"
-      hdrs          = "      " ++ show (rqHeaders r)
+      hdrs' (a,b)   = (B.unpack $ unCI a) ++ ": " ++ (show (map B.unpack b))
+      hdrs          = "      " ++ (concat $ intersperse "\n " $
+                                   map hdrs' (Map.toAscList $ rqHeaders r))
       contentlength = concat [ "content-length: "
                              , show $ rqContentLength r
                              ]
@@ -301,18 +305,24 @@ instance Show Request where
       version       = concat [ "version: "
                              , show $ rqVersion r
                              ]
+      cookies' = "      " ++ (concat $ intersperse "\n " $
+                              map show $ rqCookies r)
       cookies       = concat [ "cookies:\n"
                              , "      ========================================\n"
-                             , "      " ++ (show $ rqCookies r)
+                             , cookies'
                              , "\n      ========================================"
                              ]
       pathinfo      = concat [ "pathinfo: ", toStr $ rqPathInfo r ]
       contextpath   = concat [ "contextpath: ", toStr $ rqContextPath r ]
       snapletpath   = concat [ "snapletpath: ", toStr $ rqSnapletPath r ]
       uri           = concat [ "URI: ", toStr $ rqURI r ]
+      params' = "      " ++
+          (concat $ intersperse "\n " $
+           map (\ (a,b) -> B.unpack a ++ ": " ++ show b) $
+           Map.toAscList $ rqParams r)
       params        = concat [ "params:\n"
                              , "      ========================================\n"
-                             , "      " ++ (show $ rqParams r)
+                             , params'
                              , "\n      ========================================"
                              ]
 
