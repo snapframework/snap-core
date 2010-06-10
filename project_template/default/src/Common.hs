@@ -66,7 +66,7 @@ templateServe :: TemplateState Snap
               -> Snap ()
 templateServe orig tsMVar staticState = do
     p
-    modifyResponse $ setContentType "text/html"
+    modifyResponse $ setContentType "text/html; charset=utf-8"
 
   where
     p = ifTop (renderTmpl tsMVar "index") <|>
