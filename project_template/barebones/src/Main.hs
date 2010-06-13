@@ -5,20 +5,10 @@ import           Control.Applicative
 import           Snap.Types
 import           Snap.Util.FileServe
 
-import           Common
-
-config :: AppConfig
-config = AppConfig {
-  accessLog = Just "access.log",
-  errorLog = Just "error.log"
-}
+import           Server
 
 main :: IO ()
-main = do
-    quickServer config site
-
-site :: Snap ()
-site =
+main = quickServer $
     ifTop (writeBS "hello world") <|>
     route [ ("foo", writeBS "bar")
           , ("echo/:echoparam", echoHandler)
@@ -30,4 +20,3 @@ echoHandler = do
     param <- getParam "echoparam"
     maybe (writeBS "must specify echo/param in URL")
           writeBS param
-

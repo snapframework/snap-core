@@ -4,31 +4,26 @@ module Main where
 import           Control.Applicative
 import           Snap.Types
 import           Snap.Util.FileServe
+import           Text.Templating.Heist
 
-import           Common
+import           Glue
+import           Server
 
-config :: AppConfig
-config = AppConfig {
-  templateDir = "templates",
-  accessLog = Just "access.log",
-  errorLog = Just "error.log"
-}
 
 main :: IO ()
 main = do
-    quickServer config site
+    td <- newTemplateDirectory' "templates" emptyTemplateState
+    quickServer $ templateHandler td defaultReloadHandler $ \ts ->
+        ifTop (writeBS "hello world") <|>
+        route [ ("foo", writeBS "bar")
+              , ("echo/:echoparam", echoHandler)
+              ] <|>
+        templateServe ts <|>
+        dir "static" (fileServe ".")
 
-site :: Snap ()
-site =
-    ifTop (writeBS "hello world") <|>
-    route [ ("foo", writeBS "bar")
-          , ("echo/:echoparam", echoHandler)
-          ] <|>
-    dir "static" (fileServe ".")
 
 echoHandler :: Snap ()
 echoHandler = do
     param <- getParam "echoparam"
     maybe (writeBS "must specify echo/param in URL")
           writeBS param
-
