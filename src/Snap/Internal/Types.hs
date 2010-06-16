@@ -84,7 +84,7 @@ import           Snap.Internal.Http.Types
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
       unSnap :: StateT SnapState (Iteratee IO) (Maybe (Either Response a))
-} deriving Typeable
+}
 
 
 ------------------------------------------------------------------------------
@@ -150,6 +150,16 @@ instance Applicative Snap where
 instance Alternative Snap where
     empty = mzero
     (<|>) = mplus
+
+------------------------------------------------------------------------------
+-- | The Typeable instance is here so Snap can be dynamically executed with
+-- Hint.
+snapTyCon :: TyCon
+snapTyCon = mkTyCon "Snap.Types.Snap"
+{-# NOINLINE snapTyCon #-}
+
+instance Typeable1 Snap where
+    typeOf1 _ = mkTyConApp snapTyCon []
 
 
 ------------------------------------------------------------------------------
