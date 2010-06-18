@@ -57,6 +57,8 @@ module Snap.Types
   , addHeader
   , setHeader
   , getHeader
+  , ipHeaderFilter
+  , ipHeaderFilter'
 
     -- ** Requests
   , rqServerName

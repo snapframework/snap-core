@@ -13,6 +13,7 @@ import           Control.Monad.State.Strict
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.CIByteString as CIB
 import           Data.IORef
 import qualified Data.Iteratee as Iter
 import           Data.Maybe
@@ -456,6 +457,26 @@ withRequest = (getRequest >>=)
 withResponse :: (Response -> Snap a) -> Snap a
 withResponse = (getResponse >>=)
 {-# INLINE withResponse #-}
+
+
+------------------------------------------------------------------------------
+-- | Modifies the 'Request' in the state to set the 'rqRemoteAddr'
+-- field to the value in the X-Forwarded-For header.  If the header is
+-- not present, this action has no effect.
+ipHeaderFilter :: Snap ()
+ipHeaderFilter = ipHeaderFilter' "x-forwarded-for"
+
+
+------------------------------------------------------------------------------
+-- | Modifies the 'Request' in the state to set the 'rqRemoteAddr'
+-- field to the value from the header specified.  If the header
+-- specified is not present, this action has no effect.
+ipHeaderFilter' :: CIB.CIByteString -> Snap ()
+ipHeaderFilter' header = do
+    headerContents <- getHeader header <$> getRequest
+
+    let setIP ip = modifyRequest $ \rq -> rq { rqRemoteAddr = ip }
+    maybe (return ()) setIP headerContents
 
 
 ------------------------------------------------------------------------------
