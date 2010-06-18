@@ -5,7 +5,7 @@ for HTTP as well as the 'Snap' monad, which is used for web handlers.
 
 -}
 module Snap.Types
-  ( 
+  (
     -- * The Snap Monad
     Snap
   , runSnap
@@ -105,7 +105,7 @@ module Snap.Types
 
     -- * HTTP utilities
   , formatHttpTime
-  , parseHttpTime 
+  , parseHttpTime
   , urlEncode
   , urlDecode
   ) where
