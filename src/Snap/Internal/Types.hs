@@ -202,7 +202,7 @@ getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 -- returns it. You would want to use this if you needed to send the
 -- HTTP request body (transformed or otherwise) through to the output
 -- in O(1) space. (Examples: transcoding, \"echo\", etc)
--- 
+--
 -- Normally Snap is careful to ensure that the request body is fully
 -- consumed after your web handler runs; this function is marked
 -- \"unsafe\" because it breaks this guarantee and leaves the
@@ -362,7 +362,7 @@ modifyRequest f = smodify $ \ss -> ss { _snapRequest = f $ _snapRequest ss }
 
 ------------------------------------------------------------------------------
 -- | Modifes the 'Response' object stored in a 'Snap' monad.
-modifyResponse :: (Response -> Response) -> Snap () 
+modifyResponse :: (Response -> Response) -> Snap ()
 modifyResponse f = smodify $ \ss -> ss { _snapResponse = f $ _snapResponse ss }
 {-# INLINE modifyResponse #-}
 
@@ -487,7 +487,7 @@ runSnap (Snap m) logerr req = do
                r
 
     -- is this a case of early termination?
-    let resp = case e of 
+    let resp = case e of
                  Left x  -> x
                  Right _ -> _snapResponse ss'
 
@@ -518,7 +518,7 @@ evalSnap (Snap m) logerr req = do
                r
 
     -- is this a case of early termination?
-    case e of 
+    case e of
       Left _  -> liftIO $ throwIO $ ErrorCall "no value"
       Right x -> return x
   where
