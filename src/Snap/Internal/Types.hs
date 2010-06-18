@@ -461,8 +461,17 @@ withResponse = (getResponse >>=)
 
 ------------------------------------------------------------------------------
 -- | Modifies the 'Request' in the state to set the 'rqRemoteAddr'
--- field to the value in the X-Forwarded-For header.  If the header is
+-- field to the value in the X-Forwarded-For header. If the header is
 -- not present, this action has no effect.
+--
+-- This action should be used only when working behind a reverse http
+-- proxy that sets the X-Forwarded-For header. This is the only way to
+-- ensure the value in the X-Forwarded-For header can be trusted.
+--
+-- This is provided as a filter so actions that require the remote
+-- address can get it in a uniform manner. It has specifically limited
+-- functionality to ensure that its transformation can be trusted,
+-- when used correctly.
 ipHeaderFilter :: Snap ()
 ipHeaderFilter = ipHeaderFilter' "x-forwarded-for"
 
@@ -471,11 +480,25 @@ ipHeaderFilter = ipHeaderFilter' "x-forwarded-for"
 -- | Modifies the 'Request' in the state to set the 'rqRemoteAddr'
 -- field to the value from the header specified.  If the header
 -- specified is not present, this action has no effect.
+--
+-- This action should be used only when working behind a reverse http
+-- proxy that sets the header being looked at. This is the only way to
+-- ensure the value in the header can be trusted.
+--
+-- This is provided as a filter so actions that require the remote
+-- address can get it in a uniform manner. It has specifically limited
+-- functionality to ensure that its transformation can be trusted,
+-- when used correctly.
 ipHeaderFilter' :: CIB.CIByteString -> Snap ()
 ipHeaderFilter' header = do
     headerContents <- getHeader header <$> getRequest
 
-    let setIP ip = modifyRequest $ \rq -> rq { rqRemoteAddr = ip }
+    let whitespace = " \t\r\n"
+        ipChrs = ".0123456789"
+        trim f s = f (`elem` s)
+
+        clean = trim S.takeWhile ipChrs . trim S.dropWhile whitespace
+        setIP ip = modifyRequest $ \rq -> rq { rqRemoteAddr = clean ip }
     maybe (return ()) setIP headerContents
 
 
