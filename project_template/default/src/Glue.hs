@@ -1,13 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Glue
     ( templateHandler
-    , newTemplateDirectory'
     , defaultReloadHandler
     , templateServe
     , render
-    , bindSplices
-    , withSplices
     ) where
+
 import           Control.Applicative
 import           Control.Monad
 import           Data.ByteString.Char8 (ByteString)
@@ -16,15 +14,14 @@ import           Prelude hiding (catch)
 import           Snap.Types hiding (dir)
 import           Snap.Util.FileServe
 import           Text.Templating.Heist
-
-import           TemplateDirectory
+import           Text.Templating.Heist.TemplateDirectory
 
 
 templateHandler :: TemplateDirectory Snap
                 -> (TemplateDirectory Snap -> Snap ())
                 -> (TemplateState Snap -> Snap ())
                 -> Snap ()
-templateHandler td reload f = reload td <|> (f =<< getTemplateState td)
+templateHandler td reload f = reload td <|> (f =<< getDirectoryTS td)
 
 
 defaultReloadHandler :: TemplateDirectory Snap -> Snap ()

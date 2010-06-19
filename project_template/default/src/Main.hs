@@ -5,6 +5,7 @@ import           Control.Applicative
 import           Snap.Types
 import           Snap.Util.FileServe
 import           Text.Templating.Heist
+import           Text.Templating.Heist.TemplateDirectory
 
 import           Glue
 import           Server
