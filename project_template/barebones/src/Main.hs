@@ -8,7 +8,7 @@ import           Snap.Util.FileServe
 import           Server
 
 main :: IO ()
-main = quickServer $
+main = quickServer id $
     ifTop (writeBS "hello world") <|>
     route [ ("foo", writeBS "bar")
           , ("echo/:echoparam", echoHandler)

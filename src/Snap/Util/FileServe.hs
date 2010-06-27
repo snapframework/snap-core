@@ -157,7 +157,7 @@ defaultMimeTypes = Map.fromList [
 -- | Gets a path from the 'Request' using 'rqPathInfo' and makes sure it is
 -- safe to use for opening files.  A path is safe if it is a relative path
 -- and has no ".." elements to escape the intended directory structure.
-getSafePath :: Snap FilePath
+getSafePath :: MonadSnap m => m FilePath
 getSafePath = do
     req <- getRequest
     let p = S.unpack $ rqPathInfo req
@@ -176,17 +176,19 @@ getSafePath = do
 --
 -- Uses 'defaultMimeTypes' to determine the @Content-Type@ based on the file's
 -- extension.
-fileServe :: FilePath  -- ^ root directory
-          -> Snap ()
+fileServe :: MonadSnap m
+          => FilePath  -- ^ root directory
+          -> m ()
 fileServe = fileServe' defaultMimeTypes
 {-# INLINE fileServe #-}
 
 
 ------------------------------------------------------------------------------
 -- | Same as 'fileServe', with control over the MIME mapping used.
-fileServe' :: MimeMap           -- ^ MIME type mapping
+fileServe' :: MonadSnap m
+           => MimeMap           -- ^ MIME type mapping
            -> FilePath          -- ^ root directory
-           -> Snap ()
+           -> m ()
 fileServe' mm root = do
     sp <- getSafePath
     let fp   = root </> sp
@@ -204,8 +206,9 @@ fileServe' mm root = do
 -- | Serves a single file specified by a full or relative path.  The
 -- path restrictions on fileServe don't apply to this function since
 -- the path is not being supplied by the user.
-fileServeSingle :: FilePath          -- ^ path to file
-                -> Snap ()
+fileServeSingle :: MonadSnap m
+                => FilePath          -- ^ path to file
+                -> m ()
 fileServeSingle fp =
     fileServeSingle' (fileType defaultMimeTypes (takeFileName fp)) fp
 {-# INLINE fileServeSingle #-}
@@ -213,9 +216,10 @@ fileServeSingle fp =
 
 ------------------------------------------------------------------------------
 -- | Same as 'fileServeSingle', with control over the MIME mapping used.
-fileServeSingle' :: ByteString        -- ^ MIME type mapping
+fileServeSingle' :: MonadSnap m
+                 => ByteString        -- ^ MIME type mapping
                  -> FilePath          -- ^ path to file
-                 -> Snap ()
+                 -> m ()
 fileServeSingle' mime fp = do
     req <- getRequest
     

@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module Server
     ( ServerConfig(..)
     , emptyServerConfig
@@ -30,7 +31,7 @@ data ServerConfig = ServerConfig
     , accessLog       :: Maybe FilePath
     , errorLog        :: Maybe FilePath
     , compression     :: Bool
-    , error500Handler :: SomeException -> Snap ()
+    , error500Handler :: MonadSnap m => SomeException -> m ()
     }
 
 
@@ -68,8 +69,8 @@ commandLineConfig = do
         Nothing -> conf
         Just l  -> conf {locale = takeWhile (\c -> isAlpha c || c == '_') l}
 
-server :: ServerConfig -> Snap () -> IO ()
-server config handler = do
+server :: MonadSnap m => ServerConfig -> (m () -> Snap ()) -> m () -> IO ()
+server config f handler = do
     putStrLn $ "Listening on " ++ (B.unpack $ interface config)
              ++ ":" ++ show (port config)
     setUTF8Locale (locale config)
@@ -79,7 +80,7 @@ server config handler = do
              (hostname  config)
              (accessLog config)
              (errorLog  config)
-             (catch500 $ compress $ handler)
+             (f $ catch500 $ compress $ handler)
              :: IO (Either SomeException ())
     threadDelay 1000000
     putStrLn "Shutting down"
@@ -88,8 +89,8 @@ server config handler = do
     compress = if compression config then withCompression else id
 
 
-quickServer :: Snap () -> IO ()
-quickServer = (commandLineConfig >>=) . flip server
+quickServer :: MonadSnap m => (m () -> Snap ()) -> m () -> IO ()
+quickServer f a = commandLineConfig >>= (\c -> server c f a)
 
 
 setUTF8Locale :: String -> IO ()

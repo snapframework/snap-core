@@ -17,21 +17,22 @@ import           Text.Templating.Heist
 import           Text.Templating.Heist.TemplateDirectory
 
 
-templateHandler :: TemplateDirectory Snap
-                -> (TemplateDirectory Snap -> Snap ())
-                -> (TemplateState Snap -> Snap ())
-                -> Snap ()
+templateHandler :: MonadSnap m
+                => TemplateDirectory m
+                -> (TemplateDirectory m -> m ())
+                -> (TemplateState m -> m ())
+                -> m ()
 templateHandler td reload f = reload td <|> (f =<< getDirectoryTS td)
 
 
-defaultReloadHandler :: TemplateDirectory Snap -> Snap ()
+defaultReloadHandler :: MonadSnap m => TemplateDirectory m -> m ()
 defaultReloadHandler td = path "admin/reload" $ do
     e <- reloadTemplateDirectory td
     modifyResponse $ setContentType "text/plain; charset=utf-8"
     writeBS . B.pack $ either id (const "Templates loaded successfully.") e
 
 
-render :: TemplateState Snap -> ByteString -> Snap ()
+render :: MonadSnap m => TemplateState m -> ByteString -> m ()
 render ts template = do
     bytes <- renderTemplate ts template
     flip (maybe pass) bytes $ \x -> do
@@ -39,7 +40,7 @@ render ts template = do
         writeBS x
 
 
-templateServe :: TemplateState Snap -> Snap ()
+templateServe :: MonadSnap m => TemplateState m -> m ()
 templateServe ts = ifTop (render ts "index") <|> do
     path' <- getSafePath
     when (head path' == '_') pass

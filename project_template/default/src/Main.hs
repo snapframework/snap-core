@@ -14,7 +14,7 @@ import           Server
 main :: IO ()
 main = do
     td <- newTemplateDirectory' "templates" emptyTemplateState
-    quickServer $ templateHandler td defaultReloadHandler $ \ts ->
+    quickServer id $ templateHandler td defaultReloadHandler $ \ts ->
         ifTop (writeBS "hello world") <|>
         route [ ("foo", writeBS "bar")
               , ("echo/:echoparam", echoHandler)
