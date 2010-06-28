@@ -522,7 +522,7 @@ ipHeaderFilter' header = do
 --
 -- 3. An exception being thrown.
 bracketSnap :: IO a -> (a -> IO b) -> (a -> Snap c) -> Snap c
-bracketSnap before after thing = Snap $ do
+bracketSnap before after thing = block . Snap $ do
     a <- liftIO before
     let after' = liftIO $ after a
         (Snap thing') = thing a
