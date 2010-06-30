@@ -73,16 +73,6 @@ extra-source-files:
   extra/logo.gif,
   haddock.sh,
   LICENSE,
-<<<<<<< HEAD
-  project_template/barebones/foo.cabal,
-  project_template/barebones/src/Main.hs,
-  project_template/barebones/src/Server.hs,
-  project_template/default/foo.cabal,
-  project_template/default/src/Glue.hs,
-  project_template/default/src/Main.hs,
-  project_template/barebones/src/Server.hs,
-=======
->>>>>>> 1197d61574b083de4aff099c0ccecb82f949b437
   README.md,
   README.SNAP.md,
   Setup.hs,

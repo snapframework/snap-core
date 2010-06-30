@@ -13,10 +13,13 @@ import           Control.Monad.CatchIO
 import           Control.Monad.Cont
 import           Control.Monad.Error
 import           Control.Monad.List
-import           Control.Monad.RWS hiding (pass)
+import           Control.Monad.RWS.Strict hiding (pass)
+import qualified Control.Monad.RWS.Lazy as LRWS
 import           Control.Monad.Reader
 import           Control.Monad.State.Strict
-import           Control.Monad.Writer hiding (pass)
+import qualified Control.Monad.State.Lazy as LState
+import           Control.Monad.Writer.Strict hiding (pass)
+import qualified Control.Monad.Writer.Lazy as LWriter
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -173,13 +176,13 @@ instance MonadSnap Snap where
 
 
 ------------------------------------------------------------------------------
-instance MonadSnap m => MonadPlus (ContT c m) where
+instance MonadPlus m => MonadPlus (ContT c m) where
     mzero = lift mzero
     m `mplus` n = ContT $ \ f -> runContT m f `mplus` runContT n f
 
 
 ------------------------------------------------------------------------------
-instance MonadSnap m => Alternative (ContT c m) where
+instance MonadPlus m => Alternative (ContT c m) where
     empty = mzero
     (<|>) = mplus
 
@@ -205,6 +208,11 @@ instance (MonadSnap m, Monoid w) => MonadSnap (RWST r w s m) where
 
 
 ------------------------------------------------------------------------------
+instance (MonadSnap m, Monoid w) => MonadSnap (LRWS.RWST r w s m) where
+    liftSnap = lift . liftSnap
+
+
+------------------------------------------------------------------------------
 instance MonadSnap m => MonadSnap (ReaderT r m) where
     liftSnap = lift . liftSnap
 
@@ -215,7 +223,17 @@ instance MonadSnap m => MonadSnap (StateT s m) where
 
 
 ------------------------------------------------------------------------------
+instance MonadSnap m => MonadSnap (LState.StateT s m) where
+    liftSnap = lift . liftSnap
+
+
+------------------------------------------------------------------------------
 instance (MonadSnap m, Monoid w) => MonadSnap (WriterT w m) where
+    liftSnap = lift . liftSnap
+
+
+------------------------------------------------------------------------------
+instance (MonadSnap m, Monoid w) => MonadSnap (LWriter.WriterT w m) where
     liftSnap = lift . liftSnap
 
 
@@ -291,13 +309,8 @@ unsafeDetachRequestBody = do
 ------------------------------------------------------------------------------
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
-<<<<<<< HEAD
 finishWith :: MonadSnap m => Response -> m ()
 finishWith = liftSnap . Snap . return . Just . Left
-=======
-finishWith :: Response -> Snap a
-finishWith = Snap . return . Just . Left
->>>>>>> 1197d61574b083de4aff099c0ccecb82f949b437
 {-# INLINE finishWith #-}
 
 
