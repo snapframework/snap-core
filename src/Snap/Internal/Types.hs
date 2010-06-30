@@ -291,8 +291,13 @@ unsafeDetachRequestBody = do
 ------------------------------------------------------------------------------
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
+<<<<<<< HEAD
 finishWith :: MonadSnap m => Response -> m ()
 finishWith = liftSnap . Snap . return . Just . Left
+=======
+finishWith :: Response -> Snap a
+finishWith = Snap . return . Just . Left
+>>>>>>> 1197d61574b083de4aff099c0ccecb82f949b437
 {-# INLINE finishWith #-}
 
 
@@ -573,6 +578,35 @@ ipHeaderFilter' header = do
         clean = trim S.takeWhile ipChrs . trim S.dropWhile whitespace
         setIP ip = modifyRequest $ \rq -> rq { rqRemoteAddr = clean ip }
     maybe (return ()) setIP headerContents
+
+
+------------------------------------------------------------------------------
+-- | This function brackets a Snap action in resource acquisition and
+-- release. This is provided because MonadCatchIO's 'bracket' function
+-- doesn't work properly in the case of a short-circuit return from
+-- the action being bracketed.
+--
+-- In order to prevent confusion regarding the effects of the
+-- aquisition and release actions on the Snap state, this function
+-- doesn't accept Snap actions for the acquire or release actions.
+--
+-- This function will run the release action in all cases where the
+-- acquire action succeeded.  This includes the following behaviors
+-- from the bracketed Snap action.
+--
+-- 1. Normal completion
+--
+-- 2. Short-circuit completion, either from calling 'fail' or 'finishWith'
+--
+-- 3. An exception being thrown.
+bracketSnap :: IO a -> (a -> IO b) -> (a -> Snap c) -> Snap c
+bracketSnap before after thing = block . Snap $ do
+    a <- liftIO before
+    let after' = liftIO $ after a
+        (Snap thing') = thing a
+    r <- unblock thing' `onException` after'
+    _ <- after'
+    return r
 
 
 ------------------------------------------------------------------------------
