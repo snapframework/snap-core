@@ -453,7 +453,7 @@ modifyRequest f = liftSnap $
 ------------------------------------------------------------------------------
 -- | Modifes the 'Response' object stored in a 'Snap' monad.
 modifyResponse :: MonadSnap m => (Response -> Response) -> m ()
-modifyResponse f = liftSnap $ 
+modifyResponse f = liftSnap $
      smodify $ \ss -> ss { _snapResponse = f $ _snapResponse ss }
 {-# INLINE modifyResponse #-}
 
@@ -705,5 +705,3 @@ getParam :: MonadSnap m
 getParam k = do
     rq <- getRequest
     return $ liftM (S.intercalate " ") $ rqParam k rq
-
-
