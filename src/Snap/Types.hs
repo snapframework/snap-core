@@ -9,7 +9,7 @@ module Snap.Types
     -- * The Snap Monad
     Snap
   , runSnap
-  , MonadSnap
+  , MonadSnap(..)
   , NoHandlerException(..)
 
     -- ** Functions for control flow and early termination
