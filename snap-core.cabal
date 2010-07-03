@@ -79,7 +79,7 @@ extra-source-files:
   project_template/default/foo.cabal,
   project_template/default/src/Glue.hs,
   project_template/default/src/Main.hs,
-  project_template/barebones/src/Server.hs,
+  project_template/default/src/Server.hs,
   README.md,
   README.SNAP.md,
   Setup.hs,
