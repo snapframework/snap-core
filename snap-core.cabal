@@ -132,6 +132,7 @@ Library
     Snap.Util.GZip
 
   other-modules:
+    Snap.Internal.Instances,
     Snap.Internal.Routing,
     Snap.Internal.Types
 

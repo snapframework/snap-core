@@ -1,43 +1,45 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE EmptyDataDecls #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE RankNTypes #-}
 
 module Snap.Internal.Types where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative
-import           Control.Exception (throwIO, ErrorCall(..))
-import           Control.Monad.CatchIO
-import           Control.Monad.Cont
-import           Control.Monad.Error
-import           Control.Monad.List
-import           Control.Monad.RWS.Strict hiding (pass)
-import qualified Control.Monad.RWS.Lazy as LRWS
-import           Control.Monad.Reader
-import           Control.Monad.State.Strict
-import qualified Control.Monad.State.Lazy as LState
-import           Control.Monad.Writer.Strict hiding (pass)
-import qualified Control.Monad.Writer.Lazy as LWriter
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.CIByteString as CIB
-import           Data.IORef
-import qualified Data.Iteratee as Iter
-import           Data.Maybe
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Encoding as LT
-import           Prelude hiding (catch)
+import "MonadCatchIO-transformers" Control.Monad.CatchIO
 
-import           Data.Typeable
+import                       Control.Applicative
+import                       Control.Exception (throwIO, ErrorCall(..))
+import           "monads-fd" Control.Monad.Cont
+import           "monads-fd" Control.Monad.Error
+import           "monads-fd" Control.Monad.List
+import           "monads-fd" Control.Monad.RWS.Strict hiding (pass)
+import qualified "monads-fd" Control.Monad.RWS.Lazy as LRWS
+import           "monads-fd" Control.Monad.Reader
+import           "monads-fd" Control.Monad.State.Strict
+import qualified "monads-fd" Control.Monad.State.Lazy as LState
+import           "monads-fd" Control.Monad.Writer.Strict hiding (pass)
+import qualified "monads-fd" Control.Monad.Writer.Lazy as LWriter
+import                       Data.ByteString.Char8 (ByteString)
+import qualified             Data.ByteString.Char8 as S
+import qualified             Data.ByteString.Lazy.Char8 as L
+import qualified             Data.CIByteString as CIB
+import                       Data.IORef
+import qualified             Data.Iteratee as Iter
+import                       Data.Maybe
+import qualified             Data.Text as T
+import qualified             Data.Text.Encoding as T
+import qualified             Data.Text.Lazy as LT
+import qualified             Data.Text.Lazy.Encoding as LT
+import                       Data.Typeable
+import                       Prelude hiding (catch)
+
 
 ------------------------------------------------------------------------------
-import           Snap.Iteratee hiding (Enumerator)
-import           Snap.Internal.Http.Types
+import                       Snap.Internal.Http.Types
+import                       Snap.Iteratee hiding (Enumerator)
 
 
 ------------------------------------------------------------------------------
@@ -174,67 +176,6 @@ instance Alternative Snap where
 instance MonadSnap Snap where
     liftSnap = id
 
-
-------------------------------------------------------------------------------
-instance MonadPlus m => MonadPlus (ContT c m) where
-    mzero = lift mzero
-    m `mplus` n = ContT $ \ f -> runContT m f `mplus` runContT n f
-
-
-------------------------------------------------------------------------------
-instance MonadPlus m => Alternative (ContT c m) where
-    empty = mzero
-    (<|>) = mplus
-
-
-------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (ContT c m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance (MonadSnap m, Error e) => MonadSnap (ErrorT e m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (ListT m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance (MonadSnap m, Monoid w) => MonadSnap (RWST r w s m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance (MonadSnap m, Monoid w) => MonadSnap (LRWS.RWST r w s m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (ReaderT r m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (StateT s m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (LState.StateT s m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance (MonadSnap m, Monoid w) => MonadSnap (WriterT w m) where
-    liftSnap = lift . liftSnap
-
-
-------------------------------------------------------------------------------
-instance (MonadSnap m, Monoid w) => MonadSnap (LWriter.WriterT w m) where
-    liftSnap = lift . liftSnap
 
 
 ------------------------------------------------------------------------------

@@ -1,6 +1,8 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 -- | Snap Framework type aliases and utilities for iteratees. Note that as a
@@ -45,7 +47,7 @@ module Snap.Iteratee
 
 ------------------------------------------------------------------------------
 import           Control.Monad
-import           Control.Monad.CatchIO
+import "MonadCatchIO-transformers" Control.Monad.CatchIO
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as S
