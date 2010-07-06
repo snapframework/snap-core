@@ -92,6 +92,15 @@ import                       Snap.Iteratee hiding (Enumerator)
 
    > a :: Snap ()
    > a = liftIO fireTheMissiles
+
+You may notice that most of the type signatures in this module contain a
+@(MonadSnap m) => ...@ typeclass constraint. 'MonadSnap' is a typeclass which,
+in essence, says \"you can get back to the 'Snap' monad from here\". Using
+'MonadSnap' you can extend the 'Snap' monad with additional functionality and
+still have access to most of the 'Snap' functions without writing 'lift'
+everywhere. Instances are already provided for most of the common monad
+transformers ('ReaderT', 'WriterT', 'StateT', etc.).
+
 -}
 
 ------------------------------------------------------------------------------
