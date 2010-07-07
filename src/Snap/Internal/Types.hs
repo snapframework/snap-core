@@ -387,6 +387,10 @@ addToOutput enum = modifyResponse $ modifyResponseBody (>. enum)
 ------------------------------------------------------------------------------
 -- | Adds the given strict 'ByteString' to the body of the 'Response' stored in
 -- the 'Snap' monad state.
+--
+-- Warning: This function is intentionally non-strict. If any pure
+-- exceptions are raised by the expression creating the 'ByteString',
+-- the exception won't actually be raised within the Snap handler.
 writeBS :: ByteString -> Snap ()
 writeBS s = addToOutput $ enumBS s
 
@@ -394,6 +398,10 @@ writeBS s = addToOutput $ enumBS s
 ------------------------------------------------------------------------------
 -- | Adds the given lazy 'L.ByteString' to the body of the 'Response' stored in
 -- the 'Snap' monad state.
+--
+-- Warning: This function is intentionally non-strict. If any pure
+-- exceptions are raised by the expression creating the 'ByteString',
+-- the exception won't actually be raised within the Snap handler.
 writeLBS :: L.ByteString -> Snap ()
 writeLBS s = addToOutput $ enumLBS s
 
@@ -401,6 +409,10 @@ writeLBS s = addToOutput $ enumLBS s
 ------------------------------------------------------------------------------
 -- | Adds the given strict 'T.Text' to the body of the 'Response' stored in the
 -- 'Snap' monad state.
+--
+-- Warning: This function is intentionally non-strict. If any pure
+-- exceptions are raised by the expression creating the 'ByteString',
+-- the exception won't actually be raised within the Snap handler.
 writeText :: T.Text -> Snap ()
 writeText s = writeBS $ T.encodeUtf8 s
 
@@ -408,6 +420,10 @@ writeText s = writeBS $ T.encodeUtf8 s
 ------------------------------------------------------------------------------
 -- | Adds the given lazy 'LT.Text' to the body of the 'Response' stored in the
 -- 'Snap' monad state.
+--
+-- Warning: This function is intentionally non-strict. If any pure
+-- exceptions are raised by the expression creating the 'ByteString',
+-- the exception won't actually be raised within the Snap handler.
 writeLazyText :: LT.Text -> Snap ()
 writeLazyText s = writeLBS $ LT.encodeUtf8 s
 
