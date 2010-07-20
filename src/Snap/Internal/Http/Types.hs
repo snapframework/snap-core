@@ -305,8 +305,8 @@ instance Show Request where
       version       = concat [ "version: "
                              , show $ rqVersion r
                              ]
-      cookies' = "      " ++ (concat $ intersperse "\n " $
-                              map show $ rqCookies r)
+      cookies'      = "      " ++ (concat $ intersperse "\n " $
+                                   map show $ rqCookies r)
       cookies       = concat [ "cookies:\n"
                              , "      ========================================\n"
                              , cookies'
@@ -316,10 +316,10 @@ instance Show Request where
       contextpath   = concat [ "contextpath: ", toStr $ rqContextPath r ]
       snapletpath   = concat [ "snapletpath: ", toStr $ rqSnapletPath r ]
       uri           = concat [ "URI: ", toStr $ rqURI r ]
-      params' = "      " ++
-          (concat $ intersperse "\n " $
-           map (\ (a,b) -> B.unpack a ++ ": " ++ show b) $
-           Map.toAscList $ rqParams r)
+      params'       = "      " ++
+                      (concat $ intersperse "\n " $
+                       map (\ (a,b) -> B.unpack a ++ ": " ++ show b) $
+                       Map.toAscList $ rqParams r)
       params        = concat [ "params:\n"
                              , "      ========================================\n"
                              , params'
