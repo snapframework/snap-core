@@ -111,10 +111,10 @@ withCompression' mimeTable action = do
 
 
     chooseType []               = return ()
-    chooseType ("gzip":_)       = gzipCompression
-    chooseType ("compress":_)   = compressCompression
-    chooseType ("x-gzip":_)     = gzipCompression
-    chooseType ("x-compress":_) = compressCompression
+    chooseType ("gzip":_)       = gzipCompression "gzip"
+    chooseType ("compress":_)   = compressCompression "compress"
+    chooseType ("x-gzip":_)     = gzipCompression "x-gzip"
+    chooseType ("x-compress":_) = compressCompression "x-compress"
     chooseType (_:xs)           = chooseType xs
 
 
@@ -137,19 +137,19 @@ compressibleMimeTypes = Set.fromList [ "application/x-font-truetype"
 
 
 ------------------------------------------------------------------------------
-gzipCompression :: Snap ()
-gzipCompression = modifyResponse f
+gzipCompression :: ByteString -> Snap ()
+gzipCompression ce = modifyResponse f
   where
-    f = setHeader "Content-Encoding" "gzip" .
+    f = setHeader "Content-Encoding" ce .
         clearContentLength .
         modifyResponseBody gcompress
 
 
 ------------------------------------------------------------------------------
-compressCompression :: Snap ()
-compressCompression = modifyResponse f
+compressCompression :: ByteString -> Snap ()
+compressCompression ce = modifyResponse f
   where
-    f = setHeader "Content-Encoding" "compress" .
+    f = setHeader "Content-Encoding" ce .
         clearContentLength .
         modifyResponseBody ccompress
 

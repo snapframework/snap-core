@@ -23,7 +23,8 @@ import           Snap.Util.FileServe
 import           Snap.Iteratee
 
 tests :: [Test]
-tests = [ testFs ]
+tests = [ testFs
+        , testFsSingle ]
 
 
 expect404 :: IO Response -> IO ()
@@ -57,6 +58,10 @@ mkRequest uri = do
 
 fs :: Snap ()
 fs = fileServe "data/fileServe"
+
+fsSingle :: Snap ()
+fsSingle = fileServeSingle "data/fileServe/foo.html"
+
 
 testFs :: Test
 testFs = testCase "fileServe" $ do
@@ -111,6 +116,20 @@ testFs = testCase "fileServe" $ do
     expect404 $ go fs "/etc/password"
 
     coverMimeMap
+
+
+testFsSingle :: Test
+testFsSingle = testCase "fileServeSingle" $ do
+    r1 <- go fsSingle "foo.html"
+    b1 <- getBody r1
+
+    assertEqual "foo.html" "FOO\n" b1
+    assertEqual "foo.html content-type"
+                (Just "text/html")
+                (getHeader "content-type" r1)
+
+    assertEqual "foo.html size" (Just 4) (rspContentLength r1)
+
 
 
 coverMimeMap :: (Monad m) => m ()

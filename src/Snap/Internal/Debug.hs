@@ -13,13 +13,14 @@ module Snap.Internal.Debug where
 import           Control.Monad.Trans
 
 #ifdef DEBUG_TEST
+import           Control.DeepSeq
 
 debug :: (MonadIO m) => String -> m ()
-debug !s = return $ s `seq` ()
+debug !s = let !s' = rnf s in return $! s' `deepseq` ()
 {-# INLINE debug #-}
 
 debugErrno :: (MonadIO m) => String -> m ()
-debugErrno !s = return $ s `seq` ()
+debugErrno !s = let !s' = rnf s in return $! s' `deepseq` ()
 
 #elif defined(DEBUG)
 

@@ -26,6 +26,7 @@ Executable testsuite
 
   if flag(testsuite)
     cpp-options: -DDEBUG_TEST
+    build-depends: deepseq >= 1.1 && <1.2
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
@@ -42,6 +43,7 @@ Executable testsuite
     bytestring-nums,
     cereal >= 0.2 && < 0.3,
     containers,
+    deepseq >= 1.1 && <1.2,
     directory,
     dlist >= 0.5 && < 0.6,
     filepath,

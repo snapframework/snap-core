@@ -120,6 +120,7 @@ Library
 
   if flag(testsuite)
     cpp-options: -DDEBUG_TEST
+    build-depends: deepseq >= 1.1 && <1.2
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
@@ -173,6 +174,10 @@ Library
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
 
 Executable snap
+  if flag(testsuite)
+    cpp-options: -DDEBUG_TEST
+    build-depends: deepseq >= 1.1 && <1.2
+
   hs-source-dirs: src
   main-is: Snap/Starter.hs
 

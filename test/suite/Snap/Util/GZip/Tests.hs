@@ -31,6 +31,9 @@ tests :: [Test]
 tests = [ testIdentity1
         , testIdentity2
         , testIdentity3
+        , testIdentity4
+        , testIdentity5
+        , testNopWhenContentEncodingSet
         , testCompositionDoesn'tExplode
         , testBadHeaders ]
 
@@ -50,11 +53,14 @@ liftQ = QC.run
 
 
 ------------------------------------------------------------------------------
-gzipHdrs, badHdrs, compressHdrs, emptyHdrs :: Headers
+gzipHdrs, xGzipHdrs, badHdrs, compressHdrs, xCompressHdrs, emptyHdrs :: Headers
 emptyHdrs = Map.empty
 gzipHdrs = setHeader "Accept-Encoding" "froz,gzip, x-gzip" emptyHdrs
+xGzipHdrs = setHeader "Accept-Encoding" "x-gzip;q=1.0" emptyHdrs
 badHdrs = setHeader "Accept-Encoding" "*&%^&^$%&%&*^\023" emptyHdrs
 compressHdrs = setHeader "Accept-Encoding" "compress" emptyHdrs
+xCompressHdrs = setHeader "Accept-Encoding" "x-compress" emptyHdrs
+
 
 
 ------------------------------------------------------------------------------
@@ -65,6 +71,14 @@ mkGzipRq = do
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False gzipHdrs
                  enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
+mkXGzipRq :: IO Request
+mkXGzipRq = do
+    enum <- newIORef $ SomeEnumerator return
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xGzipHdrs
+                 enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+
+
 
 ------------------------------------------------------------------------------
 mkCompressRq :: IO Request
@@ -73,6 +87,14 @@ mkCompressRq = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False compressHdrs
                  enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+
+mkXCompressRq :: IO Request
+mkXCompressRq = do
+    enum <- newIORef $ SomeEnumerator return
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xCompressHdrs
+                 enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+
 
 
 ------------------------------------------------------------------------------
@@ -84,7 +106,7 @@ mkBadRq = do
                   enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 ------------------------------------------------------------------------------
-goGZip, goCompress, goBad :: Snap a -> IO (Request,Response)
+goGZip, goCompress, goXGZip, goXCompress, goBad :: Snap a -> IO (Request,Response)
 goGZip m = do
     gzipRq <- mkGzipRq
     run $ runSnap m (const $ return ()) gzipRq
@@ -92,6 +114,15 @@ goGZip m = do
 goCompress m = do
     compressRq <- mkCompressRq
     run $ runSnap m (const $ return ()) compressRq
+
+goXGZip m = do
+    gzipRq <- mkXGzipRq
+    run $ runSnap m (const $ return ()) gzipRq
+
+goXCompress m = do
+    compressRq <- mkXCompressRq
+    run $ runSnap m (const $ return ()) compressRq
+
 
 goBad m = do
     badRq <- mkBadRq
@@ -118,23 +149,7 @@ testIdentity1 = testProperty "identity1" $ monadicIO $ forAllM arbitrary prop
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (_,rsp) <- liftQ $ goGZip (withCompression $ textPlain s)
-        let body = rspBodyToEnum $ rspBody rsp
-
-        c <- liftQ $
-             body stream2stream >>= run >>= return . fromWrap
-
-        let s1 = GZip.decompress c
-        assert $ s == s1
-
-testCompositionDoesn'tExplode :: Test
-testCompositionDoesn'tExplode =
-    testProperty "testCompositionDoesn'tExplode" $
-                 monadicIO $
-                 forAllM arbitrary prop
-  where
-    prop :: L.ByteString -> PropertyM IO ()
-    prop s = do
-        (_,rsp) <- liftQ $ goGZip (withCompression $ withCompression $ textPlain s)
+        assert $ getHeader "Content-Encoding" rsp == Just "gzip"
         let body = rspBodyToEnum $ rspBody rsp
 
         c <- liftQ $
@@ -144,13 +159,15 @@ testCompositionDoesn'tExplode =
         assert $ s == s1
 
 
-
+------------------------------------------------------------------------------
 testIdentity2 :: Test
 testIdentity2 = testProperty "identity2" $ monadicIO $ forAllM arbitrary prop
   where
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (_,rsp2) <- liftQ $ goCompress (withCompression $ textPlain s)
+
+        assert $ getHeader "Content-Encoding" rsp2 == Just "compress"
         let body2 = rspBodyToEnum $ rspBody rsp2
 
         c2 <- liftQ $
@@ -160,6 +177,7 @@ testIdentity2 = testProperty "identity2" $ monadicIO $ forAllM arbitrary prop
         assert $ s == s2
 
 
+------------------------------------------------------------------------------
 testIdentity3 :: Test
 testIdentity3 = testProperty "identity3" $ monadicIO $ forAllM arbitrary prop
   where
@@ -174,6 +192,40 @@ testIdentity3 = testProperty "identity3" $ monadicIO $ forAllM arbitrary prop
         assert $ s == s3
 
 
+------------------------------------------------------------------------------
+testIdentity4 :: Test
+testIdentity4 = testProperty "identity4" $ monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (_,rsp) <- liftQ $ goXGZip (withCompression $ textPlain s)
+        assert $ getHeader "Content-Encoding" rsp == Just "x-gzip"
+        let body = rspBodyToEnum $ rspBody rsp
+
+        c <- liftQ $
+             body stream2stream >>= run >>= return . fromWrap
+
+        let s1 = GZip.decompress c
+        assert $ s == s1
+
+
+------------------------------------------------------------------------------
+testIdentity5 :: Test
+testIdentity5 = testProperty "identity5" $ monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (_,rsp2) <- liftQ $ goXCompress (withCompression $ textPlain s)
+
+        assert $ getHeader "Content-Encoding" rsp2 == Just "x-compress"
+        let body2 = rspBodyToEnum $ rspBody rsp2
+
+        c2 <- liftQ $
+              body2 stream2stream >>= run >>= return . fromWrap
+
+        let s2 = Zlib.decompress c2
+        assert $ s == s2
+
 
 ------------------------------------------------------------------------------
 testBadHeaders :: Test
@@ -185,3 +237,43 @@ testBadHeaders = testProperty "bad headers" $ monadicIO $ forAllM arbitrary prop
         let body = rspBodyToEnum $ rspBody rsp
 
         body stream2stream >>= run >>= return . fromWrap
+
+
+------------------------------------------------------------------------------
+testNopWhenContentEncodingSet :: Test
+testNopWhenContentEncodingSet = testProperty "testNopWhenContentEncodingSet" $
+                                monadicIO $
+                                forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (_,rsp) <- liftQ $ goGZip $ f s
+        assert $ getHeader "Content-Encoding" rsp == Just "identity"
+
+    f s = withCompression $ do
+            modifyResponse $ setHeader "Content-Encoding" "identity"
+            textPlain s
+
+
+------------------------------------------------------------------------------
+testCompositionDoesn'tExplode :: Test
+testCompositionDoesn'tExplode =
+    testProperty "testCompositionDoesn'tExplode" $
+                 monadicIO $
+                 forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (_,rsp) <- liftQ $ goGZip (withCompression $
+                                   withCompression $
+                                   withCompression $ textPlain s)
+
+        assert $ getHeader "Content-Encoding" rsp == Just "gzip"
+
+        let body = rspBodyToEnum $ rspBody rsp
+
+        c <- liftQ $
+             body stream2stream >>= run >>= return . fromWrap
+
+        let s1 = GZip.decompress c
+        assert $ s == s1
