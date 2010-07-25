@@ -4,15 +4,21 @@
 -- depends on it.
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleInstances #-}
 
-module Snap.Internal.Iteratee.Debug ( debugIteratee ) where
+
+module Snap.Internal.Iteratee.Debug
+  ( debugIteratee
+  , iterateeDebugWrapper
+  ) where
 
 ------------------------------------------------------------------------------
 import           Data.Iteratee.WrappedByteString
 import           Data.Word (Word8)
 import           System.IO
 ------------------------------------------------------------------------------
+import           Snap.Internal.Debug
 import           Snap.Iteratee
 ------------------------------------------------------------------------------
 
@@ -27,7 +33,7 @@ debugIteratee :: Iteratee IO ()
 debugIteratee = IterateeG f
   where
     f c@(EOF _) = do
-        putStrLn $ "got chunk: " ++ show c
+        putStrLn $ "got EOF: " ++ show c
         hFlush stdout
         return (Done () c)
 
@@ -35,3 +41,31 @@ debugIteratee = IterateeG f
         putStrLn $ "got chunk: " ++ show c
         hFlush stdout
         return $ Cont debugIteratee Nothing
+
+
+#if defined(DEBUG)
+
+iterateeDebugWrapper :: String -> Iteratee IO a -> Iteratee IO a
+iterateeDebugWrapper name iter = IterateeG f
+  where
+    f c@(EOF _) = do
+        debug $ name ++ ": got EOF: " ++ show c
+        runIter iter c
+
+    f c@(Chunk _) = do
+        debug $ name ++ ": got chunk: " ++ show c
+        wrapResult $ runIter iter c
+
+    wrapResult m = do
+        iv <- m
+        let i = liftI iv
+
+        return $ Cont (iterateeDebugWrapper name i) Nothing
+
+#else
+
+iterateeDebugWrapper :: String -> Iteratee IO a -> Iteratee IO a
+iterateeDebugWrapper _ = id
+{-# INLINE iterateeDebugWrapper #-}
+
+#endif
