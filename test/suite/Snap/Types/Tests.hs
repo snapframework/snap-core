@@ -7,7 +7,9 @@ module Snap.Types.Tests
 
 import           Control.Applicative
 import           Control.Concurrent.MVar
+import           Control.Exception (SomeException)
 import           Control.Monad
+import           Control.Monad.CatchIO
 import           Control.Monad.Trans (liftIO)
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -15,6 +17,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
 import           Data.Iteratee
 import qualified Data.Map as Map
+import           Prelude hiding (catch)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
@@ -34,6 +37,7 @@ tests = [ testFail
         , testTrivials
         , testMethod
         , testDir
+        , testCatchIO
         , testWrites
         , testParam
         , testURLEncode1
@@ -87,6 +91,24 @@ mkRqWithBody = do
                  enum Nothing GET (1,1) [] "" "/" "/" "/" ""
                  Map.empty
 
+
+testCatchIO :: Test
+testCatchIO = testCase "catchIO" $ do
+    (_,rsp)  <- go f
+    (_,rsp2) <- go g
+
+    assertEqual "catchIO 1" (Just "bar") $ getHeader "foo" rsp
+    assertEqual "catchIO 2" Nothing $ getHeader "foo" rsp2
+
+  where
+    f :: Snap ()
+    f = (block $ unblock $ throw NoHandlerException) `catch` h
+
+    g :: Snap ()
+    g = return () `catch` h
+
+    h :: SomeException -> Snap ()
+    h e = e `seq` modifyResponse $ addHeader "foo" "bar"
 
 go :: Snap a -> IO (Request,Response)
 go m = do
