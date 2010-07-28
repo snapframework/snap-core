@@ -5,9 +5,11 @@ module Snap.Internal.Http.Types.Tests
 
 import           Control.Monad
 import           Control.Parallel.Strategies
+import           Data.ByteString.Char8 ()
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.IORef
 import           Data.Iteratee (stream2stream, run)
+import           Data.List (sort)
 import qualified Data.Map as Map
 import           Data.Time.Calendar
 import           Data.Time.Clock
@@ -21,7 +23,10 @@ import           Snap.Internal.Http.Types
 import           Snap.Iteratee (enumBS, fromWrap)
 
 tests :: [Test]
-tests = [ testTypes ]
+tests = [ testTypes
+        , testUrlDecode
+        , testFormatLogTime
+        , testAddHeader ]
 
 
 mkRq :: IO Request
@@ -29,6 +34,29 @@ mkRq = do
     enum <- newIORef (SomeEnumerator return)
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                  enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+
+
+testFormatLogTime :: Test
+testFormatLogTime = testCase "formatLogTime" $ do
+    b <- formatLogTime 3804938
+    assertEqual "formatLogTime" "13/Feb/1970:19:55:38 -0500" b
+
+
+testAddHeader :: Test
+testAddHeader = testCase "addHeader" $ do
+    defReq <- mkRq
+
+    let req = addHeader "foo" "bar" $
+              addHeader "foo" "baz" defReq
+
+
+    let x = getHeader "foo" req
+    assertEqual "addHeader x 2" (Just "bar baz") x
+
+
+testUrlDecode :: Test
+testUrlDecode = testCase "urlDecode" $ do
+    assertEqual "bad hex" Nothing $ urlDecode "%qq"
 
 
 testTypes :: Test
@@ -40,7 +68,10 @@ testTypes = testCase "show" $ do
               rqSetParam "foo" ["bar"] $
               defReq
 
+    let req2 = (addHeader "zomg" "1234" req) { rqCookies = [ cook, cook2 ] }
+
     let !a = show req `using` rdeepseq
+    let !_ = show req2 `using` rdeepseq
 
     -- we don't care about the show instance really, we're just trying to shut
     -- up hpc
@@ -48,7 +79,11 @@ testTypes = testCase "show" $ do
     assertEqual "rqParam" (Just ["bar"]) (rqParam "foo" req)
     assertEqual "lookup" (Just ["bbb"]) (Map.lookup "zzz" $ rqParams req)
     assertEqual "lookup 2" (Just ["bbb"]) (Map.lookup "zzz" $ headers req)
-    assertEqual "cookie" (Just ["foo=bar; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com"]) cook'
+    assertEqual "cookie" (Just ["foo=bar; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com"]) cookieHeader
+
+    assertEqual "cookie2" (Just ["foo=bar; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com", "foo=baz; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com"]) (liftM sort cookieHeader2)
+
+    assertEqual "cookie3" (Just ["foo=baz"]) cookieHeader3
 
     assertEqual "response status" 555 $ rspStatus resp
     assertEqual "response status reason" "bogus" $ rspStatusReason resp
@@ -60,6 +95,8 @@ testTypes = testCase "show" $ do
     let !_ = show GET
     let !_ = GET == POST
     let !_ = headers $ headers defReq
+
+    let !_ = show resp2 `using` rdeepseq
 
 
     return ()
@@ -74,7 +111,16 @@ testTypes = testCase "show" $ do
            emptyResponse
     !b = show resp `using` rdeepseq
 
-    utc = UTCTime (ModifiedJulianDay 55226) 0
-    cook = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/")
-    cook' = Map.lookup "Set-Cookie" $ headers resp
+    resp2 = addCookie cook2 resp
+    resp3 = addCookie cook3 emptyResponse
+
+
+    utc   = UTCTime (ModifiedJulianDay 55226) 0
+    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/")
+    cook2 = Cookie "foo" "baz" (Just utc) (Just ".foo.com") (Just "/")
+    cook3 = Cookie "foo" "baz" Nothing Nothing Nothing
+
+    cookieHeader = Map.lookup "Set-Cookie" $ headers resp
+    cookieHeader2 = Map.lookup "Set-Cookie" $ headers resp2
+    cookieHeader3 = Map.lookup "Set-Cookie" $ headers resp3
 
