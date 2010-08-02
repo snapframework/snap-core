@@ -26,7 +26,6 @@ Executable testsuite
 
   if flag(testsuite)
     cpp-options: -DDEBUG_TEST
-    build-depends: deepseq >= 1.1 && <1.2
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE

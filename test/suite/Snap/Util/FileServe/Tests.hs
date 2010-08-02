@@ -57,10 +57,14 @@ mkRequest uri = do
                      (B.concat ["/",uri]) "" Map.empty
 
 fs :: Snap ()
-fs = fileServe "data/fileServe"
+fs = do
+    x <- fileServe "data/fileServe"
+    return $! x `seq` ()
 
 fsSingle :: Snap ()
-fsSingle = fileServeSingle "data/fileServe/foo.html"
+fsSingle = do
+    x <- fileServeSingle "data/fileServe/foo.html"
+    return $! x `seq` ()
 
 
 testFs :: Test
