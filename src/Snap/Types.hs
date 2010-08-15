@@ -84,6 +84,7 @@ module Snap.Types
 
     -- ** Responses
   , emptyResponse
+  , setResponseCode
   , setResponseStatus
   , rspStatus
   , rspStatusReason
