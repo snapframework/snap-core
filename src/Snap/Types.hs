@@ -91,6 +91,8 @@ module Snap.Types
   , addCookie
   , setContentLength
   , clearContentLength
+  , redirect
+  , redirect'
 
     -- *** Response I/O
   , setResponseBody
