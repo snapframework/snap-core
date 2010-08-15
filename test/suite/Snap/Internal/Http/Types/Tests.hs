@@ -5,7 +5,7 @@ module Snap.Internal.Http.Types.Tests
 
 import           Control.Monad
 import           Control.Parallel.Strategies
-import           Data.ByteString.Char8 ()
+import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.IORef
 import           Data.Iteratee (stream2stream, run)
@@ -17,7 +17,7 @@ import           Prelude hiding (take)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
-
+import           Text.Regex.Posix
 
 import           Snap.Internal.Http.Types
 import           Snap.Iteratee (enumBS, fromWrap)
@@ -39,7 +39,11 @@ mkRq = do
 testFormatLogTime :: Test
 testFormatLogTime = testCase "formatLogTime" $ do
     b <- formatLogTime 3804938
-    assertEqual "formatLogTime" "13/Feb/1970:19:55:38 -0500" b
+
+    let re = ("^[0-9]{1,2}/[A-Za-z]{3}/[0-9]{4}:[0-9]{2}:[0-9]{2}:[0-9]{2} -[0-9]{4}$"
+                  :: ByteString)
+
+    assertBool "formatLogTime" $ b =~ re
 
 
 testAddHeader :: Test
