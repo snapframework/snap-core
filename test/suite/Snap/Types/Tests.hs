@@ -49,7 +49,8 @@ tests = [ testFail
         , testIpHeaderFilter
         , testMZero404
         , testEvalSnap
-        , testLocalRequest ]
+        , testLocalRequest
+        , testRedirect ]
 
 
 expectException :: IO () -> IO ()
@@ -404,3 +405,19 @@ testLocalRequest = testCase "localRequest" $ do
 
     assertEqual "localRequest backtrack" u1 u2
 
+
+
+testRedirect :: Test
+testRedirect = testCase "redirect" $ do
+    (_,rsp)  <- go (redirect "/foo/bar")
+
+    assertEqual "redirect path" (Just "/foo/bar") $ getHeader "Location" rsp
+    assertEqual "redirect status" 302 $ rspStatus rsp
+    assertEqual "status description" "Found" $ rspStatusReason rsp
+
+
+    (_,rsp)  <- go (redirect' "/bar/foo" 307)
+
+    assertEqual "redirect path" (Just "/bar/foo") $ getHeader "Location" rsp
+    assertEqual "redirect status" 307 $ rspStatus rsp
+    assertEqual "status description" "Temporary Redirect" $ rspStatusReason rsp
