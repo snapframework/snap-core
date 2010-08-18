@@ -434,10 +434,7 @@ enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
 enumFile fp iter = do
     h  <- liftIO $ openBinaryFile fp ReadMode
     i' <- enumHandle h iter
-    return $ do
-        x <- i'
-        liftIO (hClose h)
-        return x
+    return (i' `finally` liftIO (hClose h))
 
 #else
 
