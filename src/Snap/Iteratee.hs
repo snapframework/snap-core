@@ -50,12 +50,11 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Unsafe as S
 import qualified Data.ByteString.Lazy as L
+import qualified Data.DList as D
 import           Data.Int
 import           Data.IORef
 import           Data.Iteratee
-#ifdef PORTABLE
 import           Data.Iteratee.IO (enumHandle)
-#endif
 import qualified Data.Iteratee.Base.StreamChunk as SC
 import           Data.Iteratee.WrappedByteString
 import qualified Data.ListLike as LL
@@ -64,14 +63,14 @@ import           Foreign
 import           Foreign.C.Types
 import           GHC.ForeignPtr
 import           Prelude hiding (catch,drop)
-import qualified Data.DList as D
-
-#ifdef PORTABLE
-import           Control.Monad.Trans (liftIO)
 import           System.IO
-#else
+import           Control.Monad.Trans (liftIO)
+
+#ifndef PORTABLE
 import           Control.Exception (SomeException)
 import           System.IO.Posix.MMap
+import           System.PosixCompat.Files
+import           System.Posix.Types
 #endif
 
 ------------------------------------------------------------------------------
@@ -427,24 +426,38 @@ takeNoMoreThan n' iter =
 
 
 ------------------------------------------------------------------------------
-enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
-
-#ifdef PORTABLE
-
-enumFile fp iter = do
+_enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
+_enumFile fp iter = do
     h  <- liftIO $ openBinaryFile fp ReadMode
     i' <- enumHandle h iter
     return (i' `finally` liftIO (hClose h))
 
+
+enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
+
+#ifdef PORTABLE
+
+enumFile = _enumFile
+
 #else
 
-enumFile fp iter = do
-    es <- (try $
-           liftM WrapBS $
-           unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
+-- 40MB limit
+maxMMapFileSize :: FileOffset
+maxMMapFileSize = 41943040
 
-    case es of
-      (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
-      (Right s) -> liftM liftI $ runIter iter $ Chunk s
+enumFile fp iter = do
+    -- for small files we'll use mmap to save ourselves a copy, otherwise we'll
+    -- stream it
+    stat <- getFileStatus fp
+    if fileSize stat > maxMMapFileSize
+      then _enumFile fp iter
+      else do
+        es <- (try $
+               liftM WrapBS $
+               unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
+
+        case es of
+          (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
+          (Right s) -> liftM liftI $ runIter iter $ Chunk s
 
 #endif
