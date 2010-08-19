@@ -39,7 +39,7 @@ import                       Prelude hiding (catch)
 
 ------------------------------------------------------------------------------
 import                       Snap.Internal.Http.Types
-import                       Snap.Iteratee hiding (Enumerator)
+import                       Snap.Iteratee hiding (Enumerator, filter)
 
 
 ------------------------------------------------------------------------------
@@ -671,3 +671,14 @@ getParam :: MonadSnap m
 getParam k = do
     rq <- getRequest
     return $ liftM (S.intercalate " ") $ rqParam k rq
+
+
+------------------------------------------------------------------------------
+-- | Gets the HTTP 'Cookie' with the specified name.
+getCookie :: MonadSnap m
+          => ByteString
+          -> m (Maybe Cookie)
+getCookie name = withRequest $
+    return . listToMaybe . filter (\c -> cookieName c == name) . rqCookies
+
+
