@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 -- | Snap Framework type aliases and utilities for iteratees. Note that as a
@@ -44,27 +45,27 @@ module Snap.Iteratee
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Monad
-import           Control.Monad.CatchIO
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Unsafe as S
-import qualified Data.ByteString.Lazy as L
-import qualified Data.DList as D
-import           Data.Int
-import           Data.IORef
-import           Data.Iteratee
-import           Data.Iteratee.IO (enumHandle)
-import qualified Data.Iteratee.Base.StreamChunk as SC
-import           Data.Iteratee.WrappedByteString
-import qualified Data.ListLike as LL
-import           Data.Monoid (mappend)
-import           Foreign
-import           Foreign.C.Types
-import           GHC.ForeignPtr
-import           Prelude hiding (catch,drop)
-import           System.IO
-import           Control.Monad.Trans (liftIO)
+import             Control.Monad
+import             Control.Monad.CatchIO
+import             Data.ByteString (ByteString)
+import qualified   Data.ByteString as S
+import qualified   Data.ByteString.Unsafe as S
+import qualified   Data.ByteString.Lazy as L
+import qualified   Data.DList as D
+import             Data.Int
+import             Data.IORef
+import             Data.Iteratee
+import             Data.Iteratee.IO (enumHandle)
+import qualified   Data.Iteratee.Base.StreamChunk as SC
+import             Data.Iteratee.WrappedByteString
+import qualified   Data.ListLike as LL
+import             Data.Monoid (mappend)
+import             Foreign
+import             Foreign.C.Types
+import             GHC.ForeignPtr
+import             Prelude hiding (catch,drop)
+import             System.IO
+import "monads-fd" Control.Monad.Trans (liftIO)
 
 #ifndef PORTABLE
 import           Control.Exception (SomeException)
@@ -311,7 +312,7 @@ enumBS bs = enumPure1Chunk $ WrapBS bs
 enumLBS :: (Monad m) => L.ByteString -> Enumerator m a
 enumLBS lbs = el chunks
   where
-    el [] i     = liftM liftI $ runIter i (EOF Nothing)
+    el [] i     = return i
     el (x:xs) i = do
         i' <- liftM liftI $ runIter i (Chunk $ WrapBS x)
         el xs i'
