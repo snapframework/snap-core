@@ -242,7 +242,8 @@ compressEnumerator compFunc enum iteratee = do
 
         let output = L.toChunks $ compFunc bs
         let runIt = do
-            mapM_ (writeChan writeEnd . toChunk) output
+            --Prelude specified to work with iteratee-0.3.6
+            Prelude.mapM_ (writeChan writeEnd . toChunk) output
             writeChan writeEnd $ EOF Nothing
 
         runIt `catch` \(e::SomeException) ->
