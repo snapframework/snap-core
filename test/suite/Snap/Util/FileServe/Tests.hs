@@ -137,6 +137,6 @@ testFsSingle = testCase "fileServeSingle" $ do
 
 
 coverMimeMap :: (Monad m) => m ()
-coverMimeMap = mapM_ f $ Map.toList defaultMimeTypes
+coverMimeMap = Prelude.mapM_ f $ Map.toList defaultMimeTypes
   where
     f (!k,!v) = return $ case k `seq` v `seq` () of () -> ()
