@@ -71,7 +71,6 @@ import "monads-fd" Control.Monad.Trans (liftIO)
 import           Control.Exception (SomeException)
 import           System.IO.Posix.MMap
 import           System.PosixCompat.Files
-import           System.Posix.Types
 #endif
 
 ------------------------------------------------------------------------------
@@ -195,11 +194,7 @@ mkIterateeBuffer = mallocPlainForeignPtrBytes bUFSIZ
 -- socket) it'll get changed out from underneath you, breaking referential
 -- transparency. Use with caution!
 --
--- The IORef returned can be set to True to "cancel" buffering. We added this
--- so that transfer-encoding: chunked (which needs its own buffer and therefore
--- doesn't need /its/ output buffered) can switch the outer buffer off.
---
-unsafeBufferIteratee :: Iteratee IO a -> IO (Iteratee IO a, IORef Bool)
+unsafeBufferIteratee :: Iteratee IO a -> IO (Iteratee IO a)
 unsafeBufferIteratee iter = do
     buf <- mkIterateeBuffer
     unsafeBufferIterateeWithBuffer buf iter
@@ -214,28 +209,17 @@ unsafeBufferIteratee iter = do
 --
 -- This version accepts a buffer created by 'mkIterateeBuffer'.
 --
--- The IORef returned can be set to True to "cancel" buffering. We added this
--- so that transfer-encoding: chunked (which needs its own buffer and therefore
--- doesn't need /its/ output buffered) can switch the outer buffer off.
---
 unsafeBufferIterateeWithBuffer :: ForeignPtr CChar
                                -> Iteratee IO a
-                               -> IO (Iteratee IO a, IORef Bool)
+                               -> IO (Iteratee IO a)
 unsafeBufferIterateeWithBuffer buf iteratee = do
-    esc <- newIORef False
-    return $! (start esc iteratee, esc)
+    return $! start iteratee
 
   where
-    start esc iter = IterateeG $! checkRef esc iter
+    start iter = IterateeG $! f 0 iter
     go bytesSoFar iter =
         {-# SCC "unsafeBufferIteratee/go" #-}
         IterateeG $! f bytesSoFar iter
-
-    checkRef esc iter ch = do
-        quit <- readIORef esc
-        if quit
-          then runIter iter ch
-          else f 0 iter ch
 
     sendBuf n iter =
         {-# SCC "unsafeBufferIteratee/sendBuf" #-}
