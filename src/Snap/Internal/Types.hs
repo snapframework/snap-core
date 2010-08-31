@@ -409,6 +409,30 @@ modifyResponse f = liftSnap $
 
 
 ------------------------------------------------------------------------------
+-- | Performs a redirect by setting the @Location@ header to the given target
+-- URL/path and the status code to 302 in the 'Response' object stored in a
+-- 'Snap' monad. Note that the target URL is not validated in any way. Consider
+-- using 'redirect\'' instead, which allows you to choose the correct status
+-- code.
+redirect :: ByteString -> Snap ()
+redirect target = redirect' target 302
+{-# INLINE redirect #-}
+
+
+------------------------------------------------------------------------------
+-- | Performs a redirect by setting the @Location@ header to the given target
+-- URL/path and the status code (should be one of 301, 302, 303 or 307) in the
+-- 'Response' object stored in a 'Snap' monad. Note that the target URL is not
+-- validated in any way.
+redirect' :: ByteString -> Int -> Snap ()
+redirect' target status =
+    finishWith
+        $ setResponseCode status
+        $ setHeader "Location" target emptyResponse
+{-# INLINE redirect' #-}
+
+
+------------------------------------------------------------------------------
 -- | Log an error message in the 'Snap' monad
 logError :: MonadSnap m => ByteString -> m ()
 logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)

@@ -112,10 +112,10 @@ withCompression' mimeTable action = do
 
 
     chooseType []               = return ()
-    chooseType ("gzip":_)       = gzipCompression
-    chooseType ("compress":_)   = compressCompression
-    chooseType ("x-gzip":_)     = gzipCompression
-    chooseType ("x-compress":_) = compressCompression
+    chooseType ("gzip":_)       = gzipCompression "gzip"
+    chooseType ("compress":_)   = compressCompression "compress"
+    chooseType ("x-gzip":_)     = gzipCompression "x-gzip"
+    chooseType ("x-compress":_) = compressCompression "x-compress"
     chooseType (_:xs)           = chooseType xs
 
 
@@ -138,19 +138,19 @@ compressibleMimeTypes = Set.fromList [ "application/x-font-truetype"
 
 
 ------------------------------------------------------------------------------
-gzipCompression :: MonadSnap m => m ()
-gzipCompression = modifyResponse f
+gzipCompression :: MonadSnap m => ByteString -> m ()
+gzipCompression ce = modifyResponse f
   where
-    f = setHeader "Content-Encoding" "gzip" .
+    f = setHeader "Content-Encoding" ce .
         clearContentLength .
         modifyResponseBody gcompress
 
 
 ------------------------------------------------------------------------------
-compressCompression :: MonadSnap m => m ()
-compressCompression = modifyResponse f
+compressCompression :: MonadSnap m => ByteString -> m ()
+compressCompression ce = modifyResponse f
   where
-    f = setHeader "Content-Encoding" "compress" .
+    f = setHeader "Content-Encoding" ce .
         clearContentLength .
         modifyResponseBody ccompress
 
@@ -243,7 +243,8 @@ compressEnumerator compFunc enum iteratee = do
 
         let output = L.toChunks $ compFunc bs
         let runIt = do
-            mapM_ (writeChan writeEnd . toChunk) output
+            --Prelude specified to work with iteratee-0.3.6
+            Prelude.mapM_ (writeChan writeEnd . toChunk) output
             writeChan writeEnd $ EOF Nothing
 
         runIt `catch` \(e::SomeException) ->

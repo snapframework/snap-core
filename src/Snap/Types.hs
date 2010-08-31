@@ -86,6 +86,7 @@ module Snap.Types
 
     -- ** Responses
   , emptyResponse
+  , setResponseCode
   , setResponseStatus
   , rspStatus
   , rspStatusReason
@@ -94,6 +95,8 @@ module Snap.Types
   , getCookie
   , setContentLength
   , clearContentLength
+  , redirect
+  , redirect'
 
     -- *** Response I/O
   , setResponseBody

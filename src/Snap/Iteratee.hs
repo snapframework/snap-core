@@ -46,34 +46,33 @@ module Snap.Iteratee
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Monad
+import             Control.Monad
 import "MonadCatchIO-transformers" Control.Monad.CatchIO
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Unsafe as S
-import qualified Data.ByteString.Lazy as L
-import           Data.Int
-import           Data.IORef
-import           Data.Iteratee
-#ifdef PORTABLE
-import           Data.Iteratee.IO (enumHandle)
-#endif
-import qualified Data.Iteratee.Base.StreamChunk as SC
-import           Data.Iteratee.WrappedByteString
-import qualified Data.ListLike as LL
-import           Data.Monoid (mappend)
-import           Foreign
-import           Foreign.C.Types
-import           GHC.ForeignPtr
-import           Prelude hiding (catch,drop)
-import qualified Data.DList as D
+import             Data.ByteString (ByteString)
+import qualified   Data.ByteString as S
+import qualified   Data.ByteString.Unsafe as S
+import qualified   Data.ByteString.Lazy as L
+import qualified   Data.DList as D
+import             Data.Int
+import             Data.IORef
+import             Data.Iteratee
+import             Data.Iteratee.IO (enumHandle)
+import qualified   Data.Iteratee.Base.StreamChunk as SC
+import             Data.Iteratee.WrappedByteString
+import qualified   Data.ListLike as LL
+import             Data.Monoid (mappend)
+import             Foreign
+import             Foreign.C.Types
+import             GHC.ForeignPtr
+import             Prelude hiding (catch,drop)
+import             System.IO
+import "monads-fd" Control.Monad.Trans (liftIO)
 
-#ifdef PORTABLE
-import           Control.Monad.Trans (liftIO)
-import           System.IO
-#else
+#ifndef PORTABLE
 import           Control.Exception (SomeException)
 import           System.IO.Posix.MMap
+import           System.PosixCompat.Files
+import           System.Posix.Types
 #endif
 
 ------------------------------------------------------------------------------
@@ -314,7 +313,7 @@ enumBS bs = enumPure1Chunk $ WrapBS bs
 enumLBS :: (Monad m) => L.ByteString -> Enumerator m a
 enumLBS lbs = el chunks
   where
-    el [] i     = liftM liftI $ runIter i (EOF Nothing)
+    el [] i     = return i
     el (x:xs) i = do
         i' <- liftM liftI $ runIter i (Chunk $ WrapBS x)
         el xs i'
@@ -429,27 +428,38 @@ takeNoMoreThan n' iter =
 
 
 ------------------------------------------------------------------------------
+_enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
+_enumFile fp iter = do
+    h  <- liftIO $ openBinaryFile fp ReadMode
+    i' <- enumHandle h iter
+    return (i' `finally` liftIO (hClose h))
+
+
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
 
 #ifdef PORTABLE
 
-enumFile fp iter = do
-    h  <- liftIO $ openBinaryFile fp ReadMode
-    i' <- enumHandle h iter
-    return $ do
-        x <- i'
-        liftIO (hClose h)
-        return x
+enumFile = _enumFile
 
 #else
 
-enumFile fp iter = do
-    es <- (try $
-           liftM WrapBS $
-           unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
+-- 40MB limit
+maxMMapFileSize :: FileOffset
+maxMMapFileSize = 41943040
 
-    case es of
-      (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
-      (Right s) -> liftM liftI $ runIter iter $ Chunk s
+enumFile fp iter = do
+    -- for small files we'll use mmap to save ourselves a copy, otherwise we'll
+    -- stream it
+    stat <- getFileStatus fp
+    if fileSize stat > maxMMapFileSize
+      then _enumFile fp iter
+      else do
+        es <- (try $
+               liftM WrapBS $
+               unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
+
+        case es of
+          (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
+          (Right s) -> liftM liftI $ runIter iter $ Chunk s
 
 #endif

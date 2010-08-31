@@ -338,7 +338,8 @@ testTakeNoMoreThan2 = testProperty "takeNoMore: exact stream" $
         assert $ e == s
 
       where
-        doIter = enumLBS s (joinI (takeNoMoreThan n stream2stream))
+        doIter = enumLBS (L.concat ["", s])
+                         (joinI (takeNoMoreThan n stream2stream))
 
         n = fromIntegral $ L.length s
 
@@ -354,7 +355,7 @@ testTakeNoMoreThan3 = testProperty "takeNoMoreLong" $
 
         if (L.null s || m == 0)
            then liftQ $ do
-                     !v <- doIter >>= run
+                     !_ <- doIter >>= run
                      return ()
            else expectException $ doIter >>= run >>= return . fromWrap
 
@@ -394,13 +395,14 @@ testCountBytes2 = testProperty "count bytes" $
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         pre $ L.length s > 4
-        n1 <- f iter
+        (n1,s') <- f iter
 
         assert $ n1 == 4
+        assert $ fromWrap s' == L.drop 4 s
 
      where
        f i = liftQ $ enumLBS s i >>= run
        iter = do
-           (!_,m) <- countBytes $ drop 4
-           stream2stream
-           return m
+           (!_,m) <- countBytes $ drop' 4
+           x <- stream2stream
+           return (m,x)

@@ -113,6 +113,7 @@ Library
 
   if flag(testsuite)
     cpp-options: -DDEBUG_TEST
+    build-depends: deepseq >= 1.1 && <1.2
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
@@ -141,7 +142,7 @@ Library
     base >= 4 && < 5,
     bytestring,
     bytestring-nums,
-    cereal >= 0.2 && < 0.3,
+    cereal >= 0.3 && < 0.4,
     containers,
     directory,
     dlist >= 0.5 && < 0.6,
@@ -165,6 +166,7 @@ Library
                  -fno-warn-unused-do-bind
   else
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
+
 
 source-repository head
   type:     git

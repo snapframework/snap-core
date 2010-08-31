@@ -10,7 +10,7 @@ Flag debug
 Flag testsuite
   Description: Are we running the testsuite? Causes arguments to \"debug\" to
                be evaluated but not printed.
-  Default: False
+  Default: True
 
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
@@ -36,12 +36,13 @@ Executable testsuite
 
   build-depends:
     QuickCheck >= 2,
-    attoparsec >= 0.8.0.2 && < 0.9,
+    attoparsec >= 0.8.1 && < 0.9,
     base >= 4 && < 5,
     bytestring,
     bytestring-nums,
-    cereal >= 0.2 && < 0.3,
+    cereal >= 0.3 && < 0.4,
     containers,
+    deepseq >= 1.1 && <1.2,
     directory,
     dlist >= 0.5 && < 0.6,
     filepath,
@@ -53,6 +54,7 @@ Executable testsuite
     old-locale,
     old-time,
     parallel >= 2.2 && <2.3,
+    regex-posix >= 0.94.4 && <0.95,
     test-framework >= 0.3.1 && <0.4,
     test-framework-hunit >= 0.2.5 && < 0.3,
     test-framework-quickcheck2 >= 0.2.6 && < 0.3,

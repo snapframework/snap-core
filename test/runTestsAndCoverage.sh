@@ -4,6 +4,9 @@ set -e
 
 SUITE=./dist/build/testsuite/testsuite
 
+export LC_ALL=C
+export LANG=C
+
 rm -f testsuite.tix
 
 if [ ! -f $SUITE ]; then

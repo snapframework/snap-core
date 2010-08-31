@@ -23,7 +23,8 @@ import           Snap.Util.FileServe
 import           Snap.Iteratee
 
 tests :: [Test]
-tests = [ testFs ]
+tests = [ testFs
+        , testFsSingle ]
 
 
 expect404 :: IO Response -> IO ()
@@ -56,7 +57,15 @@ mkRequest uri = do
                      (B.concat ["/",uri]) "" Map.empty
 
 fs :: Snap ()
-fs = fileServe "data/fileServe"
+fs = do
+    x <- fileServe "data/fileServe"
+    return $! x `seq` ()
+
+fsSingle :: Snap ()
+fsSingle = do
+    x <- fileServeSingle "data/fileServe/foo.html"
+    return $! x `seq` ()
+
 
 testFs :: Test
 testFs = testCase "fileServe" $ do
@@ -113,7 +122,21 @@ testFs = testCase "fileServe" $ do
     coverMimeMap
 
 
+testFsSingle :: Test
+testFsSingle = testCase "fileServeSingle" $ do
+    r1 <- go fsSingle "foo.html"
+    b1 <- getBody r1
+
+    assertEqual "foo.html" "FOO\n" b1
+    assertEqual "foo.html content-type"
+                (Just "text/html")
+                (getHeader "content-type" r1)
+
+    assertEqual "foo.html size" (Just 4) (rspContentLength r1)
+
+
+
 coverMimeMap :: (Monad m) => m ()
-coverMimeMap = mapM_ f $ Map.toList defaultMimeTypes
+coverMimeMap = Prelude.mapM_ f $ Map.toList defaultMimeTypes
   where
     f (!k,!v) = return $ case k `seq` v `seq` () of () -> ()
