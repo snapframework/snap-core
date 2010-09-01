@@ -385,10 +385,15 @@ redirect target = redirect' target 302
 -- 'Response' object stored in a 'Snap' monad. Note that the target URL is not
 -- validated in any way.
 redirect' :: ByteString -> Int -> Snap ()
-redirect' target status =
+redirect' target status = do
+    r <- getResponse
+
     finishWith
         $ setResponseCode status
-        $ setHeader "Location" target emptyResponse
+        $ setContentLength 0
+        $ modifyResponseBody (const $ enumBS "")
+        $ setHeader "Location" target r
+
 {-# INLINE redirect' #-}
 
 
