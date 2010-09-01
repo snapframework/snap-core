@@ -48,7 +48,7 @@ setup projName tDir = do
           else writeFile f c
     insertProjName c = T.unpack $ T.replace
                            (T.pack "projname")
-                           (T.pack projName) c
+                           (T.pack $ filter (/='_') projName) c
 
 ------------------------------------------------------------------------------
 initProject :: [String] -> IO ()
