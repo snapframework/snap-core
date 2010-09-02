@@ -223,7 +223,7 @@ unsafeDetachRequestBody = do
 ------------------------------------------------------------------------------
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
-finishWith :: Response -> Snap ()
+finishWith :: Response -> Snap a
 finishWith = Snap . return . Just . Left
 {-# INLINE finishWith #-}
 
