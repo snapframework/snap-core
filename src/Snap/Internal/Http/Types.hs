@@ -168,6 +168,7 @@ type Params = Map ByteString [ByteString]
 -- request type
 ------------------------------------------------------------------------------
 
+-- | An existential wrapper for the 'Enumerator' type
 data SomeEnumerator = SomeEnumerator (forall a . Enumerator a)
 
 

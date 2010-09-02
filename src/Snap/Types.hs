@@ -107,6 +107,7 @@ module Snap.Types
 
     -- * Iteratee
   , Enumerator
+  , SomeEnumerator(..)
 
     -- * HTTP utilities
   , formatHttpTime
