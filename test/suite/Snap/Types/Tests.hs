@@ -234,7 +234,8 @@ testRqBody = testCase "request bodies" $ do
         getRequestBody >>= liftIO . putMVar mvar2
 
     g mvar1 mvar2 = do
-        enum <- unsafeDetachRequestBody
+        senum <- unsafeDetachRequestBody
+        let (SomeEnumerator enum) = senum
         bs <- liftM fromWrap (liftIO $ enum stream2stream >>= run)
         liftIO $ putMVar mvar1 bs
         getRequestBody >>= liftIO . putMVar mvar2

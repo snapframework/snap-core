@@ -210,15 +210,14 @@ getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 -- responsibility up to you. If you don't fully consume the
 -- 'Enumerator' you get here, the next HTTP request in the pipeline
 -- (if any) will misparse. Be careful with exception handlers.
-unsafeDetachRequestBody :: Snap (Enumerator a)
+unsafeDetachRequestBody :: Snap SomeEnumerator
 unsafeDetachRequestBody = do
     req <- getRequest
     let ioref = rqBody req
     senum <- liftIO $ readIORef ioref
-    let (SomeEnumerator enum) = senum
     liftIO $ writeIORef ioref
                (SomeEnumerator $ return . Iter.joinI . Iter.take 0)
-    return enum
+    return senum
 
 
 ------------------------------------------------------------------------------
