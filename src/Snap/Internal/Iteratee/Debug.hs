@@ -48,8 +48,12 @@ debugIteratee = IterateeG f
 iterateeDebugWrapper :: String -> Iteratee IO a -> Iteratee IO a
 iterateeDebugWrapper name iter = IterateeG f
   where
-    f c@(EOF _) = do
+    f c@(EOF Nothing) = do
         debug $ name ++ ": got EOF: " ++ show c
+        runIter iter c
+
+    f c@(EOF (Just e)) = do
+        debug $ name ++ ": got EOF **error**: " ++ show c
         runIter iter c
 
     f c@(Chunk _) = do
