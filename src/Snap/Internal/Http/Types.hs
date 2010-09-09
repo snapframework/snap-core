@@ -379,6 +379,9 @@ data Response = Response
 
       -- | Returns the HTTP status explanation string.
     , rspStatusReason  :: !ByteString
+
+      -- | If true, we detached the request body with 'unsafeDetachRequestBody'
+    , rspDetachedBody  :: !Bool
     }
 
 
@@ -448,7 +451,8 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 
 -- | An empty 'Response'.
 emptyResponse       :: Response
-emptyResponse       = Response Map.empty (1,1) Nothing (Enum return) 200 "OK"
+emptyResponse       = Response Map.empty (1,1) Nothing (Enum return) 200
+                               "OK" False
 
 
 ------------------------------------------------------------------------------

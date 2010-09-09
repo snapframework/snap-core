@@ -27,6 +27,7 @@ import           Data.Typeable
 ------------------------------------------------------------------------------
 import           Snap.Iteratee hiding (Enumerator)
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Debug
 import           Snap.Internal.Iteratee.Debug
 
 
@@ -219,8 +220,12 @@ unsafeDetachRequestBody = do
     let (SomeEnumerator enum) = senum
     liftIO $ writeIORef ioref
                (SomeEnumerator $ return . Iter.joinI . Iter.take 0)
+
+    modifyResponse $ \rsp -> rsp { rspDetachedBody = True }
+
     return $ SomeEnumerator
-           $ \i -> enum (iterateeDebugWrapper "unsafeDetachRequestBody" i)
+           $ \i -> enum $
+                   iterateeDebugWrapper "unsafeDetachRequestBody" i
 
 
 ------------------------------------------------------------------------------
