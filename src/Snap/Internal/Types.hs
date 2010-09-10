@@ -201,19 +201,22 @@ getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 
 
 ------------------------------------------------------------------------------
--- | Detaches the request body's 'Enumerator' from the 'Request' and
--- returns it. You would want to use this if you needed to send the
--- HTTP request body (transformed or otherwise) through to the output
--- in O(1) space. (Examples: transcoding, \"echo\", etc)
+-- | Normally Snap is careful to ensure that the request body is fully consumed
+-- after your web handler runs, but before the 'Response' enumerator is
+-- streamed out the socket. If you want to transform the request body into some
+-- output in O(1) space, you should use this function.
 --
--- Normally Snap is careful to ensure that the request body is fully
--- consumed after your web handler runs; this function is marked
--- \"unsafe\" because it breaks this guarantee and leaves the
--- responsibility up to you. If you don't fully consume the
--- 'Enumerator' you get here, the next HTTP request in the pipeline
--- (if any) will misparse. Be careful with exception handlers.
-unsafeDetachRequestBody :: Snap SomeEnumerator
-unsafeDetachRequestBody = do
+-- Note that upon calling this function, response processing finishes early as
+-- if you called 'finishWith'. Make sure you set any content types, headers,
+-- cookies, etc. before you call this function.
+--
+transformRequestBody :: (forall a . Enumerator a)
+                         -- ^ the output 'Iteratee' is passed to this
+                         -- 'Enumerator', and then the resulting 'Iteratee' is
+                         -- fed the request body stream. Your 'Enumerator' is
+                         -- responsible for transforming the input.
+                     -> Snap ()
+transformRequestBody trans = do
     req <- getRequest
     let ioref = rqBody req
     senum <- liftIO $ readIORef ioref
@@ -221,11 +224,13 @@ unsafeDetachRequestBody = do
     liftIO $ writeIORef ioref
                (SomeEnumerator $ return . Iter.joinI . Iter.take 0)
 
-    modifyResponse $ \rsp -> rsp { rspDetachedBody = True }
-
-    return $ SomeEnumerator
-           $ \i -> enum $
-                   iterateeDebugWrapper "unsafeDetachRequestBody" i
+    origRsp <- getResponse
+    let rsp = setResponseBody
+                (\writeEnd -> do
+                     i <- trans writeEnd
+                     enum $ iterateeDebugWrapper "transformRequestBody" i)
+                $ origRsp { rspTransformingRqBody = True }
+    finishWith rsp
 
 
 ------------------------------------------------------------------------------

@@ -219,13 +219,10 @@ testRqBody = testCase "request bodies" $ do
     assertEqual "rq body" "zazzle" v1
     assertEqual "rq body 2" "" v2
 
-    _ <- goBody $ g mvar1 mvar2
-    w1 <- takeMVar mvar1
-    w2 <- takeMVar mvar2
+    (_,rsp) <- goBody g
+    bd      <- getBody rsp
 
-    assertEqual "rq body" "zazzle" w1
-    assertEqual "rq body 2" "" w2
-
+    assertEqual "detached rq body" "zazzle" bd
 
 
   where
@@ -233,12 +230,7 @@ testRqBody = testCase "request bodies" $ do
         getRequestBody >>= liftIO . putMVar mvar1
         getRequestBody >>= liftIO . putMVar mvar2
 
-    g mvar1 mvar2 = do
-        senum <- unsafeDetachRequestBody
-        let (SomeEnumerator enum) = senum
-        bs <- liftM fromWrap (liftIO $ enum stream2stream >>= run)
-        liftIO $ putMVar mvar1 bs
-        getRequestBody >>= liftIO . putMVar mvar2
+    g = transformRequestBody return
 
 
 testTrivials :: Test
