@@ -141,6 +141,7 @@ gzipCompression :: ByteString -> Snap ()
 gzipCompression ce = modifyResponse f
   where
     f = setHeader "Content-Encoding" ce .
+        setHeader "Vary" "Accept-Encoding" .
         clearContentLength .
         modifyResponseBody gcompress
 
@@ -150,6 +151,7 @@ compressCompression :: ByteString -> Snap ()
 compressCompression ce = modifyResponse f
   where
     f = setHeader "Content-Encoding" ce .
+        setHeader "Vary" "Accept-Encoding" .
         clearContentLength .
         modifyResponseBody ccompress
 
