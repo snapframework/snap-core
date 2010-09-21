@@ -7,8 +7,9 @@
 -- depends on it.
 
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# OPTIONS_GHC -fno-cse #-}
+{-# OPTIONS_GHC -fno-cse         #-}
 
 
 module Snap.Internal.Debug where
@@ -28,11 +29,12 @@ import           System.IO.Unsafe
 import           Text.Printf
 ------------------------------------------------------------------------------
 
+debug, debugErrno :: forall m . (MonadIO m => String -> m ())
 
 
+#ifndef NODEBUG
 
 {-# NOINLINE debug #-}
-debug :: forall m . (MonadIO m => String -> m ())
 debug = let !x = unsafePerformIO $! do
             !e <- try $ getEnv "DEBUG"
             
@@ -48,7 +50,6 @@ debug = let !x = unsafePerformIO $! do
 
 
 {-# NOINLINE debugErrno #-}
-debugErrno :: forall m . (MonadIO m => String -> m ())
 debugErrno = let !x = unsafePerformIO $ do
                  e <- try $ getEnv "DEBUG"
                  
@@ -101,11 +102,16 @@ debugErrnoOn loc = liftIO $ do
     debug $ show ex
 ------------------------------------------------------------------------------
 
+#else
+
+debug      = debugIgnore
+debugErrno = debugErrnoIgnore
+
+#endif
 
 ------------------------------------------------------------------------------
 debugIgnore :: (MonadIO m) => String -> m ()
 debugIgnore _ = return ()
-{-# NOINLINE debugIgnore #-}
 
 debugErrnoIgnore :: (MonadIO m) => String -> m ()
 debugErrnoIgnore _ = return ()

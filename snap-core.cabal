@@ -103,8 +103,24 @@ Flag portable
                optimizations such as C routines will be used.
   Default: False
 
+
+Flag no-debug
+  Description: Disable any debug logging code. Without this flag, Snap will
+               test the DEBUG environment variable to decide whether to do
+               logging, and this introduces a tiny amount of overhead
+               (a call into a function pointer) because the calls to 'debug'
+               cannot be inlined. Users who want to squeeze out maximum
+               performance can set the no-debug flag to get a version of Snap
+               which has debug calls that should be inlined away.
+               
+  Default: False
+
+
 Library
   hs-source-dirs: src
+
+  if flag(no-debug)
+    cpp-options: -DNODEBUG
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
@@ -158,11 +174,15 @@ Library
   else
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
 
+
 Executable snap
   hs-source-dirs: src
   main-is: Snap/Starter.hs
 
   other-modules: Snap.StarterTH
+
+  if flag(no-debug)
+    cpp-options: -DNODEBUG
 
   build-depends:
     attoparsec >= 0.8.1 && < 0.9,
