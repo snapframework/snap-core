@@ -105,14 +105,19 @@ debugErrnoOn loc = liftIO $ do
 #else
 
 debug      = debugIgnore
+{-# INLINE debug #-}
+
 debugErrno = debugErrnoIgnore
+{-# INLINE debugErrno #-}
 
 #endif
 
 ------------------------------------------------------------------------------
 debugIgnore :: (MonadIO m) => String -> m ()
 debugIgnore _ = return ()
+{-# INLINE debugIgnore #-}
 
 debugErrnoIgnore :: (MonadIO m) => String -> m ()
 debugErrnoIgnore _ = return ()
+{-# INLINE debugErrnoIgnore #-}
 ------------------------------------------------------------------------------
