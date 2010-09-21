@@ -3,15 +3,6 @@ version:        0.1.1
 build-type:     Simple
 cabal-version:  >= 1.6
 
-Flag debug
-  Description: Enable debug logging to stderr
-  Default: False
-
-Flag testsuite
-  Description: Are we running the testsuite? Causes arguments to \"debug\" to
-               be evaluated but not printed.
-  Default: True
-
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
                optimizations such as C routines will be used.
@@ -20,12 +11,6 @@ Flag portable
 Executable testsuite
   hs-source-dirs:  ../src suite
   main-is:         TestSuite.hs
-
-  if flag(debug)
-    cpp-options: -DDEBUG
-
-  if flag(testsuite)
-    cpp-options: -DDEBUG_TEST
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE

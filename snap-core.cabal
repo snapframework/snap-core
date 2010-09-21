@@ -98,15 +98,6 @@ extra-source-files:
   test/suite/Snap/Util/GZip/Tests.hs
 
 
-Flag debug
-  Description: Enable debug logging to stderr
-  Default: False
-
-Flag testsuite
-  Description: Are we running the testsuite? Causes arguments to \"debug\" to
-               be evaluated but not printed.
-  Default: False
-
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
                optimizations such as C routines will be used.
@@ -114,13 +105,6 @@ Flag portable
 
 Library
   hs-source-dirs: src
-
-  if flag(debug)
-    cpp-options: -DDEBUG
-
-  if flag(testsuite)
-    cpp-options: -DDEBUG_TEST
-    build-depends: deepseq >= 1.1 && <1.2
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
@@ -150,6 +134,7 @@ Library
     bytestring-nums,
     cereal >= 0.3 && < 0.4,
     containers,
+    deepseq >= 1.1 && <1.2,
     directory,
     dlist >= 0.5 && < 0.6,
     filepath,
@@ -174,10 +159,6 @@ Library
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
 
 Executable snap
-  if flag(testsuite)
-    cpp-options: -DDEBUG_TEST
-    build-depends: deepseq >= 1.1 && <1.2
-
   hs-source-dirs: src
   main-is: Snap/Starter.hs
 
@@ -190,6 +171,7 @@ Executable snap
     bytestring-nums,
     cereal >= 0.3 && < 0.4,
     containers,
+    deepseq >= 1.1 && <1.2,
     directory,
     directory-tree,
     dlist >= 0.5 && < 0.6,
