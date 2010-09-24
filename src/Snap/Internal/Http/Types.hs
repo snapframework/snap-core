@@ -126,6 +126,12 @@ getHeader k a = liftM (S.intercalate " ") (Map.lookup k $ headers a)
 
 
 ------------------------------------------------------------------------------
+-- | Clears a header value from a 'HasHeaders' datatype.
+deleteHeader :: (HasHeaders a) => CIByteString -> a -> a
+deleteHeader k = updateHeaders $ Map.delete k
+
+
+------------------------------------------------------------------------------
 -- | Enumerates the HTTP method values (see
 -- <http://tools.ietf.org/html/rfc2068.html#section-5.1.1>).
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT

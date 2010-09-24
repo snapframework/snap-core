@@ -105,7 +105,9 @@ mkZomgRq = do
 mkIpHeaderRq :: IO Request
 mkIpHeaderRq = do
     rq <- mkZomgRq
-    return $ setHeader "X-Forwarded-For" "1.2.3.4" rq
+    return $ setHeader "X-Forwarded-For" "1.2.3.4"
+           $ deleteHeader "X-Forwarded-For"
+           $ setHeader "X-Forwarded-For" "1.2.3.4" rq
 
 
 mkRqWithBody :: IO Request
