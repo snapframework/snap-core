@@ -12,16 +12,8 @@ import "MonadCatchIO-transformers" Control.Monad.CatchIO
 
 import                       Control.Applicative
 import                       Control.Exception (throwIO, ErrorCall(..))
-import           "monads-fd" Control.Monad.Cont
-import           "monads-fd" Control.Monad.Error
-import           "monads-fd" Control.Monad.List
-import           "monads-fd" Control.Monad.RWS.Strict hiding (pass)
-import qualified "monads-fd" Control.Monad.RWS.Lazy as LRWS
-import           "monads-fd" Control.Monad.Reader
-import           "monads-fd" Control.Monad.State.Strict
-import qualified "monads-fd" Control.Monad.State.Lazy as LState
-import           "monads-fd" Control.Monad.Writer.Strict hiding (pass)
-import qualified "monads-fd" Control.Monad.Writer.Lazy as LWriter
+import                       Control.Monad
+import           "monads-fd" Control.Monad.State
 import                       Data.ByteString.Char8 (ByteString)
 import qualified             Data.ByteString.Char8 as S
 import qualified             Data.ByteString.Lazy.Char8 as L
@@ -38,8 +30,9 @@ import                       Prelude hiding (catch)
 
 
 ------------------------------------------------------------------------------
-import                       Snap.Internal.Http.Types
 import                       Snap.Iteratee hiding (Enumerator, filter)
+import                       Snap.Internal.Http.Types
+import                       Snap.Internal.Iteratee.Debug
 
 
 ------------------------------------------------------------------------------
@@ -234,26 +227,36 @@ getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 
 
 ------------------------------------------------------------------------------
--- | Detaches the request body's 'Enumerator' from the 'Request' and
--- returns it. You would want to use this if you needed to send the
--- HTTP request body (transformed or otherwise) through to the output
--- in O(1) space. (Examples: transcoding, \"echo\", etc)
+-- | Normally Snap is careful to ensure that the request body is fully consumed
+-- after your web handler runs, but before the 'Response' enumerator is
+-- streamed out the socket. If you want to transform the request body into some
+-- output in O(1) space, you should use this function.
 --
--- Normally Snap is careful to ensure that the request body is fully
--- consumed after your web handler runs; this function is marked
--- \"unsafe\" because it breaks this guarantee and leaves the
--- responsibility up to you. If you don't fully consume the
--- 'Enumerator' you get here, the next HTTP request in the pipeline
--- (if any) will misparse. Be careful with exception handlers.
-unsafeDetachRequestBody :: Snap (Enumerator a)
-unsafeDetachRequestBody = do
+-- Note that upon calling this function, response processing finishes early as
+-- if you called 'finishWith'. Make sure you set any content types, headers,
+-- cookies, etc. before you call this function.
+--
+transformRequestBody :: (forall a . Enumerator a)
+                         -- ^ the output 'Iteratee' is passed to this
+                         -- 'Enumerator', and then the resulting 'Iteratee' is
+                         -- fed the request body stream. Your 'Enumerator' is
+                         -- responsible for transforming the input.
+                     -> Snap ()
+transformRequestBody trans = do
     req <- getRequest
     let ioref = rqBody req
     senum <- liftIO $ readIORef ioref
     let (SomeEnumerator enum) = senum
     liftIO $ writeIORef ioref
                (SomeEnumerator $ return . Iter.joinI . Iter.take 0)
-    return enum
+
+    origRsp <- getResponse
+    let rsp = setResponseBody
+                (\writeEnd -> do
+                     i <- trans writeEnd
+                     enum $ iterateeDebugWrapper "transformRequestBody" i)
+                $ origRsp { rspTransformingRqBody = True }
+    finishWith rsp
 
 
 ------------------------------------------------------------------------------
@@ -425,10 +428,15 @@ redirect target = redirect' target 302
 -- 'Response' object stored in a 'Snap' monad. Note that the target URL is not
 -- validated in any way.
 redirect' :: ByteString -> Int -> Snap ()
-redirect' target status =
+redirect' target status = do
+    r <- getResponse
+
     finishWith
         $ setResponseCode status
-        $ setHeader "Location" target emptyResponse
+        $ setContentLength 0
+        $ modifyResponseBody (const $ enumBS "")
+        $ setHeader "Location" target r
+
 {-# INLINE redirect' #-}
 
 

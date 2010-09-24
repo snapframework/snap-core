@@ -168,6 +168,7 @@ type Params = Map ByteString [ByteString]
 -- request type
 ------------------------------------------------------------------------------
 
+-- | An existential wrapper for the 'Enumerator' type
 data SomeEnumerator = SomeEnumerator (forall a . Enumerator a)
 
 
@@ -364,20 +365,24 @@ rspBodyToEnum (SendFile fp) = I.enumFile fp
 ------------------------------------------------------------------------------
 -- | Represents an HTTP response.
 data Response = Response
-    { rspHeaders       :: Headers
-    , rspHttpVersion   :: !HttpVersion
+    { rspHeaders            :: Headers
+    , rspHttpVersion        :: !HttpVersion
 
       -- | We will need to inspect the content length no matter what, and
       --   looking up \"content-length\" in the headers and parsing the number
       --   out of the text will be too expensive.
-    , rspContentLength :: !(Maybe Int64)
-    , rspBody          :: ResponseBody
+    , rspContentLength      :: !(Maybe Int64)
+    , rspBody               :: ResponseBody
 
       -- | Returns the HTTP status code.
-    , rspStatus        :: !Int
+    , rspStatus             :: !Int
 
       -- | Returns the HTTP status explanation string.
-    , rspStatusReason  :: !ByteString
+    , rspStatusReason       :: !ByteString
+
+      -- | If true, we are transforming the request body with
+      -- 'transformRequestBody'
+    , rspTransformingRqBody :: !Bool
     }
 
 
@@ -447,7 +452,8 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 
 -- | An empty 'Response'.
 emptyResponse       :: Response
-emptyResponse       = Response Map.empty (1,1) Nothing (Enum return) 200 "OK"
+emptyResponse       = Response Map.empty (1,1) Nothing (Enum return) 200
+                               "OK" False
 
 
 ------------------------------------------------------------------------------

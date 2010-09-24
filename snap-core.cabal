@@ -91,29 +91,29 @@ extra-source-files:
   test/suite/Snap/Util/GZip/Tests.hs
 
 
-Flag debug
-  Description: Enable debug logging to stderr
-  Default: False
-
-Flag testsuite
-  Description: Are we running the testsuite? Causes arguments to \"debug\" to
-               be evaluated but not printed.
-  Default: False
-
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
                optimizations such as C routines will be used.
   Default: False
 
+
+Flag no-debug
+  Description: Disable any debug logging code. Without this flag, Snap will
+               test the DEBUG environment variable to decide whether to do
+               logging, and this introduces a tiny amount of overhead
+               (a call into a function pointer) because the calls to 'debug'
+               cannot be inlined. Users who want to squeeze out maximum
+               performance can set the no-debug flag to get a version of Snap
+               which has debug calls that should be inlined away.
+               
+  Default: False
+
+
 Library
   hs-source-dirs: src
 
-  if flag(debug)
-    cpp-options: -DDEBUG
-
-  if flag(testsuite)
-    cpp-options: -DDEBUG_TEST
-    build-depends: deepseq >= 1.1 && <1.2
+  if flag(no-debug)
+    cpp-options: -DNODEBUG
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
@@ -144,6 +144,7 @@ Library
     bytestring-nums,
     cereal >= 0.3 && < 0.4,
     containers,
+    deepseq >= 1.1 && <1.2,
     directory,
     dlist >= 0.5 && < 0.6,
     filepath,
@@ -166,7 +167,6 @@ Library
                  -fno-warn-unused-do-bind
   else
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
-
 
 source-repository head
   type:     git

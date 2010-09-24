@@ -39,10 +39,11 @@ module Snap.Types
     -- ** Logging
   , logError
 
-    -- ** Grabbing request bodies
+    -- ** Grabbing/transforming request bodies
   , runRequestBody
   , getRequestBody
-  , unsafeDetachRequestBody
+  , transformRequestBody
+
     -- * HTTP Datatypes and Functions
     -- $httpDoc
     --
@@ -110,6 +111,7 @@ module Snap.Types
 
     -- * Iteratee
   , Enumerator
+  , SomeEnumerator(..)
 
     -- * HTTP utilities
   , formatHttpTime

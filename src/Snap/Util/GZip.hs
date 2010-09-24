@@ -142,6 +142,7 @@ gzipCompression :: MonadSnap m => ByteString -> m ()
 gzipCompression ce = modifyResponse f
   where
     f = setHeader "Content-Encoding" ce .
+        setHeader "Vary" "Accept-Encoding" .
         clearContentLength .
         modifyResponseBody gcompress
 
@@ -151,6 +152,7 @@ compressCompression :: MonadSnap m => ByteString -> m ()
 compressCompression ce = modifyResponse f
   where
     f = setHeader "Content-Encoding" ce .
+        setHeader "Vary" "Accept-Encoding" .
         clearContentLength .
         modifyResponseBody ccompress
 
