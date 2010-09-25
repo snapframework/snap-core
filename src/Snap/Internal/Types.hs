@@ -14,6 +14,7 @@ import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.CIByteString as CIB
+import           Data.Int
 import           Data.IORef
 import qualified Data.Iteratee as Iter
 import           Data.Maybe
@@ -480,7 +481,23 @@ writeLazyText s = writeLBS $ LT.encodeUtf8 s
 -- If the response body is modified (using 'modifyResponseBody'), the file will
 -- be read using @mmap()@.
 sendFile :: FilePath -> Snap ()
-sendFile f = modifyResponse $ \r -> r { rspBody = SendFile f }
+sendFile f = modifyResponse $ \r -> r { rspBody = SendFile f Nothing }
+
+
+------------------------------------------------------------------------------
+-- | Sets the output to be the contents of the specified file, within the given
+-- (start,end) range.
+--
+-- Calling 'sendFilePartial' will overwrite any output queued to be sent in the
+-- 'Response'. If the response body is not modified after the call to
+-- 'sendFilePartial', Snap will use the efficient @sendfile()@ system call on
+-- platforms that support it.
+--
+-- If the response body is modified (using 'modifyResponseBody'), the file will
+-- be read using @mmap()@.
+sendFilePartial :: FilePath -> (Int64,Int64) -> Snap ()
+sendFilePartial f rng = modifyResponse $ \r ->
+                        r { rspBody = SendFile f (Just rng) }
 
 
 ------------------------------------------------------------------------------

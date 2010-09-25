@@ -106,6 +106,7 @@ module Snap.Types
   , writeText
   , writeLBS
   , sendFile
+  , sendFilePartial
 
     -- * Iteratee
   , Enumerator
