@@ -268,9 +268,12 @@ fileServeSingle' mime fp = do
                   then return False
                   else checkRangeReq req fp sz
 
+    dbg $ "was this a range request? " ++ Prelude.show wasRange
+
     -- if we didn't have a range request, we just do normal sendfile
     unless wasRange $ do
       modifyResponse $ setResponseCode 200
+                     . setContentLength sz
       sendFile fp
 
   where
@@ -354,6 +357,7 @@ checkRangeReq req fp sz = do
     -- note: start and end INCLUSIVE here
     send206 start end = do
         dbg "inside send206"
+        let len = end-start+1
         let crng = S.concat $
                    L.toChunks $
                    L.concat [ "bytes "
@@ -365,6 +369,7 @@ checkRangeReq req fp sz = do
 
         modifyResponse $ setResponseCode 206
                        . setHeader "Content-Range" crng
+                       . setContentLength len
 
         dbg $ "send206: sending range (" ++ Prelude.show start
                 ++ "," ++ Prelude.show (end+1) ++ ") to sendFilePartial"
