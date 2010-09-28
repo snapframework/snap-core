@@ -2,8 +2,8 @@
 
 set -e
 
-if [ "x$DEBUG" == "x" ]; then
-    export DEBUG=testsuite
+if [ -n "$DEBUG" ]; then
+    export DEBUG="testsuite"
 fi
 
 SUITE=./dist/build/testsuite/testsuite
