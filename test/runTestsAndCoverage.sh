@@ -2,7 +2,7 @@
 
 set -e
 
-if [ -n "$DEBUG" ]; then
+if [ -z "$DEBUG" ]; then
     export DEBUG="testsuite"
 fi
 
