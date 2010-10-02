@@ -2,7 +2,10 @@
 
 set -e
 
-export DEBUG=testsuite
+if [ -z "$DEBUG" ]; then
+    export DEBUG="testsuite"
+fi
+
 SUITE=./dist/build/testsuite/testsuite
 
 export LC_ALL=C

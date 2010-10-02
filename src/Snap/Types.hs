@@ -60,6 +60,7 @@ module Snap.Types
   , addHeader
   , setHeader
   , getHeader
+  , deleteHeader
   , ipHeaderFilter
   , ipHeaderFilter'
 
@@ -108,6 +109,7 @@ module Snap.Types
   , writeText
   , writeLBS
   , sendFile
+  , sendFilePartial
 
     -- * Iteratee
   , Enumerator

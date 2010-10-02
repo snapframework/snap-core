@@ -7,7 +7,7 @@ module Snap.Util.FileServe.Tests
 
 import           Control.Monad
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B
+import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
 import qualified Data.Map as Map
@@ -24,7 +24,9 @@ import           Snap.Iteratee
 
 tests :: [Test]
 tests = [ testFs
-        , testFsSingle ]
+        , testFsSingle
+        , testRangeOK
+        , testRangeBad ]
 
 
 expect404 :: IO Response -> IO ()
@@ -49,12 +51,21 @@ goIfModifiedSince m s lm = do
     liftM snd (run $ runSnap m (const $ return ()) r)
 
 
+goRange :: Snap a -> ByteString -> (Int,Int) -> IO Response
+goRange m s (start,end) = do
+    rq' <- mkRequest s
+    let rq = setHeader "Range"
+                       (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
+                       rq'
+    liftM snd (run $ runSnap m (const $ return ()) rq)
+
+
 mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator return
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                      enum Nothing GET (1,1) [] "" uri "/"
-                     (B.concat ["/",uri]) "" Map.empty
+                     (S.concat ["/",uri]) "" Map.empty
 
 fs :: Snap ()
 fs = do
@@ -68,7 +79,7 @@ fsSingle = do
 
 
 testFs :: Test
-testFs = testCase "fileServe" $ do
+testFs = testCase "fileServe/multi" $ do
     r1 <- go fs "foo.bin"
     b1 <- getBody r1
 
@@ -123,7 +134,7 @@ testFs = testCase "fileServe" $ do
 
 
 testFsSingle :: Test
-testFsSingle = testCase "fileServeSingle" $ do
+testFsSingle = testCase "fileServe/Single" $ do
     r1 <- go fsSingle "foo.html"
     b1 <- getBody r1
 
@@ -134,6 +145,20 @@ testFsSingle = testCase "fileServeSingle" $ do
 
     assertEqual "foo.html size" (Just 4) (rspContentLength r1)
 
+
+testRangeOK :: Test
+testRangeOK = testCase "fileServe/range/ok" $ do
+    r1 <- goRange fsSingle "foo.html" (1,2)
+    b1 <- getBody r1
+
+    assertEqual "foo.html partial" "OO" b1
+    assertEqual "foo.html partial size" (Just 2) (rspContentLength r1)
+
+
+testRangeBad :: Test
+testRangeBad = testCase "fileServe/range/bad" $ do
+    r1 <- goRange fsSingle "foo.html" (1,17)
+    assertEqual "bad range" 416 (rspStatus r1)
 
 
 coverMimeMap :: (Monad m) => m ()

@@ -1,8 +1,10 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PackageImports #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
 -- | Snap Framework type aliases and utilities for iteratees. Note that as a
@@ -29,6 +31,8 @@ module Snap.Iteratee
   , enumBS
   , enumLBS
   , enumFile
+  , enumFilePartial
+  , InvalidRangeException
 
     -- ** Conversion to/from 'WrappedByteString'
   , fromWrap
@@ -48,6 +52,7 @@ module Snap.Iteratee
 ------------------------------------------------------------------------------
 import             Control.Monad
 import "MonadCatchIO-transformers" Control.Monad.CatchIO
+import             Control.Exception (Exception, SomeException)
 import             Data.ByteString (ByteString)
 import qualified   Data.ByteString as S
 import qualified   Data.ByteString.Unsafe as S
@@ -61,6 +66,7 @@ import qualified   Data.Iteratee.Base.StreamChunk as SC
 import             Data.Iteratee.WrappedByteString
 import qualified   Data.ListLike as LL
 import             Data.Monoid (mappend)
+import             Data.Typeable
 import             Foreign
 import             Foreign.C.Types
 import             GHC.ForeignPtr
@@ -69,7 +75,6 @@ import             System.IO
 import "monads-fd" Control.Monad.Trans (liftIO)
 
 #ifndef PORTABLE
-import           Control.Exception (SomeException)
 import           System.IO.Posix.MMap
 import           System.PosixCompat.Files
 #endif
@@ -412,18 +417,53 @@ takeNoMoreThan n' iter =
 
 
 ------------------------------------------------------------------------------
+{-# INLINE _enumFile #-}
 _enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
 _enumFile fp iter = do
     h  <- liftIO $ openBinaryFile fp ReadMode
-    i' <- enumHandle h iter
-    return (i' `finally` liftIO (hClose h))
+    enumHandle h iter `finally` hClose h
+
+
+------------------------------------------------------------------------------
+data InvalidRangeException = InvalidRangeException
+   deriving (Typeable)
+
+instance Show InvalidRangeException where
+    show InvalidRangeException = "Invalid range"
+
+instance Exception InvalidRangeException
+
+
+------------------------------------------------------------------------------
+{-# INLINE _enumFilePartial #-}
+_enumFilePartial :: FilePath
+                 -> (Int64,Int64)
+                 -> Iteratee IO a
+                 -> IO (Iteratee IO a)
+_enumFilePartial fp (start,end) iter = do
+    let len = end - start
+
+    h  <- liftIO $ openBinaryFile fp ReadMode
+    unless (start == 0) $
+           hSeek h AbsoluteSeek $ toInteger start
+
+    let i' = joinI $ takeExactly len iter
+
+    enumHandle h i' `finally` hClose h
 
 
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
+enumFilePartial :: FilePath
+                -> (Int64,Int64)
+                -> Iteratee IO a
+                -> IO (Iteratee IO a)
 
 #ifdef PORTABLE
 
 enumFile = _enumFile
+enumFilePartial fp rng@(start,end) iter = do
+    when (end < start) $ throw InvalidRangeException
+    _enumFilePartial fp rng iter
 
 #else
 
@@ -431,19 +471,53 @@ enumFile = _enumFile
 maxMMapFileSize :: FileOffset
 maxMMapFileSize = 41943040
 
+tooBigForMMap :: FilePath -> IO Bool
+tooBigForMMap fp = do
+    stat <- getFileStatus fp
+    return $ fileSize stat > maxMMapFileSize
+
+
 enumFile fp iter = do
     -- for small files we'll use mmap to save ourselves a copy, otherwise we'll
     -- stream it
-    stat <- getFileStatus fp
-    if fileSize stat > maxMMapFileSize
+    tooBig <- tooBigForMMap fp
+
+    if tooBig
       then _enumFile fp iter
       else do
-        es <- (try $
-               liftM WrapBS $
-               unsafeMMapFile fp) :: IO (Either SomeException (WrappedByteString Word8))
+        es <- try $
+              liftM WrapBS $
+              unsafeMMapFile fp
 
         case es of
-          (Left e)  -> return $ throwErr $ Err $ "IO error" ++ show e
+          (Left (e :: SomeException)) -> return $ throwErr
+                                                $ Err
+                                                $ "IO error" ++ show e
+
           (Right s) -> liftM liftI $ runIter iter $ Chunk s
+
+
+enumFilePartial fp rng@(start,end) iter = do
+    when (end < start) $ throw InvalidRangeException
+
+    let len = end - start
+
+    tooBig <- tooBigForMMap fp
+
+    if tooBig
+      then _enumFilePartial fp rng iter
+      else do
+        es <- try $ unsafeMMapFile fp
+
+        case es of
+          (Left (e::SomeException)) -> return $ throwErr
+                                              $ Err
+                                              $ "IO error" ++ show e
+
+          (Right s) -> liftM liftI $ runIter iter
+                                   $ Chunk
+                                   $ WrapBS
+                                   $ S.take (fromEnum len)
+                                   $ S.drop (fromEnum start) s
 
 #endif

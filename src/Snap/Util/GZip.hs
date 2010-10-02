@@ -15,7 +15,6 @@ import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8 hiding (Done)
-import qualified Data.Attoparsec.Char8 as Atto
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Char8 (ByteString)
 import           Data.Iteratee.WrappedByteString
@@ -27,6 +26,7 @@ import           Prelude hiding (catch, takeWhile)
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Debug
+import           Snap.Internal.Parsing
 import           Snap.Iteratee hiding (Enumerator)
 import           Snap.Types
 
@@ -261,18 +261,6 @@ compressEnumerator compFunc enum iteratee = do
 
     --------------------------------------------------------------------------
     toChunk = Chunk . WrapBS
-
-
-------------------------------------------------------------------------------
-fullyParse :: ByteString -> Parser a -> Either String a
-fullyParse s p =
-    case r' of
-      (Fail _ _ e)    -> Left e
-      (Partial _)     -> Left "parse failed"
-      (Atto.Done _ x) -> Right x
-  where
-    r  = parse p s
-    r' = feed r ""
 
 
 ------------------------------------------------------------------------------

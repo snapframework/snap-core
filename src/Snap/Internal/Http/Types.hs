@@ -126,6 +126,12 @@ getHeader k a = liftM (S.intercalate " ") (Map.lookup k $ headers a)
 
 
 ------------------------------------------------------------------------------
+-- | Clears a header value from a 'HasHeaders' datatype.
+deleteHeader :: (HasHeaders a) => CIByteString -> a -> a
+deleteHeader k = updateHeaders $ Map.delete k
+
+
+------------------------------------------------------------------------------
 -- | Enumerates the HTTP method values (see
 -- <http://tools.ietf.org/html/rfc2068.html#section-5.1.1>).
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
@@ -345,8 +351,12 @@ instance HasHeaders Headers where
 -- response type
 ------------------------------------------------------------------------------
 
-data ResponseBody = Enum (forall a . Enumerator a) -- ^ output body is enumerator
-                  | SendFile FilePath              -- ^ output body is sendfile()
+data ResponseBody = Enum (forall a . Enumerator a)
+                      -- ^ output body is enumerator
+
+                  | SendFile FilePath (Maybe (Int64,Int64))
+                      -- ^ output body is sendfile(), optional second argument
+                      --   is a byte range to send
 
 
 ------------------------------------------------------------------------------
@@ -359,7 +369,8 @@ rspBodyMap f b      = Enum $ f $ rspBodyToEnum b
 ------------------------------------------------------------------------------
 rspBodyToEnum :: ResponseBody -> Enumerator a
 rspBodyToEnum (Enum e) = e
-rspBodyToEnum (SendFile fp) = I.enumFile fp
+rspBodyToEnum (SendFile fp Nothing)  = I.enumFile fp
+rspBodyToEnum (SendFile fp (Just s)) = I.enumFilePartial fp s
 
 
 ------------------------------------------------------------------------------

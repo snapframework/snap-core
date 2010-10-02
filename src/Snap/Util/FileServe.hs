@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -15,23 +16,32 @@ module Snap.Util.FileServe
 ) where
 
 ------------------------------------------------------------------------------
+import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans
+import           Data.Attoparsec.Char8 hiding (Done)
 import qualified Data.ByteString.Char8 as S
+import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Char8 (ByteString)
+import           Data.Int
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe)
+import           Prelude hiding (show, Show)
+import qualified Prelude
 import           System.Directory
 import           System.FilePath
 import           System.PosixCompat.Files
-
+import           Text.Show.ByteString hiding (runPut)
 ------------------------------------------------------------------------------
+import           Snap.Internal.Debug
+import           Snap.Internal.Parsing
+import           Snap.Iteratee hiding (drop)
 import           Snap.Types
 
 
 ------------------------------------------------------------------------------
--- | A type alias for MIME type 
+-- | A type alias for MIME type
 type MimeMap = Map FilePath ByteString
 
 
@@ -222,32 +232,58 @@ fileServeSingle' :: MonadSnap m
                  -> m ()
 fileServeSingle' mime fp = do
     req <- getRequest
-    
+
+    -- check "If-Modified-Since" and "If-Range" headers
     let mbH = getHeader "if-modified-since" req
     mbIfModified <- liftIO $ case mbH of
                                Nothing  -> return Nothing
                                (Just s) -> liftM Just $ parseHttpTime s
 
+    mbIfRange <- liftIO $ case getHeader "if-range" req of
+                            Nothing  -> return Nothing
+                            (Just s) -> liftM Just $ parseHttpTime s
+
+
     -- check modification time and bug out early if the file is not modified.
     filestat <- liftIO $ getFileStatus fp
     let mt = modificationTime filestat
-    maybe (return ()) (chkModificationTime mt) mbIfModified
+    maybe (return ()) (\lt -> when (mt <= lt) notModified) mbIfModified
 
     let sz = fromIntegral $ fileSize filestat
     lm <- liftIO $ formatHttpTime mt
 
+    -- ok, at this point we know the last-modified time and the
+    -- content-type. set those.
     modifyResponse $ setHeader "Last-Modified" lm
+                   . setHeader "Accept-Ranges" "bytes"
                    . setContentType mime
-                   . setContentLength sz
-    sendFile fp
+
+
+    -- now check: is this a range request? If there is an 'If-Range' header
+    -- with an old modification time we skip this check and send a 200 response
+    let skipRangeCheck = maybe (False)
+                               (\lt -> mt > lt)
+                               mbIfRange
+
+
+    -- checkRangeReq checks for a Range: header in the request and sends a
+    -- partial response if it matches.
+    wasRange <- if skipRangeCheck
+                  then return False
+                  else liftSnap $ checkRangeReq req fp sz
+
+    dbg $ "was this a range request? " ++ Prelude.show wasRange
+
+    -- if we didn't have a range request, we just do normal sendfile
+    unless wasRange $ do
+      modifyResponse $ setResponseCode 200
+                     . setContentLength sz
+      liftSnap $ sendFile fp
 
   where
     --------------------------------------------------------------------------
-    chkModificationTime mt lt = when (mt <= lt) notModified
-
-    --------------------------------------------------------------------------
     notModified = finishWith $
-                  setResponseStatus 304 "Not Modified" emptyResponse
+                  setResponseCode 304 emptyResponse
 
 
 ------------------------------------------------------------------------------
@@ -266,3 +302,109 @@ fileType mm f =
 ------------------------------------------------------------------------------
 defaultMimeType :: ByteString
 defaultMimeType = "application/octet-stream"
+
+
+------------------------------------------------------------------------------
+data RangeReq = RangeReq { _rangeFirst :: !Int64
+                         , _rangeLast  :: !(Maybe Int64)
+                         }
+              | SuffixRangeReq { _suffixLength :: !Int64 }
+  deriving (Eq, Prelude.Show)
+
+
+------------------------------------------------------------------------------
+rangeParser :: Parser RangeReq
+rangeParser = string "bytes=" *> (byteRangeSpec <|> suffixByteRangeSpec)
+  where
+    byteRangeSpec = do
+        start <- parseNum
+        end   <- option Nothing $ liftM Just (char '-' *> parseNum)
+
+        return $ RangeReq start end
+
+    suffixByteRangeSpec = liftM SuffixRangeReq $ char '-' *> parseNum
+
+
+------------------------------------------------------------------------------
+checkRangeReq :: Request -> FilePath -> Int64 -> Snap Bool
+checkRangeReq req fp sz = do
+    dbg $ "checkRangeReq, fp=" ++ fp ++ ", sz=" ++ Prelude.show sz
+    maybe (return False)
+          (\s -> either (const $ return False)
+                        withRange
+                        (fullyParse s rangeParser))
+          (getHeader "range" req)
+
+  where
+    withRange rng@(RangeReq start mend) = do
+        dbg $ "withRange: got Range request: " ++ Prelude.show rng
+        let end = fromMaybe (sz-1) mend
+        dbg $ "withRange: start=" ++ Prelude.show start
+                  ++ ", end=" ++ Prelude.show end
+
+        if start < 0 || end < start || start >= sz || end >= sz
+           then send416
+           else send206 start end
+
+    withRange rng@(SuffixRangeReq nbytes) = do
+        dbg $ "withRange: got Range request: " ++ Prelude.show rng
+        let end   = sz-1
+        let start = sz - nbytes
+
+        dbg $ "withRange: start=" ++ Prelude.show start
+                  ++ ", end=" ++ Prelude.show end
+
+        if start < 0 || end < start || start >= sz || end >= sz
+           then send416
+           else send206 start end
+
+    -- note: start and end INCLUSIVE here
+    send206 start end = do
+        dbg "inside send206"
+        let len = end-start+1
+        let crng = S.concat $
+                   L.toChunks $
+                   L.concat [ "bytes "
+                            , show start
+                            , "-"
+                            , show end
+                            , "/"
+                            , show sz ]
+
+        modifyResponse $ setResponseCode 206
+                       . setHeader "Content-Range" crng
+                       . setContentLength len
+
+        dbg $ "send206: sending range (" ++ Prelude.show start
+                ++ "," ++ Prelude.show (end+1) ++ ") to sendFilePartial"
+
+        -- end here was inclusive, sendFilePartial is exclusive
+        sendFilePartial fp (start,end+1)
+        return True
+
+
+    send416 = do
+        dbg "inside send416"
+        -- if there's an "If-Range" header in the request, then we just send
+        -- back 200
+        if getHeader "If-Range" req /= Nothing
+           then return False
+           else do
+               let crng = S.concat $
+                          L.toChunks $
+                          L.concat ["bytes */", show sz]
+               
+               modifyResponse $ setResponseCode 416
+                              . setHeader "Content-Range" crng
+                              . setContentLength 0
+                              . deleteHeader "Content-Type"
+                              . deleteHeader "Content-Encoding"
+                              . deleteHeader "Transfer-Encoding"
+                              . setResponseBody (enumBS "")
+               
+               return True
+
+
+
+dbg :: (MonadIO m) => String -> m ()
+dbg s = debug $ "FileServe:" ++ s
