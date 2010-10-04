@@ -418,7 +418,7 @@ modifyResponse f = liftSnap $
 -- 'Snap' monad. Note that the target URL is not validated in any way. Consider
 -- using 'redirect\'' instead, which allows you to choose the correct status
 -- code.
-redirect :: ByteString -> Snap ()
+redirect :: MonadSnap m => ByteString -> m ()
 redirect target = redirect' target 302
 {-# INLINE redirect #-}
 
@@ -428,7 +428,7 @@ redirect target = redirect' target 302
 -- URL/path and the status code (should be one of 301, 302, 303 or 307) in the
 -- 'Response' object stored in a 'Snap' monad. Note that the target URL is not
 -- validated in any way.
-redirect' :: ByteString -> Int -> Snap ()
+redirect' :: MonadSnap m => ByteString -> Int -> m ()
 redirect' target status = do
     r <- getResponse
 
