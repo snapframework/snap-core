@@ -2,6 +2,7 @@
 module Main where
 
 ------------------------------------------------------------------------------
+import           Char
 import           Data.List
 import qualified Data.Text as T
 import           System
@@ -46,9 +47,10 @@ setup projName tDir = do
         if isSuffixOf "foo.cabal" f
           then writeFile (projName++".cabal") (insertProjName $ T.pack c)
           else writeFile f c
+    isNameChar c = isAlphaNum c || c == '-'
     insertProjName c = T.unpack $ T.replace
                            (T.pack "projname")
-                           (T.pack $ filter (/='_') projName) c
+                           (T.pack $ filter isNameChar projName) c
 
 ------------------------------------------------------------------------------
 initProject :: [String] -> IO ()
