@@ -411,8 +411,8 @@ testRedirect = testCase "redirect" $ do
     assertEqual "status description" "Found" $ rspStatusReason rsp
 
 
-    (_,rsp)  <- go (redirect' "/bar/foo" 307)
+    (_,rsp2)  <- go (redirect' "/bar/foo" 307)
 
-    assertEqual "redirect path" (Just "/bar/foo") $ getHeader "Location" rsp
-    assertEqual "redirect status" 307 $ rspStatus rsp
-    assertEqual "status description" "Temporary Redirect" $ rspStatusReason rsp
+    assertEqual "redirect path" (Just "/bar/foo") $ getHeader "Location" rsp2
+    assertEqual "redirect status" 307 $ rspStatus rsp2
+    assertEqual "status description" "Temporary Redirect" $ rspStatusReason rsp2

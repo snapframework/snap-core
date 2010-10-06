@@ -33,6 +33,7 @@ mkdir -p $DIR
 EXCLUDES='Main
 Data.CIByteString
 Snap.Internal.Debug
+Snap.Internal.Iteratee.Debug
 Snap.Iteratee.Tests
 Snap.Internal.Http.Parser.Tests
 Snap.Internal.Http.Server.Tests

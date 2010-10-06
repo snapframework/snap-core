@@ -5,6 +5,7 @@
 {-# LANGUAGE PackageImports #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeSynonymInstances #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- | Snap Framework type aliases and utilities for iteratees. Note that as a
 -- convenience, this module also exports everything from @Data.Iteratee@ in the
@@ -51,7 +52,7 @@ module Snap.Iteratee
 ------------------------------------------------------------------------------
 import             Control.Monad
 import             Control.Monad.CatchIO
-import             Control.Exception (Exception, SomeException)
+import             Control.Exception (SomeException)
 import             Data.ByteString (ByteString)
 import qualified   Data.ByteString as S
 import qualified   Data.ByteString.Unsafe as S

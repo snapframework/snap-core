@@ -28,7 +28,6 @@ import           Data.Typeable
 ------------------------------------------------------------------------------
 import           Snap.Iteratee hiding (Enumerator)
 import           Snap.Internal.Http.Types
-import           Snap.Internal.Debug
 import           Snap.Internal.Iteratee.Debug
 
 

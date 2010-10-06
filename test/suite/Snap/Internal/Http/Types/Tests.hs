@@ -40,7 +40,7 @@ testFormatLogTime :: Test
 testFormatLogTime = testCase "formatLogTime" $ do
     b <- formatLogTime 3804938
 
-    let re = ("^[0-9]{1,2}/[A-Za-z]{3}/[0-9]{4}:[0-9]{2}:[0-9]{2}:[0-9]{2} -[0-9]{4}$"
+    let re = ("^[0-9]{1,2}/[A-Za-z]{3}/[0-9]{4}:[0-9]{2}:[0-9]{2}:[0-9]{2} (-|\\+)[0-9]{4}$"
                   :: ByteString)
 
     assertBool "formatLogTime" $ b =~ re

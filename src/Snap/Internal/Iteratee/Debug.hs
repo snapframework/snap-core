@@ -18,7 +18,9 @@ import           Data.Iteratee.WrappedByteString
 import           Data.Word (Word8)
 import           System.IO
 ------------------------------------------------------------------------------
+#ifndef NODEBUG
 import           Snap.Internal.Debug
+#endif
 import           Snap.Iteratee
 ------------------------------------------------------------------------------
 
@@ -43,7 +45,7 @@ debugIteratee = IterateeG f
         return $ Cont debugIteratee Nothing
 
 
-#if defined(DEBUG)
+#ifndef NODEBUG
 
 iterateeDebugWrapper :: String -> Iteratee IO a -> Iteratee IO a
 iterateeDebugWrapper name iter = IterateeG f
@@ -52,7 +54,7 @@ iterateeDebugWrapper name iter = IterateeG f
         debug $ name ++ ": got EOF: " ++ show c
         runIter iter c
 
-    f c@(EOF (Just e)) = do
+    f c@(EOF (Just _)) = do
         debug $ name ++ ": got EOF **error**: " ++ show c
         runIter iter c
 

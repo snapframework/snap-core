@@ -1,6 +1,7 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns         #-}
+{-# LANGUAGE OverloadedStrings    #-}
+{-# LANGUAGE ScopedTypeVariables  #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Snap.Iteratee.Tests
   ( tests ) where
@@ -24,7 +25,6 @@ import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic hiding (run)
 import           Test.Framework.Providers.HUnit
 import qualified Test.HUnit as H
-import           System.IO.Unsafe
 
 import           Snap.Iteratee
 import           Snap.Test.Common ()

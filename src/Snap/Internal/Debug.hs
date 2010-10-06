@@ -39,9 +39,9 @@ debug = let !x = unsafePerformIO $! do
             !e <- try $ getEnv "DEBUG"
             
             !f <- either (\(_::SomeException) -> return debugIgnore)
-                         (\x -> if x == "1" || x == "on"
+                         (\y -> if y == "1" || y == "on"
                                   then return debugOn
-                                  else if x == "testsuite"
+                                  else if y == "testsuite"
                                          then return debugSeq
                                          else return debugIgnore)
                          (fmap (map toLower) e)
@@ -54,9 +54,9 @@ debugErrno = let !x = unsafePerformIO $ do
                  e <- try $ getEnv "DEBUG"
                  
                  !f <- either (\(_::SomeException) -> return debugErrnoIgnore)
-                              (\x -> if x == "1" || x == "on"
+                              (\y -> if y == "1" || y == "on"
                                        then return debugErrnoOn
-                                       else if x == "testsuite"
+                                       else if y == "testsuite"
                                               then return debugErrnoSeq
                                               else return debugErrnoIgnore)
                               (fmap (map toLower) e)
