@@ -1,7 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 
 module Snap.Util.GZip
 ( withCompression
@@ -80,18 +80,14 @@ withCompression' mimeTable action = do
 
     -- If a content-encoding is already set, do nothing. This prevents
     -- "withCompression $ withCompression m" from ruining your day.
-    if isJust $ getHeader "Content-Encoding" resp
-       then return ()
-       else do
-           let mbCt = getHeader "Content-Type" resp
+    when (not $ isJust $ getHeader "Content-Encoding" resp) $ do
+       let mbCt = getHeader "Content-Type" resp
 
-           debug $ "withCompression', content-type is " ++ show mbCt
+       debug $ "withCompression', content-type is " ++ show mbCt
 
-           case mbCt of
-             (Just ct) -> if Set.member ct mimeTable
-                             then chkAcceptEncoding
-                             else return ()
-             _         -> return ()
+       case mbCt of
+         (Just ct) -> when (Set.member ct mimeTable) chkAcceptEncoding
+         _         -> return $! ()
 
 
     getResponse >>= finishWith
@@ -110,7 +106,7 @@ withCompression' mimeTable action = do
         chooseType types
 
 
-    chooseType []               = return ()
+    chooseType []               = return $! ()
     chooseType ("gzip":_)       = gzipCompression "gzip"
     chooseType ("compress":_)   = compressCompression "compress"
     chooseType ("x-gzip":_)     = gzipCompression "x-gzip"
@@ -197,9 +193,7 @@ compressEnumerator compFunc enum iteratee = do
             ch <- readChan writeEnd
 
             iter' <- liftM liftI $ runIter iter ch
-            if (streamFinished ch)
-               then return iter'
-               else consumeSomeOutput writeEnd iter'
+            consumeSomeOutput writeEnd iter'
 
 
     --------------------------------------------------------------------------
@@ -222,10 +216,9 @@ compressEnumerator compFunc enum iteratee = do
         killThread tid
         return x
 
-    f _ _ tid i ch@(EOF (Just _)) = do
-        x <- runIter i ch
+    f _ _ tid _ (EOF (Just e)) = do
         killThread tid
-        return x
+        return $ Cont undefined (Just e)
 
     f readEnd writeEnd tid i (Chunk s') = do
         let s = unWrap s'
@@ -240,18 +233,19 @@ compressEnumerator compFunc enum iteratee = do
                -> IO ()
     threadProc readEnd writeEnd = do
         stream <- getChanContents readEnd
+
         let bs = L.fromChunks $ streamToChunks stream
-
         let output = L.toChunks $ compFunc bs
-        let runIt = do
-            --Prelude specified to work with iteratee-0.3.6
-            Prelude.mapM_ (writeChan writeEnd . toChunk) output
-            writeChan writeEnd $ EOF Nothing
 
-        runIt `catch` \(e::SomeException) ->
+        runIt output `catch` \(e::SomeException) ->
             writeChan writeEnd $ EOF (Just $ Err $ show e)
 
+      where
+        runIt (x:xs) = do
+            writeChan writeEnd (toChunk x) >> runIt xs
 
+        runIt []     = do
+            writeChan writeEnd $ EOF Nothing
     --------------------------------------------------------------------------
     streamToChunks []            = []
     streamToChunks (Nothing:_)   = []
