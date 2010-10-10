@@ -26,7 +26,9 @@ tests :: [Test]
 tests = [ testFs
         , testFsSingle
         , testRangeOK
-        , testRangeBad ]
+        , testRangeBad
+        , testMultiRange
+        , testIfRange ]
 
 
 expect404 :: IO Response -> IO ()
@@ -44,10 +46,21 @@ go m s = do
     rq <- mkRequest s
     liftM snd (run $ runSnap m (const $ return ()) rq)
 
+
 goIfModifiedSince :: Snap a -> ByteString -> ByteString -> IO Response
 goIfModifiedSince m s lm = do
     rq <- mkRequest s
     let r = setHeader "if-modified-since" lm rq
+    liftM snd (run $ runSnap m (const $ return ()) r)
+
+
+goIfRange :: Snap a -> ByteString -> (Int,Int) -> ByteString -> IO Response
+goIfRange m s (start,end) lm = do
+    rq <- mkRequest s
+    let r = setHeader "if-range" lm $
+            setHeader "Range"
+                       (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
+                       rq
     liftM snd (run $ runSnap m (const $ return ()) r)
 
 
@@ -56,6 +69,34 @@ goRange m s (start,end) = do
     rq' <- mkRequest s
     let rq = setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
+                       rq'
+    liftM snd (run $ runSnap m (const $ return ()) rq)
+
+
+goMultiRange :: Snap a -> ByteString -> (Int,Int) -> (Int,Int) -> IO Response
+goMultiRange m s (start,end) (start2,end2) = do
+    rq' <- mkRequest s
+    let rq = setHeader "Range"
+                       (S.pack $ "bytes=" ++ show start ++ "-" ++ show end
+                                 ++ "," ++ show start2 ++ "-" ++ show end2)
+                       rq'
+    liftM snd (run $ runSnap m (const $ return ()) rq)
+
+
+goRangePrefix :: Snap a -> ByteString -> Int -> IO Response
+goRangePrefix m s start = do
+    rq' <- mkRequest s
+    let rq = setHeader "Range"
+                       (S.pack $ "bytes=" ++ show start ++ "-")
+                       rq'
+    liftM snd (run $ runSnap m (const $ return ()) rq)
+
+
+goRangeSuffix :: Snap a -> ByteString -> Int -> IO Response
+goRangeSuffix m s end = do
+    rq' <- mkRequest s
+    let rq = setHeader "Range"
+                       (S.pack $ "bytes=-" ++ show end)
                        rq'
     liftM snd (run $ runSnap m (const $ return ()) rq)
 
@@ -91,6 +132,9 @@ testFs = testCase "fileServe/multi" $ do
     assertEqual "foo.bin size" (Just 4) (rspContentLength r1)
 
     assertBool "last-modified header" (isJust $ getHeader "last-modified" r1)
+    assertEqual "accept-ranges header" (Just "bytes")
+                                       (getHeader "accept-ranges" r1)
+
     let !lm = fromJust $ getHeader "last-modified" r1
 
     -- check last modified stuff
@@ -149,19 +193,72 @@ testFsSingle = testCase "fileServe/Single" $ do
 testRangeOK :: Test
 testRangeOK = testCase "fileServe/range/ok" $ do
     r1 <- goRange fsSingle "foo.html" (1,2)
+    assertEqual "foo.html 206" 206 $ rspStatus r1
     b1 <- getBody r1
 
     assertEqual "foo.html partial" "OO" b1
     assertEqual "foo.html partial size" (Just 2) (rspContentLength r1)
+    assertEqual "foo.html content-range"
+                (Just "bytes 1-2/4")
+                (getHeader "Content-Range" r1)
+
+    r2 <- goRangeSuffix fsSingle "foo.html" 3
+    assertEqual "foo.html 206" 206 $ rspStatus r2
+    b2 <- getBody r2
+    assertEqual "foo.html partial suffix" "OO\n" b2
+
+    r3 <- goRangePrefix fsSingle "foo.html" 2
+    assertEqual "foo.html 206" 206 $ rspStatus r3
+    b3 <- getBody r3
+    assertEqual "foo.html partial prefix" "O\n" b3
+
+
+testMultiRange :: Test
+testMultiRange = testCase "fileServe/range/multi" $ do
+    r1 <- goMultiRange fsSingle "foo.html" (1,2) (3,3)
+
+    -- we don't support multiple ranges so it's ok for us to return 200 here;
+    -- test this behaviour
+    assertEqual "foo.html 200" 200 $ rspStatus r1
+    b1 <- getBody r1
+
+    assertEqual "foo.html" "FOO\n" b1
 
 
 testRangeBad :: Test
 testRangeBad = testCase "fileServe/range/bad" $ do
     r1 <- goRange fsSingle "foo.html" (1,17)
     assertEqual "bad range" 416 (rspStatus r1)
+    assertEqual "bad range content-range"
+                (Just "bytes */4")
+                (getHeader "Content-Range" r1)
+    assertEqual "bad range content-length" (Just 0) (rspContentLength r1)
+    b1 <- getBody r1
+    assertEqual "bad range empty body" "" b1
+
+    r2 <- goRangeSuffix fsSingle "foo.html" 4893
+    assertEqual "bad suffix range" 416 $ rspStatus r2
 
 
 coverMimeMap :: (Monad m) => m ()
 coverMimeMap = Prelude.mapM_ f $ Map.toList defaultMimeTypes
   where
     f (!k,!v) = return $ case k `seq` v `seq` () of () -> ()
+
+
+testIfRange :: Test
+testIfRange = testCase "fileServe/range/if-range" $ do
+    r <- goIfRange fs "foo.bin" (1,2) "Wed, 15 Nov 1995 04:58:08 GMT"
+    assertEqual "foo.bin 200" 200 $ rspStatus r
+    b <- getBody r
+    assertEqual "foo.bin" "FOO\n" b
+
+    r2 <- goIfRange fs "foo.bin" (1,2) "Tue, 1 Oct 2030 04:58:08 GMT"
+    assertEqual "foo.bin 206" 206 $ rspStatus r2
+    b2 <- getBody r2
+    assertEqual "foo.bin partial" "OO" b2
+
+    r3 <- goIfRange fs "foo.bin" (1,24324) "Tue, 1 Oct 2030 04:58:08 GMT"
+    assertEqual "foo.bin 200" 200 $ rspStatus r3
+    b3 <- getBody r3
+    assertEqual "foo.bin" "FOO\n" b3

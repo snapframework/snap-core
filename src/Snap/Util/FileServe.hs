@@ -26,7 +26,7 @@ import           Data.ByteString.Char8 (ByteString)
 import           Data.Int
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Maybe (fromMaybe)
+import           Data.Maybe (fromMaybe, isNothing)
 import           Prelude hiding (show, Show)
 import qualified Prelude
 import           System.Directory
@@ -227,7 +227,13 @@ fileServeSingle' :: ByteString        -- ^ MIME type mapping
                  -> FilePath          -- ^ path to file
                  -> Snap ()
 fileServeSingle' mime fp = do
-    req <- getRequest
+    reqOrig <- getRequest
+
+    -- If-Range header must be ignored if there is no Range: header in the
+    -- request (RFC 2616 section 14.27)
+    let req = if isNothing $ getHeader "range" reqOrig
+                then deleteHeader "if-range" reqOrig
+                else reqOrig
 
     -- check "If-Modified-Since" and "If-Range" headers
     let mbH = getHeader "if-modified-since" req
@@ -235,15 +241,22 @@ fileServeSingle' mime fp = do
                                Nothing  -> return Nothing
                                (Just s) -> liftM Just $ parseHttpTime s
 
+    -- If-Range header could contain an entity, but then parseHttpTime will
+    -- fail and return 0 which means a 200 response will be generated anyways
     mbIfRange <- liftIO $ case getHeader "if-range" req of
                             Nothing  -> return Nothing
                             (Just s) -> liftM Just $ parseHttpTime s
 
+    dbg $ "mbIfModified: " ++ Prelude.show mbIfModified
+    dbg $ "mbIfRange: " ++ Prelude.show mbIfRange
 
     -- check modification time and bug out early if the file is not modified.
+    --
+    -- TODO: a stat cache would be nice here, but it'd need the date thread
+    -- stuff from snap-server to be folded into snap-core
     filestat <- liftIO $ getFileStatus fp
     let mt = modificationTime filestat
-    maybe (return ()) (\lt -> when (mt <= lt) notModified) mbIfModified
+    maybe (return $! ()) (\lt -> when (mt <= lt) notModified) mbIfModified
 
     let sz = fromIntegral $ fileSize filestat
     lm <- liftIO $ formatHttpTime mt
@@ -260,7 +273,6 @@ fileServeSingle' mime fp = do
     let skipRangeCheck = maybe (False)
                                (\lt -> mt > lt)
                                mbIfRange
-
 
     -- checkRangeReq checks for a Range: header in the request and sends a
     -- partial response if it matches.
@@ -310,11 +322,14 @@ data RangeReq = RangeReq { _rangeFirst :: !Int64
 
 ------------------------------------------------------------------------------
 rangeParser :: Parser RangeReq
-rangeParser = string "bytes=" *> (byteRangeSpec <|> suffixByteRangeSpec)
+rangeParser = string "bytes=" *>
+              (byteRangeSpec <|> suffixByteRangeSpec) <*
+              endOfInput
   where
     byteRangeSpec = do
         start <- parseNum
-        end   <- option Nothing $ liftM Just (char '-' *> parseNum)
+        char '-'
+        end   <- option Nothing $ liftM Just parseNum
 
         return $ RangeReq start end
 
@@ -324,6 +339,7 @@ rangeParser = string "bytes=" *> (byteRangeSpec <|> suffixByteRangeSpec)
 ------------------------------------------------------------------------------
 checkRangeReq :: Request -> FilePath -> Int64 -> Snap Bool
 checkRangeReq req fp sz = do
+    -- TODO/FIXME: multiple ranges
     dbg $ "checkRangeReq, fp=" ++ fp ++ ", sz=" ++ Prelude.show sz
     maybe (return False)
           (\s -> either (const $ return False)
