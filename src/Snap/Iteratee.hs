@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -50,9 +51,9 @@ module Snap.Iteratee
   ) where
 
 ------------------------------------------------------------------------------
-import             Control.Monad
-import             Control.Monad.CatchIO
 import             Control.Exception (SomeException)
+import             Control.Monad
+import "MonadCatchIO-transformers" Control.Monad.CatchIO
 import             Data.ByteString (ByteString)
 import qualified   Data.ByteString as S
 import qualified   Data.ByteString.Unsafe as S

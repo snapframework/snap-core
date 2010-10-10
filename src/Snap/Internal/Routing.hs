@@ -1,3 +1,5 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Snap.Internal.Routing where
 
 
@@ -34,14 +36,14 @@ triggering its fallback. It's NoRoute, so we go to the nearest parent
 fallback and try that, which is the baz action.
 
 -}
-data Route a = Action (Snap a)                        -- wraps a 'Snap' action
-             | Capture ByteString (Route a) (Route a) -- captures the dir in a param
-             | Dir (Map.Map ByteString (Route a)) (Route a)  -- match on a dir
-             | NoRoute
+data Route a m = Action ((MonadSnap m) => m a)              -- wraps a 'Snap' action
+               | Capture ByteString (Route a m) (Route a m) -- captures the dir in a param
+               | Dir (Map.Map ByteString (Route a m)) (Route a m)  -- match on a dir
+               | NoRoute
 
 
 ------------------------------------------------------------------------------
-instance Monoid (Route a) where
+instance Monoid (Route a m) where
     mempty = NoRoute
 
     mappend NoRoute r = r
@@ -81,14 +83,14 @@ instance Monoid (Route a) where
 
 
 ------------------------------------------------------------------------------
-routeHeight :: Route a -> Int
+routeHeight :: Route a m -> Int
 routeHeight r = case r of
   NoRoute          -> 1
   (Action _)       -> 1
   (Capture _ r' _) -> 1+routeHeight r'
   (Dir rm _)       -> 1+foldl max 1 (map routeHeight $ Map.elems rm)
 
-routeEarliestNC :: Route a -> Int -> Int
+routeEarliestNC :: Route a m -> Int -> Int
 routeEarliestNC r n = case r of
   NoRoute           -> n
   (Action _)        -> n
@@ -145,7 +147,7 @@ routeEarliestNC r n = case r of
 -- >       , ("article/:id", renderArticle)
 -- >       , ("login",       method POST doLogin) ]
 --
-route :: [(ByteString, Snap a)] -> Snap a
+route :: MonadSnap m => [(ByteString, m a)] -> m a
 route rts = do
   p <- getRequest >>= return . rqPathInfo
   route' (return ()) ([], splitPath p) Map.empty rts'
@@ -158,7 +160,7 @@ route rts = do
 -- the request's context path. This is useful if you want to route to a
 -- particular handler but you want that handler to receive the 'rqPathInfo' as
 -- it is.
-routeLocal :: [(ByteString, Snap a)] -> Snap a
+routeLocal :: MonadSnap m => [(ByteString, m a)] -> m a
 routeLocal rts = do
     req    <- getRequest
     let ctx = rqContextPath req
@@ -176,7 +178,7 @@ splitPath = B.splitWith (== (c2w '/'))
 
 
 ------------------------------------------------------------------------------
-pRoute :: (ByteString, Snap a) -> Route a
+pRoute :: MonadSnap m => (ByteString, m a) -> Route a m
 pRoute (r, a) = foldr f (Action a) hier
   where
     hier   = filter (not . B.null) $ B.splitWith (== (c2w '/')) r
@@ -186,11 +188,12 @@ pRoute (r, a) = foldr f (Action a) hier
 
 
 ------------------------------------------------------------------------------
-route' :: Snap ()
+route' :: MonadSnap m
+       => m ()
        -> ([ByteString], [ByteString])
        -> Params
-       -> Route a
-       -> Snap a
+       -> Route a m
+       -> m a
 route' pre (ctx, _) params (Action action) =
     localRequest (updateContextPath (B.length ctx') . updateParams)
                  (pre >> action)
