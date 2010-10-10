@@ -61,19 +61,21 @@ import           Snap.Types
 -- that's contained within the 'Snap' monad state will be passed to
 -- 'finishWith' to prevent further processing.
 --
-withCompression :: Snap a   -- ^ the web handler to run
-                -> Snap ()
+withCompression :: MonadSnap m
+                => m a   -- ^ the web handler to run
+                -> m ()
 withCompression = withCompression' compressibleMimeTypes
 
 
 ------------------------------------------------------------------------------
 -- | The same as 'withCompression', with control over which MIME types to
 -- compress.
-withCompression' :: Set ByteString
+withCompression' :: MonadSnap m
+                 => Set ByteString
                     -- ^ set of compressible MIME types
-                 -> Snap a
+                 -> m a
                     -- ^ the web handler to run
-                 -> Snap ()
+                 -> m ()
 withCompression' mimeTable action = do
     _    <- action
     resp <- getResponse
@@ -93,7 +95,6 @@ withCompression' mimeTable action = do
     getResponse >>= finishWith
 
   where
-    chkAcceptEncoding :: Snap ()
     chkAcceptEncoding = do
         req <- getRequest
         debug $ "checking accept-encoding"
@@ -133,7 +134,7 @@ compressibleMimeTypes = Set.fromList [ "application/x-font-truetype"
 
 
 ------------------------------------------------------------------------------
-gzipCompression :: ByteString -> Snap ()
+gzipCompression :: MonadSnap m => ByteString -> m ()
 gzipCompression ce = modifyResponse f
   where
     f = setHeader "Content-Encoding" ce .
@@ -143,7 +144,7 @@ gzipCompression ce = modifyResponse f
 
 
 ------------------------------------------------------------------------------
-compressCompression :: ByteString -> Snap ()
+compressCompression :: MonadSnap m => ByteString -> m ()
 compressCompression ce = modifyResponse f
   where
     f = setHeader "Content-Encoding" ce .

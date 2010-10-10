@@ -1,5 +1,5 @@
 name:           snap-core
-version:        0.2.13
+version:        0.3.0
 synopsis:       Snap: A Haskell Web Framework (Core)
 
 description:
@@ -73,13 +73,6 @@ extra-source-files:
   extra/logo.gif,
   haddock.sh,
   LICENSE,
-  project_template/barebones/foo.cabal,
-  project_template/barebones/src/Main.hs,
-  project_template/barebones/src/Server.hs,
-  project_template/default/foo.cabal,
-  project_template/default/src/Glue.hs,
-  project_template/default/src/Main.hs,
-  project_template/default/src/Server.hs,
   README.md,
   README.SNAP.md,
   Setup.hs,
@@ -141,6 +134,7 @@ Library
 
   other-modules:
     Snap.Internal.Parsing,
+    Snap.Internal.Instances,
     Snap.Internal.Routing,
     Snap.Internal.Types
 
@@ -176,48 +170,6 @@ Library
   else
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
 
-
-Executable snap
-  hs-source-dirs: src
-  main-is: Snap/Starter.hs
-
-  other-modules: Snap.StarterTH
-
-  if flag(no-debug)
-    cpp-options: -DNODEBUG
-
-  build-depends:
-    attoparsec >= 0.8.1 && < 0.9,
-    base >= 4 && < 5,
-    bytestring,
-    bytestring-nums,
-    bytestring-show >= 0.3.2 && < 0.4,
-    cereal >= 0.3 && < 0.4,
-    containers,
-    deepseq >= 1.1 && <1.2,
-    directory,
-    directory-tree,
-    dlist >= 0.5 && < 0.6,
-    filepath,
-    haskell98,
-    iteratee >= 0.3.1 && <0.4,
-    monads-fd,
-    old-locale,
-    old-time,
-    template-haskell,
-    text >= 0.7.1 && <0.8,
-    time,
-    transformers,
-    unix-compat,
-    zlib
-
-  ghc-prof-options: -prof -auto-all
-
-  if impl(ghc >= 6.12.0)
-    ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
-                 -fno-warn-unused-do-bind
-  else
-    ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
 
 source-repository head
   type:     git

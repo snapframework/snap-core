@@ -9,9 +9,11 @@ module Snap.Types
     -- * The Snap Monad
     Snap
   , runSnap
+  , MonadSnap(..)
   , NoHandlerException(..)
 
     -- ** Functions for control flow and early termination
+  , bracketSnap
   , finishWith
   , pass
 
@@ -92,6 +94,7 @@ module Snap.Types
   , rspStatusReason
   , setContentType
   , addCookie
+  , getCookie
   , setContentLength
   , clearContentLength
   , redirect
@@ -121,6 +124,7 @@ module Snap.Types
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Instances ()
 import           Snap.Internal.Routing
 import           Snap.Internal.Types
 ------------------------------------------------------------------------------
