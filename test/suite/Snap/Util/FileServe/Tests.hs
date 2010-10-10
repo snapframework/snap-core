@@ -253,12 +253,12 @@ testIfRange = testCase "fileServe/range/if-range" $ do
     b <- getBody r
     assertEqual "foo.bin" "FOO\n" b
 
-    r2 <- goIfRange fs "foo.bin" (1,2) "Tue, 1 Oct 2030 04:58:08 GMT"
+    r2 <- goIfRange fs "foo.bin" (1,2) "Tue, 01 Oct 2030 04:58:08 GMT"
     assertEqual "foo.bin 206" 206 $ rspStatus r2
     b2 <- getBody r2
     assertEqual "foo.bin partial" "OO" b2
 
-    r3 <- goIfRange fs "foo.bin" (1,24324) "Tue, 1 Oct 2030 04:58:08 GMT"
+    r3 <- goIfRange fs "foo.bin" (1,24324) "Tue, 01 Oct 2030 04:58:08 GMT"
     assertEqual "foo.bin 200" 200 $ rspStatus r3
     b3 <- getBody r3
     assertEqual "foo.bin" "FOO\n" b3
