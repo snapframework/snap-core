@@ -282,7 +282,7 @@ fileServeSingle' mime fp = do
     -- partial response if it matches.
     wasRange <- if skipRangeCheck
                   then return False
-                  else checkRangeReq req fp sz
+                  else liftSnap $ checkRangeReq req fp sz
 
     dbg $ "was this a range request? " ++ Prelude.show wasRange
 
@@ -290,7 +290,7 @@ fileServeSingle' mime fp = do
     unless wasRange $ do
       modifyResponse $ setResponseCode 200
                      . setContentLength sz
-      sendFile fp
+      liftSnap $ sendFile fp
 
   where
     --------------------------------------------------------------------------

@@ -12,16 +12,8 @@ import "MonadCatchIO-transformers" Control.Monad.CatchIO
 
 import                       Control.Applicative
 import                       Control.Exception (throwIO, ErrorCall(..))
-import           "monads-fd" Control.Monad.Cont
-import           "monads-fd" Control.Monad.Error
-import           "monads-fd" Control.Monad.List
-import           "monads-fd" Control.Monad.RWS.Strict hiding (pass)
-import qualified "monads-fd" Control.Monad.RWS.Lazy as LRWS
-import           "monads-fd" Control.Monad.Reader
-import           "monads-fd" Control.Monad.State.Strict
-import qualified "monads-fd" Control.Monad.State.Lazy as LState
-import           "monads-fd" Control.Monad.Writer.Strict hiding (pass)
-import qualified "monads-fd" Control.Monad.Writer.Lazy as LWriter
+import                       Control.Monad
+import           "monads-fd" Control.Monad.State
 import                       Data.ByteString.Char8 (ByteString)
 import qualified             Data.ByteString.Char8 as S
 import qualified             Data.ByteString.Lazy.Char8 as L
@@ -426,7 +418,7 @@ modifyResponse f = liftSnap $
 -- 'Snap' monad. Note that the target URL is not validated in any way. Consider
 -- using 'redirect\'' instead, which allows you to choose the correct status
 -- code.
-redirect :: ByteString -> Snap ()
+redirect :: MonadSnap m => ByteString -> m ()
 redirect target = redirect' target 302
 {-# INLINE redirect #-}
 
@@ -436,7 +428,7 @@ redirect target = redirect' target 302
 -- URL/path and the status code (should be one of 301, 302, 303 or 307) in the
 -- 'Response' object stored in a 'Snap' monad. Note that the target URL is not
 -- validated in any way.
-redirect' :: ByteString -> Int -> Snap ()
+redirect' :: MonadSnap m => ByteString -> Int -> m ()
 redirect' target status = do
     r <- getResponse
 

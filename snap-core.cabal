@@ -133,8 +133,8 @@ Library
     Snap.Util.GZip
 
   other-modules:
-    Snap.Internal.Parsing,
     Snap.Internal.Instances,
+    Snap.Internal.Parsing,
     Snap.Internal.Routing,
     Snap.Internal.Types
 
@@ -169,7 +169,6 @@ Library
                  -fno-warn-unused-do-bind
   else
     ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
-
 
 source-repository head
   type:     git
