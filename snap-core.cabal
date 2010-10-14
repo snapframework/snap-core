@@ -159,7 +159,7 @@ Library
     text >= 0.7.1 && <0.8,
     time,
     transformers,
-    unix-compat,
+    unix-compat == 0.2.*,
     zlib
 
   ghc-prof-options: -prof -auto-all
