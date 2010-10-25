@@ -29,12 +29,10 @@ import qualified Test.HUnit as H
 import           Snap.Iteratee
 import           Snap.Test.Common ()
 
-instance Arbitrary Int64 where
-    arbitrary = arbitraryBoundedIntegral
-    shrink    = shrinkIntegral
 
 liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
 liftQ = QC.run
+
 
 expectException :: IO a -> PropertyM IO ()
 expectException m = do
