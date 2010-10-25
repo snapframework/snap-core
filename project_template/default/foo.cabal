@@ -22,7 +22,7 @@ Executable projname
     snap-core >= 0.2 && <0.3,
     snap-server >= 0.2 && <0.3,
     heist >= 0.2.2 && <0.3,
-    hexpat >= 0.18.2 && <0.19,
+    hexpat >= 0.19 && <0.20,
     xhtml-combinators,
     unix,
     text,
