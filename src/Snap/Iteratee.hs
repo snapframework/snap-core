@@ -443,14 +443,10 @@ _enumFilePartial :: FilePath
                  -> IO (Iteratee IO a)
 _enumFilePartial fp (start,end) iter = do
     let len = end - start
-
-    h  <- liftIO $ openBinaryFile fp ReadMode
-    unless (start == 0) $
-           hSeek h AbsoluteSeek $ toInteger start
-
-    let i' = joinI $ takeExactly len iter
-
-    enumHandle h i' `finally` hClose h
+    withBinaryFile fp ReadMode
+      (\h -> do
+        unless (start == 0) $ hSeek h AbsoluteSeek $ toInteger start
+        enumHandle h $ joinI $ takeExactly len iter)
 
 
 enumFile :: FilePath -> Iteratee IO a -> IO (Iteratee IO a)
