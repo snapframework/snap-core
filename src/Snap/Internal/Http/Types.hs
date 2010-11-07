@@ -57,6 +57,7 @@ import           Foreign.C.String
 
 ------------------------------------------------------------------------------
 import           Data.CIByteString
+import           Snap.Iteratee (Enumerator)
 import qualified Snap.Iteratee as I
 
 
@@ -79,8 +80,6 @@ foreign import ccall unsafe "c_format_log_time"
 
 #endif
 
-------------------------------------------------------------------------------
-type Enumerator a = I.Enumerator IO a
 
 ------------------------------------------------------------------------------
 -- | A type alias for a case-insensitive key-value mapping.
@@ -175,7 +174,7 @@ type Params = Map ByteString [ByteString]
 ------------------------------------------------------------------------------
 
 -- | An existential wrapper for the 'Enumerator' type
-data SomeEnumerator = SomeEnumerator (forall a . Enumerator a)
+data SomeEnumerator = SomeEnumerator (forall a . Enumerator ByteString IO a)
 
 
 ------------------------------------------------------------------------------
@@ -351,7 +350,7 @@ instance HasHeaders Headers where
 -- response type
 ------------------------------------------------------------------------------
 
-data ResponseBody = Enum (forall a . Enumerator a)
+data ResponseBody = Enum (forall a . Enumerator ByteString IO a)
                       -- ^ output body is enumerator
 
                   | SendFile FilePath (Maybe (Int64,Int64))
@@ -360,14 +359,15 @@ data ResponseBody = Enum (forall a . Enumerator a)
 
 
 ------------------------------------------------------------------------------
-rspBodyMap :: (forall a . Enumerator a -> Enumerator a)
+rspBodyMap :: (forall a .
+               Enumerator ByteString IO a -> Enumerator ByteString IO a)
            -> ResponseBody
            -> ResponseBody
 rspBodyMap f b      = Enum $ f $ rspBodyToEnum b
 
 
 ------------------------------------------------------------------------------
-rspBodyToEnum :: ResponseBody -> Enumerator a
+rspBodyToEnum :: ResponseBody -> Enumerator ByteString IO a
 rspBodyToEnum (Enum e) = e
 rspBodyToEnum (SendFile fp Nothing)  = I.enumFile fp
 rspBodyToEnum (SendFile fp (Just s)) = I.enumFilePartial fp s
@@ -462,16 +462,16 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 ------------------------------------------------------------------------------
 
 -- | An empty 'Response'.
-emptyResponse       :: Response
-emptyResponse       = Response Map.empty (1,1) Nothing (Enum return) 200
-                               "OK" False
+emptyResponse :: Response
+emptyResponse = Response Map.empty (1,1) Nothing (Enum (I.enumBS "")) 200
+                         "OK" False
 
 
 ------------------------------------------------------------------------------
 -- | Sets an HTTP response body to the given 'Enumerator' value.
-setResponseBody     :: (forall a . Enumerator a)  -- ^ new response body
-                                                  -- enumerator
-                    -> Response                   -- ^ response to modify
+setResponseBody     :: (forall a . Enumerator ByteString IO a)
+                                   -- ^ new response body enumerator
+                    -> Response    -- ^ response to modify
                     -> Response
 setResponseBody e r = r { rspBody = Enum e }
 {-# INLINE setResponseBody #-}
@@ -502,7 +502,8 @@ setResponseCode s r = setResponseStatus s reason r
 
 ------------------------------------------------------------------------------
 -- | Modifies a response body.
-modifyResponseBody  :: (forall a . Enumerator a -> Enumerator a)
+modifyResponseBody  :: (forall a . Enumerator ByteString IO a
+                                -> Enumerator ByteString IO a)
                     -> Response
                     -> Response
 modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }
@@ -590,10 +591,10 @@ formatLogTime ctime = do
     toUTCTime = posixSecondsToUTCTime . realToFrac
 
 
-parseHttpTime = return . toCTime . parse . toStr
+parseHttpTime = return . toCTime . prs . toStr
   where
-    parse :: String -> Maybe UTCTime
-    parse = parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT"
+    prs :: String -> Maybe UTCTime
+    prs = parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT"
 
     toCTime :: Maybe UTCTime -> CTime
     toCTime (Just t) = fromInteger $ truncate $ utcTimeToPOSIXSeconds t

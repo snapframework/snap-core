@@ -38,20 +38,22 @@ expect404 m = do
 
 
 getBody :: Response -> IO L.ByteString
-getBody r = liftM fromWrap ((rspBodyToEnum $ rspBody r) stream2stream >>= run)
+getBody r = do
+    let benum = rspBodyToEnum $ rspBody r
+    liftM L.fromChunks (runIteratee consume >>= run_ . benum)
 
 
 go :: Snap a -> ByteString -> IO Response
 go m s = do
     rq <- mkRequest s
-    liftM snd (run $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runSnap m (const $ return ()) rq)
 
 
 goIfModifiedSince :: Snap a -> ByteString -> ByteString -> IO Response
 goIfModifiedSince m s lm = do
     rq <- mkRequest s
     let r = setHeader "if-modified-since" lm rq
-    liftM snd (run $ runSnap m (const $ return ()) r)
+    liftM snd (run_ $ runSnap m (const $ return ()) r)
 
 
 goIfRange :: Snap a -> ByteString -> (Int,Int) -> ByteString -> IO Response
@@ -61,7 +63,7 @@ goIfRange m s (start,end) lm = do
             setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
                        rq
-    liftM snd (run $ runSnap m (const $ return ()) r)
+    liftM snd (run_ $ runSnap m (const $ return ()) r)
 
 
 goRange :: Snap a -> ByteString -> (Int,Int) -> IO Response
@@ -70,7 +72,7 @@ goRange m s (start,end) = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
                        rq'
-    liftM snd (run $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runSnap m (const $ return ()) rq)
 
 
 goMultiRange :: Snap a -> ByteString -> (Int,Int) -> (Int,Int) -> IO Response
@@ -80,7 +82,7 @@ goMultiRange m s (start,end) (start2,end2) = do
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end
                                  ++ "," ++ show start2 ++ "-" ++ show end2)
                        rq'
-    liftM snd (run $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runSnap m (const $ return ()) rq)
 
 
 goRangePrefix :: Snap a -> ByteString -> Int -> IO Response
@@ -89,7 +91,7 @@ goRangePrefix m s start = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-")
                        rq'
-    liftM snd (run $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runSnap m (const $ return ()) rq)
 
 
 goRangeSuffix :: Snap a -> ByteString -> Int -> IO Response
@@ -98,12 +100,12 @@ goRangeSuffix m s end = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=-" ++ show end)
                        rq'
-    liftM snd (run $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runSnap m (const $ return ()) rq)
 
 
 mkRequest :: ByteString -> IO Request
 mkRequest uri = do
-    enum <- newIORef $ SomeEnumerator return
+    enum <- newIORef $ SomeEnumerator returnI
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                      enum Nothing GET (1,1) [] "" uri "/"
                      (S.concat ["/",uri]) "" Map.empty

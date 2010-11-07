@@ -63,7 +63,7 @@ expectException m = do
 
 mkRequest :: ByteString -> IO Request
 mkRequest uri = do
-    enum <- newIORef $ SomeEnumerator return
+    enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                      enum Nothing GET (1,1) [] "" uri "/"
@@ -72,7 +72,7 @@ mkRequest uri = do
 go :: Snap a -> ByteString -> IO a
 go m s = do
     req <- mkRequest s
-    run $ evalSnap m (const $ return ()) req
+    run_ $ evalSnap m (const $ return ()) req
 
 
 routes :: Snap ByteString
