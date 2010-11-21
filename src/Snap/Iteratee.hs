@@ -166,11 +166,9 @@ enumBS _  (Error e)    = Iteratee $ return $ Error e
 
 ------------------------------------------------------------------------------
 -- | Enumerates a lazy bytestring.
+
 enumLBS :: (Monad m) => L.ByteString -> Enumerator ByteString m a
-enumLBS bs (Continue k) = k (Chunks $ L.toChunks bs)
-enumLBS bs (Yield x s)  = Iteratee $ return $
-                          Yield x (s `mappend` Chunks (L.toChunks bs))
-enumLBS _  (Error e)    = Iteratee $ return $ Error e
+enumLBS bs = enumList 1 (L.toChunks bs)
 {-# INLINE enumLBS #-}
 
 
@@ -288,7 +286,7 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
               step  <- sendBuf n k
               step2 <- runIteratee $ enumEOF step
               return $ copyStep step2
-              
+
 
     go !n !k ch@(Chunks xs) = Iteratee $ do
         assert (n >= 0)      (return ())
@@ -336,7 +334,7 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
       {-# SCC "unsafeBufferIteratee/overflow" #-} do
         assert (n+m >= bUFSIZ) (return ())
         assert (n < bUFSIZ)    (return ())
-               
+
         let rest    = bUFSIZ - n
         let m2      = m - rest
 
