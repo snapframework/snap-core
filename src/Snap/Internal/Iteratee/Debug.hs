@@ -42,23 +42,34 @@ debugIteratee = continue f
 
 #ifndef NODEBUG
 
-iterateeDebugWrapper :: String
-                     -> Iteratee ByteString IO a
-                     -> Iteratee ByteString IO a
-iterateeDebugWrapper name iter = Iteratee $ do
-    step <- runIteratee iter
-    return $ Continue $ f step
+iterateeDebugWrapper :: (MonadIO m) =>
+                        String
+                     -> Iteratee ByteString m a
+                     -> Iteratee ByteString m a
+iterateeDebugWrapper name iter = do
+    debug $ name ++ ": BEGIN"
+    step <- lift $ runIteratee iter
+    whatWasReturn step
+    check step
 
   where
-    f step EOF = do
-        debug $ name ++ ": got EOF"
-        step' <- checkDone (\k -> lift $ runIteratee $ k EOF) step
-        returnI step'
+    whatWasReturn (Continue _) = debug $ name ++ ": continue"
+    whatWasReturn (Yield _ z)  = debug $ name ++ ": yield, with remainder " ++ show z
+    whatWasReturn (Error e)    = debug $ name ++ ": error, with " ++ show e
 
-    f step ch@(Chunks xs) = do
+    check (Continue k) = continue $ f k
+    check st           = returnI st
+
+
+    f k EOF = do
+        debug $ name ++ ": got EOF"
+        k EOF
+
+    f k ch@(Chunks xs) = do
         debug $ name ++ ": got chunk: " ++ show xs
-        step' <- checkDone (\k -> lift $ runIteratee $ k ch) step
-        continue $ f step'
+        step <- lift $ runIteratee $ k ch
+        whatWasReturn step
+        check step
 
 
 #else

@@ -130,8 +130,6 @@ import           System.PosixCompat.Types
 #endif
 
 
-
-
 ------------------------------------------------------------------------------
 instance (Functor m, MonadCatchIO m) =>
          MonadCatchIO (Iteratee s m) where
