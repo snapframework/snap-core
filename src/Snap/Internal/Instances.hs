@@ -4,16 +4,16 @@
 module Snap.Internal.Instances where
 
 import                       Control.Applicative
-import           "monads-fd" Control.Monad.Cont
-import           "monads-fd" Control.Monad.Error
-import           "monads-fd" Control.Monad.List
-import           "monads-fd" Control.Monad.RWS.Strict hiding (pass)
-import qualified "monads-fd" Control.Monad.RWS.Lazy as LRWS
-import           "monads-fd" Control.Monad.Reader
-import           "monads-fd" Control.Monad.State.Strict
-import qualified "monads-fd" Control.Monad.State.Lazy as LState
-import           "monads-fd" Control.Monad.Writer.Strict hiding (pass)
-import qualified "monads-fd" Control.Monad.Writer.Lazy as LWriter
+import                       Control.Monad.Cont
+import                       Control.Monad.Error
+import                       Control.Monad.List
+import                       Control.Monad.RWS.Strict hiding (pass)
+import qualified             Control.Monad.RWS.Lazy as LRWS
+import                       Control.Monad.Reader
+import                       Control.Monad.State.Strict
+import qualified             Control.Monad.State.Lazy as LState
+import                       Control.Monad.Writer.Strict hiding (pass)
+import qualified             Control.Monad.Writer.Lazy as LWriter
 import                       Prelude hiding (catch)
 
 ------------------------------------------------------------------------------

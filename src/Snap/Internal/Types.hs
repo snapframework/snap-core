@@ -13,7 +13,7 @@ import "MonadCatchIO-transformers" Control.Monad.CatchIO
 import                       Control.Applicative
 import                       Control.Exception (throwIO, ErrorCall(..))
 import                       Control.Monad
-import           "monads-fd" Control.Monad.State
+import                       Control.Monad.State
 import                       Data.ByteString.Char8 (ByteString)
 import qualified             Data.ByteString.Char8 as S
 import qualified             Data.ByteString.Lazy.Char8 as L
