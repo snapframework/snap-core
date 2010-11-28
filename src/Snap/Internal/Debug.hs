@@ -19,7 +19,7 @@ module Snap.Internal.Debug where
 import             Control.Concurrent
 import             Control.DeepSeq
 import             Control.Exception
-import "monads-fd" Control.Monad.Trans
+import             Control.Monad.Trans
 import             Data.Char
 import             Data.List
 import             Data.Maybe

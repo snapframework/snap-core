@@ -107,7 +107,7 @@ import             Control.DeepSeq
 import             Control.Exception (SomeException, assert)
 import             Control.Monad
 import "MonadCatchIO-transformers" Control.Monad.CatchIO
-import "monads-fd" Control.Monad.Trans (MonadIO, lift, liftIO)
+import             Control.Monad.Trans (MonadIO, lift, liftIO)
 import             Data.ByteString (ByteString)
 import qualified   Data.ByteString.Char8 as S
 import qualified   Data.ByteString.Unsafe as S

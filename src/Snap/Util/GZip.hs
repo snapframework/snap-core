@@ -14,7 +14,7 @@ import             Control.Concurrent
 import             Control.Applicative hiding (many)
 import             Control.Exception
 import             Control.Monad
-import "monads-fd" Control.Monad.Trans
+import             Control.Monad.Trans
 import             Data.Attoparsec.Char8 hiding (Done)
 import   qualified Data.ByteString.Lazy.Char8 as L
 import             Data.ByteString.Char8 (ByteString)
