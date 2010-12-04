@@ -412,10 +412,13 @@ take' :: (Monad m) => Int64 -> Enumeratee ByteString ByteString m a
 take' _ y@(Yield _ _   ) = return y
 take' _   (Error e     ) = throwError e
 take' !n st@(Continue k) = do
-    mbX <- head
-    maybe (lift $ runIteratee $ k EOF)
-          check
-          mbX
+    if n == 0
+      then lift $ runIteratee $ k EOF
+      else do
+        mbX <- head
+        maybe (lift $ runIteratee $ k EOF)
+              check
+              mbX
 
   where
     check x | S.null x    = take' n st
@@ -452,10 +455,13 @@ takeExactly 0   s = do
 takeExactly !n  y@(Yield _ _ ) = drop' n >> return y
 takeExactly _     (Error e   ) = throwError e
 takeExactly !n st@(Continue k) = do
-    mbX <- head
-    maybe (throwError ShortWriteException)
-          check
-          mbX
+    if n == 0
+      then lift $ runIteratee $ k EOF
+      else do
+        mbX <- head
+        maybe (throwError ShortWriteException)
+              check
+              mbX
 
   where
     check x | S.null x   = takeExactly n st
