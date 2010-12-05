@@ -1,34 +1,34 @@
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE PackageImports            #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
 module Snap.Util.GZip
 ( withCompression
 , withCompression' ) where
 
-import qualified Codec.Compression.GZip as GZip
-import qualified Codec.Compression.Zlib as Zlib
-import           Control.Concurrent
-import           Control.Applicative hiding (many)
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.Trans
-import           Data.Attoparsec.Char8 hiding (Done)
-import qualified Data.ByteString.Lazy.Char8 as L
-import           Data.ByteString.Char8 (ByteString)
-import           Data.Iteratee.WrappedByteString
-import           Data.Maybe
-import qualified Data.Set as Set
-import           Data.Set (Set)
-import           Data.Typeable
-import           Prelude hiding (catch, takeWhile)
+import   qualified Codec.Compression.GZip as GZip
+import   qualified Codec.Compression.Zlib as Zlib
+import             Control.Concurrent
+import             Control.Applicative hiding (many)
+import             Control.Exception
+import             Control.Monad
+import             Control.Monad.Trans
+import             Data.Attoparsec.Char8 hiding (Done)
+import   qualified Data.ByteString.Lazy.Char8 as L
+import             Data.ByteString.Char8 (ByteString)
+import             Data.Maybe
+import   qualified Data.Set as Set
+import             Data.Set (Set)
+import             Data.Typeable
+import             Prelude hiding (catch, takeWhile)
 
 ------------------------------------------------------------------------------
-import           Snap.Internal.Debug
-import           Snap.Internal.Parsing
-import           Snap.Iteratee hiding (Enumerator)
-import           Snap.Types
+import             Snap.Internal.Debug
+import             Snap.Internal.Parsing
+import             Snap.Iteratee
+import             Snap.Types
 
 
 ------------------------------------------------------------------------------
@@ -154,83 +154,87 @@ compressCompression ce = modifyResponse f
 
 
 ------------------------------------------------------------------------------
-gcompress :: forall a . Enumerator a -> Enumerator a
+-- FIXME: use zlib-bindings
+gcompress :: forall a . Enumerator ByteString IO a
+          -> Enumerator ByteString IO  a
 gcompress = compressEnumerator GZip.compress
 
 
 ------------------------------------------------------------------------------
-ccompress :: forall a . Enumerator a -> Enumerator a
+ccompress :: forall a . Enumerator ByteString IO a
+          -> Enumerator ByteString IO a
 ccompress = compressEnumerator Zlib.compress
 
 
 ------------------------------------------------------------------------------
 compressEnumerator :: forall a .
                       (L.ByteString -> L.ByteString)
-                   -> Enumerator a
-                   -> Enumerator a
-compressEnumerator compFunc enum iteratee = do
-    writeEnd <- newChan
-    readEnd  <- newChan
-    tid      <- forkIO $ threadProc readEnd writeEnd
+                   -> Enumerator ByteString IO a
+                   -> Enumerator ByteString IO a
+compressEnumerator compFunc enum origStep = do
+    writeEnd <- liftIO $ newChan
+    readEnd  <- liftIO $ newChan
+    tid      <- liftIO $ forkIO $ threadProc readEnd writeEnd
 
-    enum (IterateeG $ f readEnd writeEnd tid iteratee)
+    enum (f readEnd writeEnd tid origStep)
 
   where
     --------------------------------------------------------------------------
-    streamFinished :: Stream -> Bool
-    streamFinished (EOF _)   = True
-    streamFinished (Chunk _) = False
+    streamFinished :: Stream ByteString -> Bool
+    streamFinished EOF        = True
+    streamFinished (Chunks _) = False
 
 
     --------------------------------------------------------------------------
-    consumeSomeOutput :: Chan Stream
-                      -> Iteratee IO a
-                      -> IO (Iteratee IO a)
-    consumeSomeOutput writeEnd iter = do
-        e <- isEmptyChan writeEnd
+    consumeSomeOutput :: Chan (Either SomeException (Stream ByteString))
+                      -> Step ByteString IO a
+                      -> Iteratee ByteString IO (Step ByteString IO a)
+    consumeSomeOutput writeEnd step = do
+        e <- lift $ isEmptyChan writeEnd
         if e
-          then return iter
+          then return step
           else do
-            ch <- readChan writeEnd
-
-            iter' <- liftM liftI $ runIter iter ch
-            consumeSomeOutput writeEnd iter'
-
-
-    --------------------------------------------------------------------------
-    consumeRest :: Chan Stream
-                -> Iteratee IO a
-                -> IO (IterV IO a)
-    consumeRest writeEnd iter = do
-        ch <- readChan writeEnd
-
-        iv <- runIter iter ch
-        if (streamFinished ch)
-           then return iv
-           else consumeRest writeEnd $ liftI iv
-
+            ech <- lift $ readChan writeEnd
+            either throwError
+                   (\ch -> do
+                        step' <- checkDone (\k -> lift $ runIteratee $ k ch) step
+                        consumeSomeOutput writeEnd step')
+                   ech
 
     --------------------------------------------------------------------------
-    f readEnd writeEnd tid i (EOF Nothing) = do
-        writeChan readEnd Nothing
-        x <- consumeRest writeEnd i
-        killThread tid
-        return x
+    consumeRest :: Chan (Either SomeException (Stream ByteString))
+                -> Step ByteString IO a
+                -> Iteratee ByteString IO a
+    consumeRest writeEnd step = do
+        ech <- lift $ readChan writeEnd
+        either throwError
+               (\ch -> do
+                   step' <- checkDone (\k -> lift $ runIteratee $ k ch) step
+                   if (streamFinished ch)
+                      then returnI step'
+                      else consumeRest writeEnd step')
+               ech
 
-    f _ _ tid _ (EOF (Just e)) = do
-        killThread tid
-        return $ Cont undefined (Just e)
+    --------------------------------------------------------------------------
+    f _ _ _ (Error e) = Error e
+    f _ _ _ (Yield x _) = Yield x EOF
+    f readEnd writeEnd tid st@(Continue k) = Continue $ \ch -> 
+        case ch of
+          EOF -> do
+            lift $ writeChan readEnd Nothing
+            x <- consumeRest writeEnd st
+            lift $ killThread tid
+            return x
 
-    f readEnd writeEnd tid i (Chunk s') = do
-        let s = unWrap s'
-        writeChan readEnd $ Just s
-        i' <- consumeSomeOutput writeEnd i
-        return $ Cont (IterateeG $ f readEnd writeEnd tid i') Nothing
+          (Chunks xs) -> do
+            mapM_ (lift . writeChan readEnd . Just) xs
+            step' <- consumeSomeOutput writeEnd (Continue k)
+            returnI $ f readEnd writeEnd tid step'
 
 
     --------------------------------------------------------------------------
     threadProc :: Chan (Maybe ByteString)
-               -> Chan Stream
+               -> Chan (Either SomeException (Stream ByteString))
                -> IO ()
     threadProc readEnd writeEnd = do
         stream <- getChanContents readEnd
@@ -239,14 +243,15 @@ compressEnumerator compFunc enum iteratee = do
         let output = L.toChunks $ compFunc bs
 
         runIt output `catch` \(e::SomeException) ->
-            writeChan writeEnd $ EOF (Just $ Err $ show e)
+            writeChan writeEnd $ Left e
 
       where
         runIt (x:xs) = do
             writeChan writeEnd (toChunk x) >> runIt xs
 
         runIt []     = do
-            writeChan writeEnd $ EOF Nothing
+            writeChan writeEnd $ Right EOF
+
     --------------------------------------------------------------------------
     streamToChunks []            = []
     streamToChunks (Nothing:_)   = []
@@ -254,7 +259,7 @@ compressEnumerator compFunc enum iteratee = do
 
 
     --------------------------------------------------------------------------
-    toChunk = Chunk . WrapBS
+    toChunk = Right . Chunks . (:[])
 
 
 ------------------------------------------------------------------------------

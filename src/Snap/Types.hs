@@ -127,6 +127,7 @@ import           Snap.Internal.Http.Types
 import           Snap.Internal.Instances ()
 import           Snap.Internal.Routing
 import           Snap.Internal.Types
+import           Snap.Iteratee (Enumerator)
 ------------------------------------------------------------------------------
 
 -- $httpDoc

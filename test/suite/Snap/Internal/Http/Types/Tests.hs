@@ -5,10 +5,10 @@ module Snap.Internal.Http.Types.Tests
 
 import           Control.Monad
 import           Control.Parallel.Strategies
+import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.IORef
-import           Data.Iteratee (stream2stream, run)
 import           Data.List (sort)
 import qualified Data.Map as Map
 import           Data.Time.Calendar
@@ -20,7 +20,8 @@ import           Test.HUnit hiding (Test, path)
 import           Text.Regex.Posix
 
 import           Snap.Internal.Http.Types
-import           Snap.Iteratee (enumBS, fromWrap)
+import           Snap.Iteratee
+
 
 tests :: [Test]
 tests = [ testTypes
@@ -31,7 +32,7 @@ tests = [ testTypes
 
 mkRq :: IO Request
 mkRq = do
-    enum <- newIORef (SomeEnumerator return)
+    enum <- newIORef (SomeEnumerator $ enumBS "")
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                  enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
@@ -93,8 +94,9 @@ testTypes = testCase "show" $ do
     assertEqual "response status reason" "bogus" $ rspStatusReason resp
     assertEqual "content-length" (Just 4) $ rspContentLength resp
     -- run response body
-    bd <- (rspBodyToEnum $ rspBody resp) stream2stream >>= run
-    assertEqual "response body" "PING" (fromWrap bd)
+    let benum = rspBodyToEnum $ rspBody resp
+    bd <- runIteratee consume >>= run_ . benum
+    assertEqual "response body" "PING" $ S.concat bd
 
     let !_ = show GET
     let !_ = GET == POST

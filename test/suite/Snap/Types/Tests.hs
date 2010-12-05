@@ -1,35 +1,35 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PackageImports      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Types.Tests
   ( tests ) where
 
-import           Control.Applicative
-import           Control.Concurrent.MVar
-import           Control.Exception (SomeException)
-import           Control.Monad
-import           Control.Monad.CatchIO
-import           Control.Monad.Trans (liftIO)
-import           Control.Parallel.Strategies
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
-import           Data.IORef
-import           Data.Iteratee
-import           Data.Text ()
-import           Data.Text.Lazy ()
-import qualified Data.Map as Map
-import           Prelude hiding (catch)
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.Framework.Providers.QuickCheck2
-import           Test.HUnit hiding (Test, path)
-
-import           Snap.Internal.Types
-import           Snap.Internal.Http.Types
-import           Snap.Iteratee
-import           Snap.Test.Common ()
+import             Control.Applicative
+import             Control.Concurrent.MVar
+import             Control.Exception (SomeException)
+import             Control.Monad
+import             Control.Monad.CatchIO
+import "monads-fd" Control.Monad.Trans (liftIO)
+import             Control.Parallel.Strategies
+import             Data.ByteString.Char8 (ByteString)
+import qualified   Data.ByteString.Char8 as S
+import qualified   Data.ByteString.Lazy.Char8 as L
+import             Data.IORef
+import             Data.Text ()
+import             Data.Text.Lazy ()
+import qualified   Data.Map as Map
+import             Prelude hiding (catch)
+import             Test.Framework
+import             Test.Framework.Providers.HUnit
+import             Test.Framework.Providers.QuickCheck2
+import             Test.HUnit hiding (Test, path)
+                   
+import             Snap.Internal.Types
+import             Snap.Internal.Http.Types
+import             Snap.Iteratee
+import             Snap.Test.Common ()
 
 
 tests :: [Test]
@@ -76,7 +76,7 @@ expectNo404 m = do
 
 mkRequest :: ByteString -> IO Request
 mkRequest uri = do
-    enum <- newIORef $ SomeEnumerator return
+    enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False Map.empty
                      enum Nothing GET (1,1) [] "" uri "/"
@@ -84,7 +84,7 @@ mkRequest uri = do
 
 mkRequestQuery :: ByteString -> ByteString -> [ByteString] -> IO Request
 mkRequestQuery uri k v = do
-    enum <- newIORef $ SomeEnumerator return
+    enum <- newIORef $ SomeEnumerator returnI
 
     let mp = Map.fromList [(k,v)]
     let q  = S.concat [k,"=", S.concat v]
@@ -96,7 +96,7 @@ mkRequestQuery uri k v = do
 
 mkZomgRq :: IO Request
 mkZomgRq = do
-    enum <- newIORef $ SomeEnumerator return
+    enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False Map.empty
                      enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
@@ -112,14 +112,14 @@ mkIpHeaderRq = do
 
 mkRqWithBody :: IO Request
 mkRqWithBody = do
-    enum <- newIORef $ SomeEnumerator (enumBS "zazzle")
+    enum <- newIORef $ SomeEnumerator (enumBS "zazzle" >==> enumEOF)
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                  enum Nothing GET (1,1) [] "" "/" "/" "/" ""
                  Map.empty
 
 
 testCatchIO :: Test
-testCatchIO = testCase "catchIO" $ do
+testCatchIO = testCase "types/catchIO" $ do
     (_,rsp)  <- go f
     (_,rsp2) <- go g
 
@@ -139,19 +139,19 @@ testCatchIO = testCase "catchIO" $ do
 go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
-    run $ runSnap m (\x -> return $! (show x `using` rdeepseq) `seq` ()) zomgRq
+    run_ $ runSnap m (\x -> return $! (show x `using` rdeepseq) `seq` ()) zomgRq
 
 
 goIP :: Snap a -> IO (Request,Response)
 goIP m = do
     rq <- mkIpHeaderRq
-    run $ runSnap m (const $ return ()) rq
+    run_ $ runSnap m (const $ return ()) rq
 
 
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
-    run $ runSnap m (const $ return ()) rq
+    run_ $ runSnap m (const $ return ()) rq
 
 
 goPathQuery :: ByteString
@@ -161,13 +161,13 @@ goPathQuery :: ByteString
             -> IO (Request,Response)
 goPathQuery s k v m = do
     rq <- mkRequestQuery s k v
-    run $ runSnap m (const $ return ()) rq
+    run_ $ runSnap m (const $ return ()) rq
 
 
 goBody :: Snap a -> IO (Request,Response)
 goBody m = do
     rq <- mkRqWithBody
-    run $ runSnap m (const $ return ()) rq
+    run_ $ runSnap m (const $ return ()) rq
 
 
 testFail :: Test
@@ -182,7 +182,7 @@ setFoo s = do
 
 
 testAlternative :: Test
-testAlternative = testCase "alternative" $ do
+testAlternative = testCase "types/alternative" $ do
     (_,resp) <- go (pass <|> setFoo "Bar")
     assertEqual "foo present" (Just "Bar") $ getHeader "Foo" resp
 
@@ -203,13 +203,13 @@ sampleResponse = addHeader "Foo" "Quux" $ emptyResponse
 
 
 testEarlyTermination :: Test
-testEarlyTermination = testCase "early termination" $ do
+testEarlyTermination = testCase "types/earlyTermination" $ do
     (_,resp) <- go (finishWith sampleResponse >>= \_ -> setFoo "Bar")
     assertEqual "foo" (Just ["Quux"]) $ getHeaders "Foo" resp
 
 
 testRqBody :: Test
-testRqBody = testCase "request bodies" $ do
+testRqBody = testCase "types/requestBodies" $ do
     mvar1 <- newEmptyMVar
     mvar2 <- newEmptyMVar
 
@@ -232,11 +232,11 @@ testRqBody = testCase "request bodies" $ do
         getRequestBody >>= liftIO . putMVar mvar1
         getRequestBody >>= liftIO . putMVar mvar2
 
-    g = transformRequestBody return
+    g = transformRequestBody returnI
 
 
 testTrivials :: Test
-testTrivials = testCase "trivial functions" $ do
+testTrivials = testCase "types/trivials" $ do
     (rq,rsp) <- go $ do
         req <- getRequest
         putRequest $ req { rqIsSecure=True }
@@ -275,13 +275,13 @@ testTrivials = testCase "trivial functions" $ do
 
 
 testMethod :: Test
-testMethod = testCase "method" $ do
+testMethod = testCase "types/method" $ do
    expect404 $ go (method POST $ return ())
    expectNo404 $ go (method GET $ return ())
 
 
 testDir :: Test
-testDir = testCase "dir" $ do
+testDir = testCase "types/dir" $ do
    expect404 $ goPath "foo/bar" (dir "zzz" $ return ())
    expectNo404 $ goPath "foo/bar" (dir "foo" $ return ())
    expect404 $ goPath "fooz/bar" (dir "foo" $ return ())
@@ -292,7 +292,7 @@ testDir = testCase "dir" $ do
 
 
 testParam :: Test
-testParam = testCase "getParam" $ do
+testParam = testCase "types/getParam" $ do
     expect404 $ goPath "/foo" f
     expectNo404 $ goPathQuery "/foo" "param" ["foo"] f
   where
@@ -304,11 +304,13 @@ testParam = testCase "getParam" $ do
 
 
 getBody :: Response -> IO L.ByteString
-getBody r = liftM fromWrap ((rspBodyToEnum $ rspBody r) stream2stream >>= run)
+getBody r = do
+    let benum = rspBodyToEnum $ rspBody r
+    liftM L.fromChunks (runIteratee consume >>= run_ . benum)
 
 
 testWrites :: Test
-testWrites = testCase "writes" $ do
+testWrites = testCase "types/writes" $ do
     (_,r) <- go h
     b <- getBody r
     assertEqual "output functions" "Foo1Foo2Foo3" b
@@ -321,20 +323,20 @@ testWrites = testCase "writes" $ do
 
 
 testURLEncode1 :: Test
-testURLEncode1 = testCase "url encoding 1" $ do
+testURLEncode1 = testCase "types/urlEncoding1" $ do
     let b = urlEncode "the quick brown fox~#"
     assertEqual "url encoding 1" "the+quick+brown+fox%7e%23" b
     assertEqual "fail" Nothing $ urlDecode "%"
 
 
 testURLEncode2 :: Test
-testURLEncode2 = testProperty "url encoding 2" prop
+testURLEncode2 = testProperty "types/urlEncoding2" prop
   where
     prop s = (urlDecode $ urlEncode s) == Just s
 
 
 testDir2 :: Test
-testDir2 = testCase "dir2" $ do
+testDir2 = testCase "types/dir2" $ do
     (_,resp) <- goPath "foo/bar" f
     b <- getBody resp
     assertEqual "context path" "/foo/bar/" b
@@ -346,7 +348,7 @@ testDir2 = testCase "dir2" $ do
 
 
 testIpHeaderFilter :: Test
-testIpHeaderFilter = testCase "ipHeaderFilter" $ do
+testIpHeaderFilter = testCase "types/ipHeaderFilter" $ do
     (_,r) <- goIP f
     b <- getBody r
     assertEqual "ipHeaderFilter" "1.2.3.4" b
@@ -364,7 +366,7 @@ testIpHeaderFilter = testCase "ipHeaderFilter" $ do
 
 
 testMZero404 :: Test
-testMZero404 = testCase "mzero 404" $ do
+testMZero404 = testCase "types/mzero404" $ do
     (_,r) <- go mzero
     let l = rspContentLength r
     b <- getBody r
@@ -373,9 +375,9 @@ testMZero404 = testCase "mzero 404" $ do
 
 
 testEvalSnap :: Test
-testEvalSnap = testCase "evalSnap exception" $ do
+testEvalSnap = testCase "types/evalSnap-exception" $ do
     rq <- mkZomgRq
-    expectException (run $ evalSnap f
+    expectException (run_ $ evalSnap f
                                     (const $ return ())
                                     rq >> return ())
   where
@@ -387,7 +389,7 @@ testEvalSnap = testCase "evalSnap exception" $ do
 
 
 testLocalRequest :: Test
-testLocalRequest = testCase "localRequest" $ do
+testLocalRequest = testCase "types/localRequest" $ do
     rq1 <- mkZomgRq
     rq2 <- mkRequest "zzz/zz/z"
 
@@ -403,7 +405,7 @@ testLocalRequest = testCase "localRequest" $ do
 
 
 testRedirect :: Test
-testRedirect = testCase "redirect" $ do
+testRedirect = testCase "types/redirect" $ do
     (_,rsp)  <- go (redirect "/foo/bar")
 
     assertEqual "redirect path" (Just "/foo/bar") $ getHeader "Location" rsp

@@ -3,9 +3,9 @@
 -- /N.B./ this is an internal interface, please don't write user code that
 -- depends on it.
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE PackageImports    #-}
 
 
 module Snap.Internal.Iteratee.Debug
@@ -14,9 +14,9 @@ module Snap.Internal.Iteratee.Debug
   ) where
 
 ------------------------------------------------------------------------------
-import           Data.Iteratee.WrappedByteString
-import           Data.Word (Word8)
-import           System.IO
+import             Control.Monad.Trans
+import             Data.ByteString (ByteString)
+import             System.IO
 ------------------------------------------------------------------------------
 #ifndef NODEBUG
 import           Snap.Internal.Debug
@@ -26,47 +26,51 @@ import           Snap.Iteratee
 
 
 ------------------------------------------------------------------------------
-instance Show (WrappedByteString Word8) where
-    show (WrapBS s) = show s
-
-
-------------------------------------------------------------------------------
-debugIteratee :: Iteratee IO ()
-debugIteratee = IterateeG f
+debugIteratee :: Iteratee ByteString IO ()
+debugIteratee = continue f
   where
-    f c@(EOF _) = do
-        putStrLn $ "got EOF: " ++ show c
-        hFlush stdout
-        return (Done () c)
+    f EOF = do
+        liftIO $ putStrLn $ "got EOF"
+        liftIO $ hFlush stdout
+        yield () EOF
 
-    f c@(Chunk _) = do
-        putStrLn $ "got chunk: " ++ show c
-        hFlush stdout
-        return $ Cont debugIteratee Nothing
+    f (Chunks xs) = do
+        liftIO $ putStrLn $ "got chunk: " ++ show (xs)
+        liftIO $ hFlush stdout
+        continue f
 
 
 #ifndef NODEBUG
 
-iterateeDebugWrapper :: String -> Iteratee IO a -> Iteratee IO a
-iterateeDebugWrapper name iter = IterateeG f
+iterateeDebugWrapper :: (MonadIO m) =>
+                        String
+                     -> Iteratee ByteString m a
+                     -> Iteratee ByteString m a
+iterateeDebugWrapper name iter = do
+    debug $ name ++ ": BEGIN"
+    step <- lift $ runIteratee iter
+    whatWasReturn step
+    check step
+
   where
-    f c@(EOF Nothing) = do
-        debug $ name ++ ": got EOF: " ++ show c
-        runIter iter c
+    whatWasReturn (Continue _) = debug $ name ++ ": continue"
+    whatWasReturn (Yield _ z)  = debug $ name ++ ": yield, with remainder " ++ show z
+    whatWasReturn (Error e)    = debug $ name ++ ": error, with " ++ show e
 
-    f c@(EOF (Just _)) = do
-        debug $ name ++ ": got EOF **error**: " ++ show c
-        runIter iter c
+    check (Continue k) = continue $ f k
+    check st           = returnI st
 
-    f c@(Chunk _) = do
-        debug $ name ++ ": got chunk: " ++ show c
-        wrapResult $ runIter iter c
 
-    wrapResult m = do
-        iv <- m
-        let i = liftI iv
+    f k EOF = do
+        debug $ name ++ ": got EOF"
+        k EOF
 
-        return $ Cont (iterateeDebugWrapper name i) Nothing
+    f k ch@(Chunks xs) = do
+        debug $ name ++ ": got chunk: " ++ show xs
+        step <- lift $ runIteratee $ k ch
+        whatWasReturn step
+        check step
+
 
 #else
 

@@ -13,26 +13,25 @@ import "MonadCatchIO-transformers" Control.Monad.CatchIO
 import                       Control.Applicative
 import                       Control.Exception (throwIO, ErrorCall(..))
 import                       Control.Monad
-import           "monads-fd" Control.Monad.State
+import                       Control.Monad.State
 import                       Data.ByteString.Char8 (ByteString)
 import qualified             Data.ByteString.Char8 as S
 import qualified             Data.ByteString.Lazy.Char8 as L
 import qualified             Data.CIByteString as CIB
 import                       Data.Int
 import                       Data.IORef
-import qualified             Data.Iteratee as Iter
 import                       Data.Maybe
 import qualified             Data.Text as T
 import qualified             Data.Text.Encoding as T
 import qualified             Data.Text.Lazy as LT
 import qualified             Data.Text.Lazy.Encoding as LT
 import                       Data.Typeable
-import                       Prelude hiding (catch)
+import                       Prelude hiding (catch, take)
 
 
 ------------------------------------------------------------------------------
 import                       Snap.Internal.Http.Types
-import                       Snap.Iteratee hiding (Enumerator, filter)
+import                       Snap.Iteratee
 import                       Snap.Internal.Iteratee.Debug
 
 
@@ -106,7 +105,7 @@ class (Monad m, MonadIO m, MonadCatchIO m, MonadPlus m, Functor m,
 
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
-      unSnap :: StateT SnapState (Iteratee IO) (Maybe (Either Response a))
+      unSnap :: StateT SnapState (Iteratee ByteString IO) (Maybe (Either Response a))
 }
 
 
@@ -193,29 +192,30 @@ instance Typeable1 Snap where
 
 
 ------------------------------------------------------------------------------
-liftIter :: MonadSnap m => Iteratee IO a -> m a
+liftIter :: MonadSnap m => Iteratee ByteString IO a -> m a
 liftIter i = liftSnap $ Snap (lift i >>= return . Just . Right)
 
 
 ------------------------------------------------------------------------------
 -- | Sends the request body through an iteratee (data consumer) and
 -- returns the result.
-runRequestBody :: MonadSnap m => Iteratee IO a -> m a
+runRequestBody :: MonadSnap m => Iteratee ByteString IO a -> m a
 runRequestBody iter = do
     req  <- getRequest
     senum <- liftIO $ readIORef $ rqBody req
     let (SomeEnumerator enum) = senum
 
     -- make sure the iteratee consumes all of the output
-    let iter' = iter >>= (\a -> Iter.skipToEof >> return a)
+    let iter' = iter >>= \a -> skipToEof >> return a
 
     -- run the iteratee
-    result <- liftIter $ Iter.joinIM $ enum iter'
+    step   <- liftIO $ runIteratee iter'
+    result <- liftIter $ enum step
 
     -- stuff a new dummy enumerator into the request, so you can only try to
     -- read the request body from the socket once
     liftIO $ writeIORef (rqBody req)
-                        (SomeEnumerator $ return . Iter.joinI . Iter.take 0 )
+                        (SomeEnumerator $ joinI . take 0 )
 
     return result
 
@@ -223,7 +223,7 @@ runRequestBody iter = do
 ------------------------------------------------------------------------------
 -- | Returns the request body as a bytestring.
 getRequestBody :: MonadSnap m => m L.ByteString
-getRequestBody = liftM fromWrap $ runRequestBody stream2stream
+getRequestBody = liftM L.fromChunks $ runRequestBody consume
 {-# INLINE getRequestBody #-}
 
 
@@ -237,7 +237,7 @@ getRequestBody = liftM fromWrap $ runRequestBody stream2stream
 -- if you called 'finishWith'. Make sure you set any content types, headers,
 -- cookies, etc. before you call this function.
 --
-transformRequestBody :: (forall a . Enumerator a)
+transformRequestBody :: (forall a . Enumerator ByteString IO a)
                          -- ^ the output 'Iteratee' is passed to this
                          -- 'Enumerator', and then the resulting 'Iteratee' is
                          -- fed the request body stream. Your 'Enumerator' is
@@ -248,14 +248,16 @@ transformRequestBody trans = do
     let ioref = rqBody req
     senum <- liftIO $ readIORef ioref
     let (SomeEnumerator enum) = senum
-    liftIO $ writeIORef ioref
-               (SomeEnumerator $ return . Iter.joinI . Iter.take 0)
+    liftIO $ writeIORef ioref (SomeEnumerator enumEOF)
 
     origRsp <- getResponse
     let rsp = setResponseBody
                 (\writeEnd -> do
-                     i <- trans writeEnd
-                     enum $ iterateeDebugWrapper "transformRequestBody" i)
+                     let i = iterateeDebugWrapper "transformRequestBody"
+                                                  $ trans writeEnd
+                     st <- liftIO $ runIteratee i
+
+                     enum st)
                 $ origRsp { rspTransformingRqBody = True }
     finishWith rsp
 
@@ -453,9 +455,9 @@ logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
 -- | Adds the output from the given enumerator to the 'Response'
 -- stored in the 'Snap' monad state.
 addToOutput :: MonadSnap m
-            => (forall a . Enumerator a)   -- ^ output to add
+            => (forall a . Enumerator ByteString IO a)   -- ^ output to add
             -> m ()
-addToOutput enum = modifyResponse $ modifyResponseBody (>. enum)
+addToOutput enum = modifyResponse $ modifyResponseBody (>==> enum)
 
 
 ------------------------------------------------------------------------------
@@ -657,7 +659,7 @@ instance Exception NoHandlerException
 runSnap :: Snap a
         -> (ByteString -> IO ())
         -> Request
-        -> Iteratee IO (Request,Response)
+        -> Iteratee ByteString IO (Request,Response)
 runSnap (Snap m) logerr req = do
     (r, ss') <- runStateT m ss
 
@@ -675,7 +677,7 @@ runSnap (Snap m) logerr req = do
   where
     fourohfour = setContentLength 3 $
                  setResponseStatus 404 "Not Found" $
-                 modifyResponseBody (>. enumBS "404") $
+                 modifyResponseBody (>==> enumBS "404") $
                  emptyResponse
 
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
@@ -688,7 +690,7 @@ runSnap (Snap m) logerr req = do
 evalSnap :: Snap a
          -> (ByteString -> IO ())
          -> Request
-         -> Iteratee IO a
+         -> Iteratee ByteString IO a
 evalSnap (Snap m) logerr req = do
     (r, _) <- runStateT m ss
 
