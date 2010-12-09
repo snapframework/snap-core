@@ -42,10 +42,10 @@ debugIteratee = continue f
 
 #ifndef NODEBUG
 
-iterateeDebugWrapper :: (MonadIO m) =>
+iterateeDebugWrapper :: (Show a, MonadIO m) =>
                         String
-                     -> Iteratee ByteString m a
-                     -> Iteratee ByteString m a
+                     -> Iteratee a m b
+                     -> Iteratee a m b
 iterateeDebugWrapper name iter = do
     debug $ name ++ ": BEGIN"
     step <- lift $ runIteratee iter
