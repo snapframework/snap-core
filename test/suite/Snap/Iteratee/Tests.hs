@@ -6,16 +6,19 @@
 module Snap.Iteratee.Tests
   ( tests ) where
 
+import           Control.Concurrent (threadDelay)
 import qualified Control.Exception as E
 import           Control.Exception hiding (try, assert)
 import           Control.Monad
 import           Control.Monad.Identity
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as S
+import           Control.Monad.Trans
+import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Int
 import           Data.Maybe
 import           Prelude hiding (head, drop, take)
+import           System.Timeout
 import           Test.Framework
 import           Test.Framework.Providers.QuickCheck2
 import           Test.QuickCheck
@@ -36,12 +39,21 @@ liftQ = QC.run
 throwErr :: String -> Iteratee a IO b
 throwErr = throwError . AssertionFailed
 
+
 expectException :: IO a -> PropertyM IO ()
 expectException m = do
     e <- liftQ $ E.try m
     case e of
       Left (z::SomeException)  -> (show z) `seq` return ()
       Right _ -> fail "expected exception, didn't get one"
+
+
+expectExceptionH :: IO a -> IO ()
+expectExceptionH act = do
+    e <- E.try act
+    case e of
+      Left (z::SomeException) -> (show z) `seq` return ()
+      Right _ -> fail "expected expected, didn't get one"
 
 
 tests :: [Test]
@@ -60,6 +72,8 @@ tests = [ testEnumBS
         , testTakeNoMoreThan3
         , testCountBytes
         , testCountBytes2
+        , testKillIfTooSlow1
+        , testKillIfTooSlow2
         ]
 
 testEnumBS :: Test
@@ -406,3 +420,43 @@ testCountBytes2 = testProperty "iteratee/countBytes2" $
            (!_,m) <- countBytes $ drop' 4
            x <- liftM L.fromChunks consume
            return (m,x)
+
+
+------------------------------------------------------------------------------
+testKillIfTooSlow1 :: Test
+testKillIfTooSlow1 = testCase "iteratee/killIfTooSlow1" $ do
+    let iter = killIfTooSlow (return ()) 1000 4 consume
+    m <- timeout (10*seconds) (expectExceptionH $ run_ $ tooSlowEnum 10 $$ iter)
+    maybe (fail "timed out without dying")
+          (const $ return ())
+          m
+
+
+------------------------------------------------------------------------------
+testKillIfTooSlow2 :: Test
+testKillIfTooSlow2 = testCase "iteratee/killIfTooSlow2" $ do
+    -- 10 bytes per second, minimum run 2 seconds
+    let iter = killIfTooSlow (return ()) 10 2 consume
+    m <- liftM S.concat $ run_ $ tooSlowEnum 3 $$ iter
+    H.assertEqual "testKillIfTooSlow2" (S.replicate 300 'f') m
+
+
+------------------------------------------------------------------------------
+tooSlowEnum :: Int -> Enumerator ByteString IO a
+tooSlowEnum ntimes (Continue k) = do
+    if ntimes <= 0
+      then k EOF
+      else do
+        step <- lift $ runIteratee $ k $ Chunks [S.replicate 100 'f']
+        liftIO $ waitabit
+        tooSlowEnum (ntimes-1) step
+tooSlowEnum _ z = returnI z
+
+
+------------------------------------------------------------------------------
+waitabit :: IO ()
+waitabit = threadDelay $ 2*seconds
+
+------------------------------------------------------------------------------
+seconds :: Int
+seconds = (10::Int) ^ (6::Int)

@@ -24,6 +24,7 @@ module Snap.Iteratee
 
 
     -- * Iteratee utilities
+  , joinI'
   , countBytes
   , drop'
   , mkIterateeBuffer
@@ -36,9 +37,11 @@ module Snap.Iteratee
   , skipToEof
   , mapEnum
   , mapIter
+  , killIfTooSlow
 
   , TooManyBytesReadException
   , ShortWriteException
+  , RateTooSlowException
 
     -- * Re-export types and functions from @Data.Enumerator@
   , Stream (..)
@@ -96,28 +99,29 @@ module Snap.Iteratee
 
 ------------------------------------------------------------------------------
 
-import             Blaze.ByteString.Builder
-import             Control.DeepSeq
-import             Control.Exception (SomeException, assert)
-import             Control.Monad
-import "MonadCatchIO-transformers" Control.Monad.CatchIO
-import             Control.Monad.Trans (MonadIO, lift, liftIO)
-import             Data.ByteString (ByteString)
-import qualified   Data.ByteString.Char8 as S
-import qualified   Data.ByteString.Unsafe as S
-import qualified   Data.ByteString.Lazy.Char8 as L
-import             Data.Enumerator hiding (consume, drop, head)
-import qualified   Data.Enumerator as I
-import             Data.Enumerator.Binary (enumHandle)
-import             Data.Enumerator.List hiding (take, drop)
-import qualified   Data.List as List
-import             Data.Monoid (mappend)
-import             Data.Typeable
-import             Foreign hiding (peek)
-import             Foreign.C.Types
-import             GHC.ForeignPtr
-import             Prelude hiding (drop, head, take)
-import             System.IO
+import           Blaze.ByteString.Builder
+import           Control.DeepSeq
+import           Control.Exception (SomeException, assert)
+import           Control.Monad
+import           Control.Monad.CatchIO
+import           Control.Monad.Trans (MonadIO, lift, liftIO)
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString.Char8 as S
+import qualified Data.ByteString.Unsafe as S
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.Enumerator hiding (consume, drop, head)
+import qualified Data.Enumerator as I
+import           Data.Enumerator.Binary (enumHandle)
+import           Data.Enumerator.List hiding (take, drop)
+import qualified Data.List as List
+import           Data.Monoid (mappend)
+import           Data.Time.Clock.POSIX (getPOSIXTime)
+import           Data.Typeable
+import           Foreign hiding (peek)
+import           Foreign.C.Types
+import           GHC.ForeignPtr
+import           Prelude hiding (catch, drop, head, take)
+import           System.IO
 
 #ifndef PORTABLE
 import           System.IO.Posix.MMap
@@ -131,10 +135,15 @@ instance (Functor m, MonadCatchIO m) =>
          MonadCatchIO (Iteratee s m) where
     --catch  :: Exception  e => m a -> (e -> m a) -> m a
     catch m handler = Iteratee $ do
-        ee <- try $ runIteratee m
+        ee <- try $ runIteratee (m `catchError` h)
         case ee of
           (Left e)  -> runIteratee (handler e)
           (Right v) -> return v
+      where
+        -- we can only catch iteratee errors if "e" matches "SomeException"
+        h e = maybe (throwError e)
+                    (handler)
+                    (fromException e)
 
     --block :: m a -> m a
     block m = Iteratee $ block $ runIteratee m
@@ -387,32 +396,22 @@ drop' !n = continue k
 
 
 ------------------------------------------------------------------------------
-data ShortWriteException = ShortWriteException
-   deriving (Typeable)
+data ShortWriteException = ShortWriteException deriving (Typeable)
+data RateTooSlowException = RateTooSlowException deriving (Typeable)
+data TooManyBytesReadException = TooManyBytesReadException deriving (Typeable)
 
-
-------------------------------------------------------------------------------
 instance Show ShortWriteException where
     show ShortWriteException = "Short write"
 
+instance Show RateTooSlowException where
+    show RateTooSlowException = "Input rate too slow"
 
-------------------------------------------------------------------------------
-instance Exception ShortWriteException
-
-
-------------------------------------------------------------------------------
-data TooManyBytesReadException = TooManyBytesReadException
-   deriving (Typeable)
-
-
-------------------------------------------------------------------------------
 instance Show TooManyBytesReadException where
     show TooManyBytesReadException = "Too many bytes read"
 
-
-------------------------------------------------------------------------------
+instance Exception ShortWriteException
+instance Exception RateTooSlowException
 instance Exception TooManyBytesReadException
-
 
 
 ------------------------------------------------------------------------------
@@ -668,19 +667,53 @@ mapIter f g iter = do
 
 
 ------------------------------------------------------------------------------
--- testIt :: IO ()
--- testIt = do
---     xs <- run_ (eInt $$ consume)
---     putStrLn (show xs)
+joinI' :: Monad m => Iteratee a m (Step a m b)
+       -> Iteratee a m b
+joinI' outer = outer >>= check where
+    check (Continue k) = k EOF >>== \s -> case s of
+        Continue _ -> error "joinI: divergent iteratee"
+        _ -> check s
+    check (Yield x r) = yield x r
+    check (Error e) = throwError e
 
---     ys <- run_ (eInt $$ replicateM 3 iter1)
---     putStrLn (show ys)
 
---   where
---     eBS :: Enumerator ByteString IO a
---     eBS = enumList 1 ["12345", "300", "200", "400"]
+------------------------------------------------------------------------------
+killIfTooSlow :: (MonadIO m) =>
+                 m ()                     -- ^ action to bump timeout
+              -> Double                   -- ^ minimum data rate, in bytes per
+                                          -- second
+              -> Int                      -- ^ minimum amount of time to let
+                                          -- the iteratee run for
+              -> Iteratee ByteString m a  -- ^ iteratee consumer to wrap
+              -> Iteratee ByteString m a
+killIfTooSlow bump minRate minSeconds' inputIter = do
+    !_ <- lift bump
+    startTime <- liftIO getTime
+    step <- lift $ runIteratee inputIter
+    wrap startTime (0::Int64) step
 
---     eInt :: Enumerator Int IO a
---     eInt = mapEnum (S.pack . show) (read . S.unpack) eBS
+  where
+    minSeconds = fromIntegral minSeconds'
+    wrap startTime nBytesRead = step
+      where
+        step (Continue k) = continue $ cont k
+        step z            = returnI z
 
---     iter1 = mapIter (S.pack . show) (read . S.unpack) I.head
+        cont k EOF = k EOF
+        cont k stream = do
+            let slen = toEnum $ streamLength stream
+            now <- liftIO getTime
+            let delta = now - startTime
+            let newBytes = nBytesRead + slen
+            when (delta > minSeconds+1 &&
+                  fromIntegral newBytes / (delta-minSeconds) < minRate) $
+              throw RateTooSlowException
+
+            -- otherwise bump the timeout and continue running the iteratee
+            !_ <- lift bump
+            lift (runIteratee $ k stream) >>= wrap startTime newBytes
+
+
+------------------------------------------------------------------------------
+getTime :: IO Double
+getTime = (fromRational . toRational) `fmap` getPOSIXTime

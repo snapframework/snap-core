@@ -330,7 +330,6 @@ testFsCfg = testCase "fileServe/Cfg" $ do
     -- Request for directory with autogen index
     rE1 <- go (fsCfg fancyDirectoryConfig) "mydir2/"
     bE1 <- S.concat `fmap` L.toChunks `fmap` getBody rE1
-    print bE1
 
     assertBool "autogen-sub-index" $
         "Directory Listing: /mydir2/" `S.isInfixOf` bE1

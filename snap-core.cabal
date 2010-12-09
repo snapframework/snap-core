@@ -129,17 +129,21 @@ Library
     Snap.Internal.Debug,
     Snap.Internal.Http.Types,
     Snap.Internal.Iteratee.Debug,
+    Snap.Internal.Parsing,
     Snap.Util.FileServe,
+    Snap.Util.FileUploads,
     Snap.Util.GZip
 
   other-modules:
     Snap.Internal.Instances,
-    Snap.Internal.Parsing,
+    Snap.Internal.Iteratee.KnuthMorrisPratt,
     Snap.Internal.Routing,
     Snap.Internal.Types
 
+
   build-depends:
     attoparsec >= 0.8.0.2 && < 0.9,
+    attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
     blaze-builder >= 0.2.1.4 && <0.3,
     bytestring,
@@ -158,6 +162,7 @@ Library
     time,
     transformers == 0.2.*,
     unix-compat == 0.2.*,
+    vector >= 0.6 && <0.8,
     zlib
 
   ghc-prof-options: -prof -auto-all
