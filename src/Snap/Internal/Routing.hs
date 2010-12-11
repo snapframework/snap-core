@@ -149,7 +149,7 @@ routeEarliestNC r n = case r of
 --
 route :: MonadSnap m => [(ByteString, m a)] -> m a
 route rts = do
-  p <- getRequest >>= return . rqPathInfo
+  p <- getRequest >>= maybe pass return . urlDecode . rqPathInfo
   route' (return ()) ([], splitPath p) Map.empty rts'
   where
     rts' = mconcat (map pRoute rts)
@@ -165,9 +165,10 @@ routeLocal rts = do
     req    <- getRequest
     let ctx = rqContextPath req
     let p   = rqPathInfo req
+    p' <- maybe pass return $ urlDecode p
     let md  = modifyRequest $ \r -> r {rqContextPath=ctx, rqPathInfo=p}
 
-    (route' md ([], splitPath p) Map.empty rts') <|> (md >> pass)
+    (route' md ([], splitPath p') Map.empty rts') <|> (md >> pass)
 
   where
     rts' = mconcat (map pRoute rts)
