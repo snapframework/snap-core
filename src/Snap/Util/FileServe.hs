@@ -172,9 +172,7 @@ getSafePath = do
     req <- getRequest
     let mp = urlDecode $ rqPathInfo req
 
-    when (isNothing mp) pass
-
-    let p = maybe "" S.unpack mp
+    p <- maybe pass (return . S.unpack) mp
 
     -- relative paths only!
     when (not $ isRelative p) pass
