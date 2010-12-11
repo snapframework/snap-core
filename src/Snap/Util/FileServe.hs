@@ -170,7 +170,11 @@ defaultMimeTypes = Map.fromList [
 getSafePath :: MonadSnap m => m FilePath
 getSafePath = do
     req <- getRequest
-    let p = S.unpack $ rqPathInfo req
+    let mp = urlDecode $ rqPathInfo req
+
+    when (isNothing mp) pass
+
+    let p = maybe "" S.unpack mp
 
     -- relative paths only!
     when (not $ isRelative p) pass
