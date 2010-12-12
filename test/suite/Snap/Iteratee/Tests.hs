@@ -28,8 +28,6 @@ import qualified   Test.HUnit as H
 import             Snap.Iteratee
 import             Snap.Test.Common ()
 
-import Snap.Internal.Iteratee.Debug
-
 liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
 liftQ = QC.run
 
@@ -176,53 +174,6 @@ testUnsafeBuffer3 = testProperty "iteratee/testUnsafeBuffer3" $
       where
         ma = L.uncons a
         mb = L.uncons b
-
-
-
-tub3Prop s = do
-    ss <- runIteratee copyingConsume >>=
-          return . joinI . take 19999
-
-    let it = (ss >>= \x -> drop 1 >> return x)
-    x <- bufferAndRun (iterateeDebugWrapper "foo" it) s'
-
-    let a = x
-    let b = L.take 19999 s'
-    let boo = (a == b)
-    putStrLn $ "equal? " ++ show boo
-    diff a b
-
-  where
-    diff a b = d a b (0::Int)
-    d a b n = do
-        case ma of
-          Nothing -> if mb /= Nothing
-                       then do
-                         let Just (y,_) = mb
-                         putStrLn $ "differ at byte " ++ show n
-                         putStrLn $ "a=Nothing, b=" ++ show y
-                       else return ()
-
-          Just (x,rest1) ->
-            if isNothing mb
-              then do
-                putStrLn $ "differ at byte " ++ show n
-                putStrLn $ "a=" ++ show x ++ ", b=Nothing"
-              else do
-                let Just (y,rest2) = mb
-                if x /= y
-                   then do
-                     putStrLn $ "differ at byte " ++ show n
-                     putStrLn $ "a=" ++ show x ++ ", b=" ++ show y
-                   else
-                     d rest1 rest2 (n+1)
-      where
-        ma = L.uncons a
-        mb = L.uncons b
-
-    s' = L.take 20000 $ L.cycle s
-
-
 
 
 testUnsafeBuffer4 :: Test
