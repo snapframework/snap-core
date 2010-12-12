@@ -1,4 +1,5 @@
 #define _XOPEN_SOURCE
+#define _BSD_SOURCE
 #include <time.h>
 #include <locale.h>
 
