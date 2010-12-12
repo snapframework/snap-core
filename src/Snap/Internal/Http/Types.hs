@@ -98,8 +98,9 @@ class HasHeaders a where
 
 
 ------------------------------------------------------------------------------
--- | Adds a header key-value-pair to the 'HasHeaders' datatype. If a header with
--- the same name already exists, the new value is appended to the headers list.
+-- | Adds a header key-value-pair to the 'HasHeaders' datatype. If a header
+-- with the same name already exists, the new value is appended to the headers
+-- list.
 addHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
 addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
 
@@ -222,11 +223,11 @@ data Request = Request
     , rqCookies        :: [Cookie]
 
 
-      -- | We'll be doing web components (or \"snaplets\") for version 0.2. The
-      -- \"snaplet path\" refers to the place on the URL where your containing
-      -- snaplet is hung. The value of 'rqSnapletPath' is either @\"\"@ (at the
-      -- top-level context) or is a path beginning with a slash, but not ending
-      -- with one.
+      -- | We'll be doing web components (or \"snaplets\") for version 0.2.
+      -- The \"snaplet path\" refers to the place on the URL where your
+      -- containing snaplet is hung. The value of 'rqSnapletPath' is either
+      -- @\"\"@ (at the top-level context) or is a path beginning with a
+      -- slash, but not ending with one.
       --
       -- An identity is that:
       --
@@ -234,18 +235,18 @@ data Request = Request
       -- >                       , rqContextPath r
       -- >                       , rqPathInfo r ]
       --
-      -- note that until we introduce snaplets in v0.2, 'rqSnapletPath' will be
-      -- \"\"
+      -- note that until we introduce snaplets in v0.2, 'rqSnapletPath' will
+      -- be \"\"
     , rqSnapletPath    :: !ByteString
 
       -- | Handlers can (/will be; --ed/) be hung on a @URI@ \"entry point\";
       -- this is called the \"context path\". If a handler is hung on the
-      -- context path @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the value
-      -- of 'rqPathInfo' will be @\"bar\"@.
+      -- context path @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the
+      -- value of 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
-      -- | The \"context path\" of the request; catenating 'rqContextPath', and
-      -- 'rqPathInfo' should get you back to the original 'rqURI'. The
+      -- | The \"context path\" of the request; catenating 'rqContextPath',
+      -- and 'rqPathInfo' should get you back to the original 'rqURI'. The
       -- 'rqContextPath' always begins and ends with a slash (@\"\/\"@)
       -- character, and represents the path (relative to your
       -- component\/snaplet) you took to get to your handler.
@@ -429,8 +430,8 @@ instance HasHeaders Response where
 ------------------------------------------------------------------------------
 -- | Looks up the value(s) for the given named parameter. Parameters initially
 -- come from the request's query string and any decoded POST body (if the
--- request's @Content-Type@ is @application\/x-www-form-urlencoded@). Parameter
--- values can be modified within handlers using "rqModifyParams".
+-- request's @Content-Type@ is @application\/x-www-form-urlencoded@).
+-- Parameter values can be modified within handlers using "rqModifyParams".
 rqParam :: ByteString           -- ^ parameter name to look up
         -> Request              -- ^ HTTP request
         -> Maybe [ByteString]
@@ -439,8 +440,8 @@ rqParam k rq = Map.lookup k $ rqParams rq
 
 
 ------------------------------------------------------------------------------
--- | Modifies the parameters mapping (which is a @Map ByteString ByteString@) in
--- a 'Request' using the given function.
+-- | Modifies the parameters mapping (which is a @Map ByteString ByteString@)
+-- in a 'Request' using the given function.
 rqModifyParams :: (Params -> Params) -> Request -> Request
 rqModifyParams f r = r { rqParams = p }
   where
@@ -449,7 +450,8 @@ rqModifyParams f r = r { rqParams = p }
 
 
 ------------------------------------------------------------------------------
--- | Writes a key-value pair to the parameters mapping within the given request.
+-- | Writes a key-value pair to the parameters mapping within the given
+-- request.
 rqSetParam :: ByteString        -- ^ parameter name
            -> [ByteString]      -- ^ parameter values
            -> Request           -- ^ request
@@ -529,21 +531,22 @@ addCookie (Cookie k v mbExpTime mbDomain mbPath) = updateHeaders f
     path    = maybe "" (S.append "; path=") mbPath
     domain  = maybe "" (S.append "; domain=") mbDomain
     exptime = maybe "" (S.append "; expires=" . fmt) mbExpTime
-    fmt     = fromStr . formatTime defaultTimeLocale "%a, %d-%b-%Y %H:%M:%S GMT"
+    fmt     = fromStr .
+              formatTime defaultTimeLocale "%a, %d-%b-%Y %H:%M:%S GMT"
 
 
 ------------------------------------------------------------------------------
 -- | A note here: if you want to set the @Content-Length@ for the response,
--- Snap forces you to do it with this function rather than by setting it in the
--- headers; the @Content-Length@ in the headers will be ignored.
+-- Snap forces you to do it with this function rather than by setting it in
+-- the headers; the @Content-Length@ in the headers will be ignored.
 --
 -- The reason for this is that Snap needs to look up the value of
 -- @Content-Length@ for each request, and looking the string value up in the
 -- headers and parsing the number out of the text will be too expensive.
 --
 -- If you don't set a content length in your response, HTTP keep-alive will be
--- disabled for HTTP\/1.0 clients, forcing a @Connection: close@. For HTTP\/1.1
--- clients, Snap will switch to the chunked transfer encoding if
+-- disabled for HTTP\/1.0 clients, forcing a @Connection: close@. For
+-- HTTP\/1.1 clients, Snap will switch to the chunked transfer encoding if
 -- @Content-Length@ is not specified.
 setContentLength    :: Int64 -> Response -> Response
 setContentLength l r = r { rspContentLength = Just l }

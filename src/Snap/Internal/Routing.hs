@@ -36,9 +36,11 @@ triggering its fallback. It's NoRoute, so we go to the nearest parent
 fallback and try that, which is the baz action.
 
 -}
-data Route a m = Action ((MonadSnap m) => m a)              -- wraps a 'Snap' action
-               | Capture ByteString (Route a m) (Route a m) -- captures the dir in a param
-               | Dir (Map.Map ByteString (Route a m)) (Route a m)  -- match on a dir
+data Route a m = Action ((MonadSnap m) => m a)   -- wraps a 'Snap' action
+               -- captures the dir in a param
+               | Capture ByteString (Route a m) (Route a m)
+               -- match on a dir
+               | Dir (Map.Map ByteString (Route a m)) (Route a m)
                | NoRoute
 
 
@@ -137,8 +139,8 @@ routeEarliestNC r n = case r of
 --
 -- > [ ("a", h1), ("a/b", h2), ("a/:x", h3) ]
 --
--- a request for \"@\/a\/b@\" will go to @h2@, \"@\/a\/s@\" for any /s/ will go
--- to @h3@, and \"@\/a@\" will go to @h1@.
+-- a request for \"@\/a\/b@\" will go to @h2@, \"@\/a\/s@\" for any /s/ will
+-- go to @h3@, and \"@\/a@\" will go to @h1@.
 --
 -- The following example matches \"@\/article@\" to an article index,
 -- \"@\/login@\" to a login, and \"@\/article\/...@\" to an article renderer.
@@ -156,8 +158,8 @@ route rts = do
 
 
 ------------------------------------------------------------------------------
--- | The 'routeLocal' function is the same as 'route'', except it doesn't change
--- the request's context path. This is useful if you want to route to a
+-- | The 'routeLocal' function is the same as 'route'', except it doesn't
+-- change the request's context path. This is useful if you want to route to a
 -- particular handler but you want that handler to receive the 'rqPathInfo' as
 -- it is.
 routeLocal :: MonadSnap m => [(ByteString, m a)] -> m a
@@ -172,6 +174,7 @@ routeLocal rts = do
 
   where
     rts' = mconcat (map pRoute rts)
+
 
 ------------------------------------------------------------------------------
 splitPath :: ByteString -> [ByteString]

@@ -186,9 +186,9 @@ getSafePath = do
 
 ------------------------------------------------------------------------------
 -- | Serves files out of the given directory. The relative path given in
--- 'rqPathInfo' is searched for the given file, and the file is served with the
--- appropriate mime type if it is found. Absolute paths and \"@..@\" are prohibited
--- to prevent files from being served from outside the sandbox.
+-- 'rqPathInfo' is searched for the given file, and the file is served with
+-- the appropriate mime type if it is found. Absolute paths and \"@..@\" are
+-- prohibited to prevent files from being served from outside the sandbox.
 --
 -- Uses 'defaultMimeTypes' to determine the @Content-Type@ based on the file's
 -- extension.
@@ -279,7 +279,8 @@ fileServeSingle' mime fp = do
 
 
     -- now check: is this a range request? If there is an 'If-Range' header
-    -- with an old modification time we skip this check and send a 200 response
+    -- with an old modification time we skip this check and send a 200
+    -- response
     let skipRangeCheck = maybe (False)
                                (\lt -> mt > lt)
                                mbIfRange
@@ -427,6 +428,6 @@ checkRangeReq req fp sz = do
                return True
 
 
-
+------------------------------------------------------------------------------
 dbg :: (MonadIO m) => String -> m ()
 dbg s = debug $ "FileServe:" ++ s

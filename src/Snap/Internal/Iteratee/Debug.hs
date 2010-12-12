@@ -54,7 +54,8 @@ iterateeDebugWrapper name iter = do
 
   where
     whatWasReturn (Continue _) = debug $ name ++ ": continue"
-    whatWasReturn (Yield _ z)  = debug $ name ++ ": yield, with remainder " ++ show z
+    whatWasReturn (Yield _ z)  = debug $ name ++ ": yield, with remainder "
+                                              ++ show z
     whatWasReturn (Error e)    = debug $ name ++ ": error, with " ++ show e
 
     check (Continue k) = continue $ f k

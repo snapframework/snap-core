@@ -7,10 +7,10 @@
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
+------------------------------------------------------------------------------
 -- | Snap Framework type aliases and utilities for iteratees. Note that as a
--- convenience, this module also exports everything from @Data.Enumerator@ in the
--- @enumerator@ library.
---
+-- convenience, this module also exports everything from @Data.Enumerator@ in
+-- the @enumerator@ library.
 
 module Snap.Iteratee
   (
@@ -213,12 +213,11 @@ mkIterateeBuffer = mallocPlainForeignPtrBytes bUFSIZ
 
 
 ------------------------------------------------------------------------------
--- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer which
--- we'll re-use, meaning that if you hold on to any of the bytestring data
--- passed into your iteratee (instead of, let's say, shoving it right out a
--- socket) it'll get changed out from underneath you, breaking referential
+-- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer
+-- which we'll re-use, meaning that if you hold on to any of the bytestring
+-- data passed into your iteratee (instead of, let's say, shoving it right out
+-- a socket) it'll get changed out from underneath you, breaking referential
 -- transparency. Use with caution!
---
 unsafeBufferIteratee :: Iteratee ByteString IO a
                      -> IO (Iteratee ByteString IO a)
 unsafeBufferIteratee step = do
@@ -227,10 +226,10 @@ unsafeBufferIteratee step = do
 
 
 ------------------------------------------------------------------------------
--- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer which
--- we'll re-use, meaning that if you hold on to any of the bytestring data
--- passed into your iteratee (instead of, let's say, shoving it right out a
--- socket) it'll get changed out from underneath you, breaking referential
+-- | Buffers an iteratee, \"unsafely\". Here we use a fixed binary buffer
+-- which we'll re-use, meaning that if you hold on to any of the bytestring
+-- data passed into your iteratee (instead of, let's say, shoving it right out
+-- a socket) it'll get changed out from underneath you, breaking referential
 -- transparency. Use with caution!
 --
 -- This version accepts a buffer created by 'mkIterateeBuffer'.
@@ -386,28 +385,41 @@ drop' !n = continue k
           else yield () $ Chunks ((S.drop (fromEnum m) x):xs)
 
 
+------------------------------------------------------------------------------
 data ShortWriteException = ShortWriteException
    deriving (Typeable)
 
+
+------------------------------------------------------------------------------
 instance Show ShortWriteException where
     show ShortWriteException = "Short write"
 
+
+------------------------------------------------------------------------------
 instance Exception ShortWriteException
 
 
+------------------------------------------------------------------------------
 data TooManyBytesReadException = TooManyBytesReadException
    deriving (Typeable)
 
+
+------------------------------------------------------------------------------
 instance Show TooManyBytesReadException where
     show TooManyBytesReadException = "Too many bytes read"
 
+
+------------------------------------------------------------------------------
 instance Exception TooManyBytesReadException
 
 
+
+------------------------------------------------------------------------------
 take :: (Monad m) => Int -> Enumeratee ByteString ByteString m a
 take k = take' (toEnum k)
 
 
+------------------------------------------------------------------------------
 take' :: (Monad m) => Int64 -> Enumeratee ByteString ByteString m a
 take' _ y@(Yield _ _   ) = return y
 take' _   (Error e     ) = throwError e
@@ -482,8 +494,7 @@ takeExactly !n st@(Continue k) = do
         (s1,s2) = S.splitAt (fromEnum n) x
 
 
-
-
+------------------------------------------------------------------------------
 takeNoMoreThan :: (Monad m) =>
                   Int64 -> Enumeratee ByteString ByteString m a
 takeNoMoreThan _   y@(Yield _ _)  = return y
@@ -520,16 +531,18 @@ _enumFile fp iter = do
     enumHandle 32678 h iter `finally` (liftIO $ hClose h)
 
 
-
 ------------------------------------------------------------------------------
 data InvalidRangeException = InvalidRangeException
    deriving (Typeable)
 
+
+------------------------------------------------------------------------------
 instance Show InvalidRangeException where
     show InvalidRangeException = "Invalid range"
 
-instance Exception InvalidRangeException
 
+------------------------------------------------------------------------------
+instance Exception InvalidRangeException
 
 
 ------------------------------------------------------------------------------
@@ -549,6 +562,7 @@ _enumFilePartial fp (start,end) iter = do
                  enumHandle 32678 h step)
 
 
+------------------------------------------------------------------------------
 enumFile :: FilePath -> Enumerator ByteString IO a
 enumFilePartial :: FilePath
                 -> (Int64,Int64)
@@ -568,17 +582,20 @@ enumFilePartial fp rng@(start,end) iter = do
 maxMMapFileSize :: FileOffset
 maxMMapFileSize = 41943040
 
+
+------------------------------------------------------------------------------
 tooBigForMMap :: FilePath -> IO Bool
 tooBigForMMap fp = do
     stat <- getFileStatus fp
     return $ fileSize stat > maxMMapFileSize
 
 
+------------------------------------------------------------------------------
 enumFile _  (Error e)    = throwError e
 enumFile _  (Yield x _)  = yield x EOF
 enumFile fp st@(Continue k) = do
-    -- for small files we'll use mmap to save ourselves a copy, otherwise we'll
-    -- stream it
+    -- for small files we'll use mmap to save ourselves a copy, otherwise
+    -- we'll stream it
     tooBig <- lift $ tooBigForMMap fp
 
     if tooBig
@@ -590,6 +607,7 @@ enumFile fp st@(Continue k) = do
           (Right s) -> k $ Chunks [s]
 
 
+------------------------------------------------------------------------------
 enumFilePartial _ _ (Error e)   = throwError e
 enumFilePartial _ _ (Yield x _) = yield x EOF
 enumFilePartial fp rng@(start,end) st@(Continue k) = do

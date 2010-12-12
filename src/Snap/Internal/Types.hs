@@ -78,8 +78,8 @@ import                       Snap.Internal.Iteratee.Debug
    >   r <- getResponse
    >   finishWith r
 
-   then any subsequent processing will be skipped and supplied 'Response' value
-   will be returned from 'runSnap' as-is.
+   then any subsequent processing will be skipped and supplied 'Response'
+   value will be returned from 'runSnap' as-is.
 
 6. access to the 'IO' monad through a 'MonadIO' instance:
 
@@ -103,9 +103,11 @@ class (Monad m, MonadIO m, MonadCatchIO m, MonadPlus m, Functor m,
        Applicative m, Alternative m) => MonadSnap m where
     liftSnap :: Snap a -> m a
 
+
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
-      unSnap :: StateT SnapState (Iteratee ByteString IO) (Maybe (Either Response a))
+      unSnap :: StateT SnapState (Iteratee ByteString IO)
+                (Maybe (Either Response a))
 }
 
 
@@ -228,10 +230,10 @@ getRequestBody = liftM L.fromChunks $ runRequestBody consume
 
 
 ------------------------------------------------------------------------------
--- | Normally Snap is careful to ensure that the request body is fully consumed
--- after your web handler runs, but before the 'Response' enumerator is
--- streamed out the socket. If you want to transform the request body into some
--- output in O(1) space, you should use this function.
+-- | Normally Snap is careful to ensure that the request body is fully
+-- consumed after your web handler runs, but before the 'Response' enumerator
+-- is streamed out the socket. If you want to transform the request body into
+-- some output in O(1) space, you should use this function.
 --
 -- Note that upon calling this function, response processing finishes early as
 -- if you called 'finishWith'. Make sure you set any content types, headers,
@@ -337,10 +339,10 @@ dir = pathWith f
 
 
 ------------------------------------------------------------------------------
--- | Runs a 'Snap' monad action only for requests where 'rqPathInfo' is exactly
--- equal to the given string. If the path matches, locally sets 'rqContextPath'
--- to the old value of 'rqPathInfo', sets 'rqPathInfo'=\"\", and runs the given
--- handler.
+-- | Runs a 'Snap' monad action only for requests where 'rqPathInfo' is
+-- exactly equal to the given string. If the path matches, locally sets
+-- 'rqContextPath' to the old value of 'rqPathInfo', sets 'rqPathInfo'=\"\",
+-- and runs the given handler.
 path :: MonadSnap m
      => ByteString  -- ^ path to match against
      -> m a         -- ^ handler to run
@@ -417,9 +419,9 @@ modifyResponse f = liftSnap $
 ------------------------------------------------------------------------------
 -- | Performs a redirect by setting the @Location@ header to the given target
 -- URL/path and the status code to 302 in the 'Response' object stored in a
--- 'Snap' monad. Note that the target URL is not validated in any way. Consider
--- using 'redirect\'' instead, which allows you to choose the correct status
--- code.
+-- 'Snap' monad. Note that the target URL is not validated in any way.
+-- Consider using 'redirect\'' instead, which allows you to choose the correct
+-- status code.
 redirect :: MonadSnap m => ByteString -> m ()
 redirect target = redirect' target 302
 {-# INLINE redirect #-}
@@ -461,8 +463,8 @@ addToOutput enum = modifyResponse $ modifyResponseBody (>==> enum)
 
 
 ------------------------------------------------------------------------------
--- | Adds the given strict 'ByteString' to the body of the 'Response' stored in
--- the 'Snap' monad state.
+-- | Adds the given strict 'ByteString' to the body of the 'Response' stored
+-- in the 'Snap' monad state.
 --
 -- Warning: This function is intentionally non-strict. If any pure
 -- exceptions are raised by the expression creating the 'ByteString',
@@ -472,8 +474,8 @@ writeBS s = addToOutput $ enumBS s
 
 
 ------------------------------------------------------------------------------
--- | Adds the given lazy 'L.ByteString' to the body of the 'Response' stored in
--- the 'Snap' monad state.
+-- | Adds the given lazy 'L.ByteString' to the body of the 'Response' stored
+-- in the 'Snap' monad state.
 --
 -- Warning: This function is intentionally non-strict. If any pure
 -- exceptions are raised by the expression creating the 'ByteString',
@@ -483,8 +485,8 @@ writeLBS s = addToOutput $ enumLBS s
 
 
 ------------------------------------------------------------------------------
--- | Adds the given strict 'T.Text' to the body of the 'Response' stored in the
--- 'Snap' monad state.
+-- | Adds the given strict 'T.Text' to the body of the 'Response' stored in
+-- the 'Snap' monad state.
 --
 -- Warning: This function is intentionally non-strict. If any pure
 -- exceptions are raised by the expression creating the 'ByteString',
@@ -512,23 +514,23 @@ writeLazyText s = writeLBS $ LT.encodeUtf8 s
 -- 'sendFile', Snap will use the efficient @sendfile()@ system call on
 -- platforms that support it.
 --
--- If the response body is modified (using 'modifyResponseBody'), the file will
--- be read using @mmap()@.
+-- If the response body is modified (using 'modifyResponseBody'), the file
+-- will be read using @mmap()@.
 sendFile :: (MonadSnap m) => FilePath -> m ()
 sendFile f = modifyResponse $ \r -> r { rspBody = SendFile f Nothing }
 
 
 ------------------------------------------------------------------------------
--- | Sets the output to be the contents of the specified file, within the given
--- (start,end) range.
+-- | Sets the output to be the contents of the specified file, within the
+-- given (start,end) range.
 --
--- Calling 'sendFilePartial' will overwrite any output queued to be sent in the
--- 'Response'. If the response body is not modified after the call to
+-- Calling 'sendFilePartial' will overwrite any output queued to be sent in
+-- the 'Response'. If the response body is not modified after the call to
 -- 'sendFilePartial', Snap will use the efficient @sendfile()@ system call on
 -- platforms that support it.
 --
--- If the response body is modified (using 'modifyResponseBody'), the file will
--- be read using @mmap()@.
+-- If the response body is modified (using 'modifyResponseBody'), the file
+-- will be read using @mmap()@.
 sendFilePartial :: (MonadSnap m) => FilePath -> (Int64,Int64) -> m ()
 sendFilePartial f rng = modifyResponse $ \r ->
                         r { rspBody = SendFile f (Just rng) }

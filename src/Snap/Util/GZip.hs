@@ -54,8 +54,8 @@ import             Snap.Types
 --
 -- Then the given handler's output stream will be compressed,
 -- @Content-Encoding@ will be set in the output headers, and the
--- @Content-Length@ will be cleared if it was set. (We can't process the stream
--- in O(1) space if the length is known beforehand.)
+-- @Content-Length@ will be cleared if it was set. (We can't process the
+-- stream in O(1) space if the length is known beforehand.)
 --
 -- The wrapped handler will be run to completion, and then the 'Response'
 -- that's contained within the 'Snap' monad state will be passed to
@@ -197,7 +197,8 @@ compressEnumerator compFunc enum origStep = do
             ech <- lift $ readChan writeEnd
             either throwError
                    (\ch -> do
-                        step' <- checkDone (\k -> lift $ runIteratee $ k ch) step
+                        step' <- checkDone (\k -> lift $ runIteratee $ k ch)
+                                           step
                         consumeSomeOutput writeEnd step')
                    ech
 
