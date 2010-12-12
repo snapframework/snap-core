@@ -218,7 +218,7 @@ compressEnumerator compFunc enum origStep = do
     --------------------------------------------------------------------------
     f _ _ _ (Error e) = Error e
     f _ _ _ (Yield x _) = Yield x EOF
-    f readEnd writeEnd tid st@(Continue k) = Continue $ \ch -> 
+    f readEnd writeEnd tid st@(Continue k) = Continue $ \ch ->
         case ch of
           EOF -> do
             lift $ writeChan readEnd Nothing

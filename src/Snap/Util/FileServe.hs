@@ -415,7 +415,7 @@ checkRangeReq req fp sz = do
                let crng = S.concat $
                           L.toChunks $
                           L.concat ["bytes */", show sz]
-               
+
                modifyResponse $ setResponseCode 416
                               . setHeader "Content-Range" crng
                               . setContentLength 0
@@ -423,7 +423,7 @@ checkRangeReq req fp sz = do
                               . deleteHeader "Content-Encoding"
                               . deleteHeader "Transfer-Encoding"
                               . setResponseBody (enumBS "")
-               
+
                return True
 
 

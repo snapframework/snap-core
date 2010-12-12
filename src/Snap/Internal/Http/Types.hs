@@ -652,7 +652,7 @@ pUrlEscaped = do
         when (S.length hx /= 2 ||
                (not $ S.all (isHexDigit . w2c) hx)) $
              fail "bad hex in url"
-          
+
         let code = (Cvt.hex hx) :: Word8
         nextChunk $ DL.snoc l (S.singleton code)
 

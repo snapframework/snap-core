@@ -38,7 +38,7 @@ debug, debugErrno :: forall m . (MonadIO m => String -> m ())
 {-# NOINLINE debug #-}
 debug = let !x = unsafePerformIO $! do
             !e <- try $ getEnv "DEBUG"
-            
+
             !f <- either (\(_::SomeException) -> return debugIgnore)
                          (\y -> if y == "1" || y == "on"
                                   then return debugOn
@@ -53,7 +53,7 @@ debug = let !x = unsafePerformIO $! do
 {-# NOINLINE debugErrno #-}
 debugErrno = let !x = unsafePerformIO $ do
                  e <- try $ getEnv "DEBUG"
-                 
+
                  !f <- either (\(_::SomeException) -> return debugErrnoIgnore)
                               (\y -> if y == "1" || y == "on"
                                        then return debugErrnoOn
