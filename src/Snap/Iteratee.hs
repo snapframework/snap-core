@@ -286,7 +286,7 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
               return $ copyStep step2
 
 
-    go !n !k ch@(Chunks xs) = Iteratee $ do
+    go !n !k (Chunks xs) = Iteratee $ do
         assert (n >= 0)      (return ())
         assert (n <= bUFSIZ) (return ())
 
