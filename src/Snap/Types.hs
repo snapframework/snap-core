@@ -93,7 +93,10 @@ module Snap.Types
   , rspStatus
   , rspStatusReason
   , setContentType
-  , addCookie
+  , addResponseCookie
+  , getResponseCookie
+  , deleteResponseCookie
+  , modifyResponseCookie
   , getCookie
   , setContentLength
   , clearContentLength

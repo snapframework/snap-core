@@ -378,6 +378,7 @@ rspBodyToEnum (SendFile fp (Just s)) = I.enumFilePartial fp s
 -- | Represents an HTTP response.
 data Response = Response
     { rspHeaders            :: Headers
+    , rspCookies            :: Map ByteString Cookie
     , rspHttpVersion        :: !HttpVersion
 
       -- | We will need to inspect the content length no matter what, and
@@ -465,8 +466,8 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 
 -- | An empty 'Response'.
 emptyResponse :: Response
-emptyResponse = Response Map.empty (1,1) Nothing (Enum (I.enumBS "")) 200
-                         "OK" False
+emptyResponse = Response Map.empty Map.empty (1,1) Nothing (Enum (I.enumBS "")) 
+                         200 "OK" False
 
 
 ------------------------------------------------------------------------------
@@ -521,18 +522,46 @@ setContentType = setHeader "Content-Type"
 
 ------------------------------------------------------------------------------
 -- | Adds an HTTP 'Cookie' to the 'Response' headers.
-addCookie :: Cookie            -- ^ cookie value
-          -> Response          -- ^ response to modify
-          -> Response
-addCookie (Cookie k v mbExpTime mbDomain mbPath) = updateHeaders f
+addResponseCookie :: Cookie            -- ^ cookie value
+                  -> Response          -- ^ response to modify
+                  -> Response
+addResponseCookie ck@(Cookie k _ _ _ _) r = r { rspCookies = cks' }
   where
-    f       = Map.insertWith' (++) "Set-Cookie" [cookie]
-    cookie  = S.concat [k, "=", v, path, exptime, domain]
-    path    = maybe "" (S.append "; path=") mbPath
-    domain  = maybe "" (S.append "; domain=") mbDomain
-    exptime = maybe "" (S.append "; expires=" . fmt) mbExpTime
-    fmt     = fromStr .
-              formatTime defaultTimeLocale "%a, %d-%b-%Y %H:%M:%S GMT"
+    cks'= Map.insert k ck $ rspCookies r
+{-# INLINE addResponseCookie #-}
+
+
+------------------------------------------------------------------------------
+-- | Gets an HTTP 'Cookie' with the given name from 'Response' headers.
+getResponseCookie :: ByteString            -- ^ cookie name
+                  -> Response              -- ^ response to query
+                  -> Maybe Cookie
+getResponseCookie cn r = Map.lookup cn $ rspCookies r
+{-# INLINE getResponseCookie #-}
+
+
+------------------------------------------------------------------------------
+-- | Delete an HTTP 'Cookie' from the 'Response' headers.
+deleteResponseCookie :: ByteString        -- ^ cookie name 
+                     -> Response          -- ^ response to modify
+                     -> Response
+deleteResponseCookie cn r = r { rspCookies = cks' }
+  where
+    cks'= Map.delete cn $ rspCookies r
+{-# INLINE deleteResponseCookie #-}
+
+
+------------------------------------------------------------------------------
+-- | Modifies an HTTP 'Cookie' with given name in 'Response' headers.
+-- Nothing will happen if a matching 'Cookie' is not present in 'Response'.
+modifyResponseCookie :: ByteString          -- ^ cookie name
+                     -> (Cookie -> Cookie)  -- ^ modifier function
+                     -> Response            -- ^ response to modify
+                     -> Response
+modifyResponseCookie cn f r = maybe r modify $ getResponseCookie cn r
+  where
+    modify ck = addResponseCookie (f ck) r
+{-# INLINE modifyResponseCookie #-}
 
 
 ------------------------------------------------------------------------------
