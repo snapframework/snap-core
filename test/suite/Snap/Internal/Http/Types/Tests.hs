@@ -25,6 +25,7 @@ import           Snap.Iteratee
 
 tests :: [Test]
 tests = [ testTypes
+        , testCookies
         , testUrlDecode
         , testFormatLogTime
         , testAddHeader ]
@@ -84,11 +85,6 @@ testTypes = testCase "show" $ do
     assertEqual "rqParam" (Just ["bar"]) (rqParam "foo" req)
     assertEqual "lookup" (Just ["bbb"]) (Map.lookup "zzz" $ rqParams req)
     assertEqual "lookup 2" (Just ["bbb"]) (Map.lookup "zzz" $ headers req)
-    assertEqual "cookie" (Just ["foo=bar; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com"]) cookieHeader
-
-    assertEqual "cookie2" (Just ["foo=bar; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com", "foo=baz; path=/; expires=Sat, 30-Jan-2010 00:00:00 GMT; domain=.foo.com"]) (liftM sort cookieHeader2)
-
-    assertEqual "cookie3" (Just ["foo=baz"]) cookieHeader3
 
     assertEqual "response status" 555 $ rspStatus resp
     assertEqual "response status reason" "bogus" $ rspStatusReason resp
@@ -108,7 +104,7 @@ testTypes = testCase "show" $ do
     return ()
 
   where
-    resp = addCookie cook $
+    resp = addResponseCookie cook $
            setContentLength 4 $
            modifyResponseBody id $
            setResponseBody (enumBS "PING") $
@@ -117,16 +113,52 @@ testTypes = testCase "show" $ do
            emptyResponse
     !b = show resp `using` rdeepseq
 
-    resp2 = addCookie cook2 resp
-    resp3 = addCookie cook3 emptyResponse
-
+    resp2 = addResponseCookie cook2 resp
 
     utc   = UTCTime (ModifiedJulianDay 55226) 0
     cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/")
-    cook2 = Cookie "foo" "baz" (Just utc) (Just ".foo.com") (Just "/")
-    cook3 = Cookie "foo" "baz" Nothing Nothing Nothing
+    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/")
 
-    cookieHeader = Map.lookup "Set-Cookie" $ headers resp
-    cookieHeader2 = Map.lookup "Set-Cookie" $ headers resp2
-    cookieHeader3 = Map.lookup "Set-Cookie" $ headers resp3
+
+testCookies :: Test
+testCookies = testCase "cookies" $ do
+    assertEqual "cookie" (Just cook) rCook
+    assertEqual "cookie2" (Just cook2) rCook2
+    assertEqual "cookie3" (Just cook3) rCook3
+    assertEqual "empty response cookie3" (Just cook3) rCook3e
+    assertEqual "removed cookie" Nothing nilCook
+    assertEqual "multiple cookies" [cook, cook2] cks
+    assertEqual "cookie modification" (Just cook3) rCook3Mod
+
+    return ()
+
+  where
+    resp = addResponseCookie cook $
+           setContentType "text/plain" $
+           emptyResponse
+
+    f _ = cook3
+
+    resp' = deleteResponseCookie "foo" resp
+    resp'' = modifyResponseCookie "foo" f resp
+    resp2 = addResponseCookie cook2 resp
+    resp3 = addResponseCookie cook3 resp2
+    resp4 = addResponseCookie cook3 emptyResponse
+
+    utc   = UTCTime (ModifiedJulianDay 55226) 0
+    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/")
+    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/")
+    cook3 = Cookie "boo" "baz" Nothing Nothing Nothing
+
+    rCook = getResponseCookie "foo" resp
+    nilCook = getResponseCookie "foo" resp'
+    rCook2 = getResponseCookie "zoo" resp2
+    rCook3 = getResponseCookie "boo" resp3
+    rCook3e = getResponseCookie "boo" resp4
+    rCook3Mod = getResponseCookie "boo" resp''
+
+    cks = getResponseCookies resp2
+
+
+
 
