@@ -95,6 +95,7 @@ module Snap.Types
   , setContentType
   , addResponseCookie
   , getResponseCookie
+  , getResponseCookies
   , deleteResponseCookie
   , modifyResponseCookie
   , getCookie

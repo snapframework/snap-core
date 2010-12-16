@@ -540,6 +540,13 @@ getResponseCookie cn r = Map.lookup cn $ rspCookies r
 {-# INLINE getResponseCookie #-}
 
 
+-- | Returns a list of 'Cookie's present in 'Response'
+getResponseCookies :: Response              -- ^ response to query
+                   -> [Cookie]
+getResponseCookies = Map.elems . rspCookies 
+{-# INLINE getResponseCookies #-}
+
+
 ------------------------------------------------------------------------------
 -- | Delete an HTTP 'Cookie' from the 'Response' headers.
 deleteResponseCookie :: ByteString        -- ^ cookie name 
