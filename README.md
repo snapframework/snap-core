@@ -1,13 +1,12 @@
 Snap Framework Core
 ===================
 
-This is the first developer prerelease of the Snap Framework Core library.  For
-more information about Snap, read the `README.SNAP.md` or visit the Snap
-project website at http://www.snapframework.com/.
+This is the Snap Framework Core library.  For more information about Snap, read
+the `README.SNAP.md` or visit the Snap project website at
+http://www.snapframework.com/.
 
-Snap is a nascent web framework for Haskell, based on iteratee I/O (as
-[popularized by Oleg
-Kiselyov](http://okmij.org/ftp/Streams.html#iteratee)).
+Snap is a web framework for Haskell, based on iteratee I/O (as [popularized by
+Oleg Kiselyov](http://okmij.org/ftp/Streams.html#iteratee)).
 
 
 ## Library contents
@@ -57,11 +56,8 @@ The docs get put in `dist/doc/html/`.
 
 ## Building the testsuite
 
-Snap is still in its very early stages, so most of the "action" (and a big
-chunk of the code) right now is centred on the test suite. Snap aims for 100%
-test coverage, and we're trying hard to stick to that.
-
-To build the test suite, `cd` into the `test/` directory and run
+Snap-core has a fairly comprehensive testsuite. To build it, `cd` into the
+`test/` directory and run
 
     $ cabal configure
     $ cabal build
@@ -69,6 +65,5 @@ To build the test suite, `cd` into the `test/` directory and run
 From here you can invoke the testsuite by running:
 
     $ ./runTestsAndCoverage.sh 
-
 
 The testsuite generates an `hpc` test coverage report in `test/dist/hpc`.
