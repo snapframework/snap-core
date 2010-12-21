@@ -727,6 +727,13 @@ getParam k = do
 
 
 ------------------------------------------------------------------------------
+-- | See 'rqParams'. Convenience function to return 'Params' from the 'Request'
+-- inside of a 'MonadSnap' instance.
+getParams :: MonadSnap m => m Params
+getParams = getRequest >>= return . rqParams 
+
+
+------------------------------------------------------------------------------
 -- | Gets the HTTP 'Cookie' with the specified name.
 getCookie :: MonadSnap m
           => ByteString

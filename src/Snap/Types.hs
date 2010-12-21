@@ -83,6 +83,7 @@ module Snap.Types
   , rqParams
   , rqParam
   , getParam
+  , getParams
   , rqModifyParams
   , rqSetParam
 
