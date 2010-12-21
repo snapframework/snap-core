@@ -521,7 +521,16 @@ setContentType = setHeader "Content-Type"
 
 
 ------------------------------------------------------------------------------
--- | Adds an HTTP 'Cookie' to the 'Response' headers.
+-- | addCookie has been deprecated and will be removed in 0.4. Please use
+-- 'addResponseCookie' instead.
+addCookie :: Cookie                   -- ^ cookie value 
+          -> Response                 -- ^ response to modify
+          -> Response
+addCookie = addResponseCookie
+
+
+------------------------------------------------------------------------------
+-- | Adds an HTTP 'Cookie' to 'Response' headers.
 addResponseCookie :: Cookie            -- ^ cookie value
                   -> Response          -- ^ response to modify
                   -> Response
@@ -548,7 +557,7 @@ getResponseCookies = Map.elems . rspCookies
 
 
 ------------------------------------------------------------------------------
--- | Delete an HTTP 'Cookie' from the 'Response' headers.
+-- | Deletes an HTTP 'Cookie' from the 'Response' headers.
 deleteResponseCookie :: ByteString        -- ^ cookie name 
                      -> Response          -- ^ response to modify
                      -> Response
@@ -560,7 +569,7 @@ deleteResponseCookie cn r = r { rspCookies = cks' }
 
 ------------------------------------------------------------------------------
 -- | Modifies an HTTP 'Cookie' with given name in 'Response' headers.
--- Nothing will happen if a matching 'Cookie' is not present in 'Response'.
+-- Nothing will happen if a matching 'Cookie' can not be found in 'Response'.
 modifyResponseCookie :: ByteString          -- ^ cookie name
                      -> (Cookie -> Cookie)  -- ^ modifier function
                      -> Response            -- ^ response to modify
