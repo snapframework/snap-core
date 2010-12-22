@@ -1,35 +1,34 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE PackageImports      #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Types.Tests
   ( tests ) where
 
-import             Control.Applicative
-import             Control.Concurrent.MVar
-import             Control.Exception (SomeException)
-import             Control.Monad
-import             Control.Monad.CatchIO
-import "monads-fd" Control.Monad.Trans (liftIO)
-import             Control.Parallel.Strategies
-import             Data.ByteString.Char8 (ByteString)
-import qualified   Data.ByteString.Char8 as S
-import qualified   Data.ByteString.Lazy.Char8 as L
-import             Data.IORef
-import             Data.Text ()
-import             Data.Text.Lazy ()
-import qualified   Data.Map as Map
-import             Prelude hiding (catch)
-import             Test.Framework
-import             Test.Framework.Providers.HUnit
-import             Test.Framework.Providers.QuickCheck2
-import             Test.HUnit hiding (Test, path)
-                   
-import             Snap.Internal.Types
-import             Snap.Internal.Http.Types
-import             Snap.Iteratee
-import             Snap.Test.Common ()
+import           Control.Applicative
+import           Control.Concurrent.MVar
+import           Control.Exception (SomeException)
+import           Control.Monad
+import           Control.Monad.CatchIO
+import           Control.Monad.Trans (liftIO)
+import           Control.Parallel.Strategies
+import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as S
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.IORef
+import           Data.Text ()
+import           Data.Text.Lazy ()
+import qualified Data.Map as Map
+import           Prelude hiding (catch)
+import           Test.Framework
+import           Test.Framework.Providers.HUnit
+import           Test.Framework.Providers.QuickCheck2
+import           Test.HUnit hiding (Test, path)
+                 
+import           Snap.Internal.Types
+import           Snap.Internal.Http.Types
+import           Snap.Iteratee
+import           Snap.Test.Common ()
 
 
 tests :: [Test]
