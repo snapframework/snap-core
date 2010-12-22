@@ -55,7 +55,7 @@ iterateeDebugWrapperWith :: (MonadIO m) =>
                          -> String
                          -> Iteratee a m b
                          -> Iteratee a m b
-iterateeDebugWrapperWith shower name iter = do
+iterateeDebugWrapperWith showFunc name iter = do
     debug $ name ++ ": BEGIN"
     step <- lift $ runIteratee iter
     whatWasReturn step
@@ -76,13 +76,13 @@ iterateeDebugWrapperWith shower name iter = do
         k EOF
 
     f k ch@(Chunks xs) = do
-        debug $ name ++ ": got chunk: " ++ showList xs
+        debug $ name ++ ": got chunk: " ++ showL xs
         step <- lift $ runIteratee $ k ch
         whatWasReturn step
         check step
 
-    showStream = show . fmap shower
-    showList = show . map shower
+    showStream = show . fmap showFunc
+    showL = show . map showFunc
 
 
 iterateeDebugWrapper :: (Show a, MonadIO m) =>

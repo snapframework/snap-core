@@ -40,24 +40,25 @@ import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Time.Clock
-import           Data.Time.Format
 import           Data.Word
 import           Foreign hiding (new)
 import           Foreign.C.Types
 import           Prelude hiding (take)
-import           System.Locale (defaultTimeLocale)
 
 
 #ifdef PORTABLE
+import           Data.Time.Format
 import           Data.Time.LocalTime
 import           Data.Time.Clock.POSIX
+import           System.Locale (defaultTimeLocale)
 #else
+import           Data.Time.Format ()
 import           Foreign.C.String
 #endif
 
 ------------------------------------------------------------------------------
 import           Data.CIByteString
-import           Snap.Iteratee (Enumerator, ($$), (>>==))
+import           Snap.Iteratee (Enumerator)
 import qualified Snap.Iteratee as I
 
 

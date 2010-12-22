@@ -25,9 +25,7 @@ import           Data.IORef
 import           Data.Maybe
 import           Data.Monoid
 import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
 import qualified Data.Text.Lazy as LT
-import qualified Data.Text.Lazy.Encoding as LT
 import           Data.Typeable
 import           Prelude hiding (catch, take)
 
