@@ -103,8 +103,10 @@ iterateeDebugWrapperWith _ _ = id
 {-# INLINE iterateeDebugWrapperWith #-}
 
 
-iterateeDebugWrapper :: (MonadIO m, Show s) =>
-                        String -> Iteratee s m a -> Iteratee s m a
+iterateeDebugWrapper :: (Show a, MonadIO m) =>
+                        String
+                     -> Iteratee a m b
+                     -> Iteratee a m b
 iterateeDebugWrapper _ = id
 {-# INLINE iterateeDebugWrapper #-}
 
