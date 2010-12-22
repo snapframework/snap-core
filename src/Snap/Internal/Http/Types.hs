@@ -16,6 +16,7 @@ module Snap.Internal.Http.Types where
 
 
 ------------------------------------------------------------------------------
+import           Blaze.ByteString.Builder
 import           Control.Applicative hiding (empty)
 import           Control.Monad (liftM, when)
 import qualified Data.Attoparsec as Atto
@@ -38,7 +39,6 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Monoid
-import           Data.Serialize.Builder
 import           Data.Time.Clock
 import           Data.Time.Format
 import           Data.Word
@@ -731,13 +731,13 @@ urlDecode = parseToCompletion pUrlEscaped
 -- | URL-escapes a string (see
 -- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
 urlEncode :: ByteString -> ByteString
-urlEncode = toByteString . S.foldl' f empty
+urlEncode = toByteString . S.foldl' f mempty
   where
     f b c =
         if c == c2w ' '
-          then b `mappend` singleton (c2w '+')
+          then b `mappend` fromWord8 (c2w '+')
           else if isKosher c
-                 then b `mappend` singleton c
+                 then b `mappend` fromWord8 c
                  else b `mappend` hexd c
 
     isKosher w = any ($ c) [ isAlphaNum
@@ -749,7 +749,7 @@ urlEncode = toByteString . S.foldl' f empty
 
 ------------------------------------------------------------------------------
 hexd :: Word8 -> Builder
-hexd c = singleton (c2w '%') `mappend` singleton hi `mappend` singleton low
+hexd c = fromWord8 (c2w '%') `mappend` fromWord8 hi `mappend` fromWord8 low
   where
     d   = c2w . intToDigit
     low = d $ fromEnum $ c .&. 0xf

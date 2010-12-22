@@ -16,23 +16,25 @@ module Snap.Util.FileServe
 ) where
 
 ------------------------------------------------------------------------------
+import           Blaze.ByteString.Builder
+import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8 hiding (Done)
 import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Char8 (ByteString)
+import           Data.ByteString.Internal (c2w)
 import           Data.Int
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe, isNothing)
+import           Data.Monoid
 import           Prelude hiding (show, Show)
 import qualified Prelude
 import           System.Directory
 import           System.FilePath
 import           System.PosixCompat.Files
-import           Text.Show.ByteString hiding (runPut)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
@@ -385,14 +387,13 @@ checkRangeReq req fp sz = do
     send206 start end = do
         dbg "inside send206"
         let len = end-start+1
-        let crng = S.concat $
-                   L.toChunks $
-                   L.concat [ "bytes "
-                            , show start
-                            , "-"
-                            , show end
-                            , "/"
-                            , show sz ]
+        let crng = toByteString $
+                   mconcat [ fromByteString "bytes "
+                           , fromShow start
+                           , fromWord8 (c2w '-')
+                           , fromShow end
+                           , fromWord8 (c2w '/')
+                           , fromShow sz ]
 
         modifyResponse $ setResponseCode 206
                        . setHeader "Content-Range" crng
@@ -413,9 +414,9 @@ checkRangeReq req fp sz = do
         if getHeader "If-Range" req /= Nothing
            then return False
            else do
-               let crng = S.concat $
-                          L.toChunks $
-                          L.concat ["bytes */", show sz]
+               let crng = toByteString $
+                          mconcat [ fromByteString "bytes */"
+                                  , fromShow sz ]
 
                modifyResponse $ setResponseCode 416
                               . setHeader "Content-Range" crng

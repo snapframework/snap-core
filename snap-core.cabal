@@ -1,5 +1,5 @@
 name:           snap-core
-version:        0.3.0
+version:        0.4.0
 synopsis:       Snap: A Haskell Web Framework (Core)
 
 description:
@@ -141,9 +141,9 @@ Library
   build-depends:
     attoparsec >= 0.8.0.2 && < 0.9,
     base >= 4 && < 5,
+    blaze-builder >= 0.2.1 && <0.3,
     bytestring,
     bytestring-nums,
-    bytestring-show >= 0.3.2 && < 0.4,
     cereal >= 0.3 && < 0.4,
     containers,
     deepseq >= 1.1 && <1.2,
