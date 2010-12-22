@@ -75,7 +75,10 @@ iterateeDebugWrapper name iter = do
 
 #else
 
-iterateeDebugWrapper :: String -> Iteratee IO a -> Iteratee IO a
+iterateeDebugWrapper :: (Show a, MonadIO m) =>
+                        String
+                     -> Iteratee a m b
+                     -> Iteratee a m b
 iterateeDebugWrapper _ = id
 {-# INLINE iterateeDebugWrapper #-}
 
