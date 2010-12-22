@@ -35,7 +35,7 @@ Executable testsuite
     HUnit >= 1.2 && < 2,
     enumerator == 0.4.*,
     MonadCatchIO-transformers >= 0.2 && < 0.3,
-    monads-fd <0.2,
+    mtl == 2.*,
     old-locale,
     old-time,
     parallel >= 2.2 && <2.3,
