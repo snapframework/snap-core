@@ -57,7 +57,7 @@ import           Foreign.C.String
 
 ------------------------------------------------------------------------------
 import           Data.CIByteString
-import           Snap.Iteratee (Enumerator)
+import           Snap.Iteratee (Enumerator, ($$), (>>==))
 import qualified Snap.Iteratee as I
 
 
@@ -174,7 +174,7 @@ type Params = Map ByteString [ByteString]
 -- request type
 ------------------------------------------------------------------------------
 
--- | An existential wrapper for the 'Enumerator' type
+-- | An existential wrapper for the 'Enumerator ByteString IO a' type
 data SomeEnumerator = SomeEnumerator (forall a . Enumerator ByteString IO a)
 
 
@@ -351,8 +351,8 @@ instance HasHeaders Headers where
 -- response type
 ------------------------------------------------------------------------------
 
-data ResponseBody = Enum (forall a . Enumerator ByteString IO a)
-                      -- ^ output body is enumerator
+data ResponseBody = Enum (forall a . Enumerator Builder IO a)
+                      -- ^ output body is a 'Builder' enumerator
 
                   | SendFile FilePath (Maybe (Int64,Int64))
                       -- ^ output body is sendfile(), optional second argument
@@ -361,17 +361,19 @@ data ResponseBody = Enum (forall a . Enumerator ByteString IO a)
 
 ------------------------------------------------------------------------------
 rspBodyMap :: (forall a .
-               Enumerator ByteString IO a -> Enumerator ByteString IO a)
+               Enumerator Builder IO a -> Enumerator Builder IO a)
            -> ResponseBody
            -> ResponseBody
 rspBodyMap f b      = Enum $ f $ rspBodyToEnum b
 
 
+
 ------------------------------------------------------------------------------
-rspBodyToEnum :: ResponseBody -> Enumerator ByteString IO a
+rspBodyToEnum :: ResponseBody -> Enumerator Builder IO a
 rspBodyToEnum (Enum e) = e
-rspBodyToEnum (SendFile fp Nothing)  = I.enumFile fp
-rspBodyToEnum (SendFile fp (Just s)) = I.enumFilePartial fp s
+rspBodyToEnum (SendFile fp Nothing)  = I.mapEnum fromByteString $ I.enumFile fp
+rspBodyToEnum (SendFile fp (Just s)) = I.mapEnum fromByteString $
+                                       I.enumFilePartial fp s
 
 
 ------------------------------------------------------------------------------
@@ -466,13 +468,14 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 
 -- | An empty 'Response'.
 emptyResponse :: Response
-emptyResponse = Response Map.empty Map.empty (1,1) Nothing (Enum (I.enumBS "")) 
+emptyResponse = Response Map.empty Map.empty (1,1) Nothing
+                         (Enum (I.enumBuilder mempty)) 
                          200 "OK" False
 
 
 ------------------------------------------------------------------------------
 -- | Sets an HTTP response body to the given 'Enumerator' value.
-setResponseBody     :: (forall a . Enumerator ByteString IO a)
+setResponseBody     :: (forall a . Enumerator Builder IO a)
                                    -- ^ new response body enumerator
                     -> Response    -- ^ response to modify
                     -> Response
@@ -505,8 +508,8 @@ setResponseCode s r = setResponseStatus s reason r
 
 ------------------------------------------------------------------------------
 -- | Modifies a response body.
-modifyResponseBody  :: (forall a . Enumerator ByteString IO a
-                                -> Enumerator ByteString IO a)
+modifyResponseBody  :: (forall a . Enumerator Builder IO a
+                                -> Enumerator Builder IO a)
                     -> Response
                     -> Response
 modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }

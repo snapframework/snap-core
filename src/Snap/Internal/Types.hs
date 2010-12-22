@@ -10,29 +10,32 @@ module Snap.Internal.Types where
 ------------------------------------------------------------------------------
 import "MonadCatchIO-transformers" Control.Monad.CatchIO
 
-import                       Control.Applicative
-import                       Control.Exception (throwIO, ErrorCall(..))
-import                       Control.Monad
-import                       Control.Monad.State
-import                       Data.ByteString.Char8 (ByteString)
-import qualified             Data.ByteString.Char8 as S
-import qualified             Data.ByteString.Lazy.Char8 as L
-import qualified             Data.CIByteString as CIB
-import                       Data.Int
-import                       Data.IORef
-import                       Data.Maybe
-import qualified             Data.Text as T
-import qualified             Data.Text.Encoding as T
-import qualified             Data.Text.Lazy as LT
-import qualified             Data.Text.Lazy.Encoding as LT
-import                       Data.Typeable
-import                       Prelude hiding (catch, take)
+import           Blaze.ByteString.Builder
+import           Blaze.ByteString.Builder.Char.Utf8
+import           Control.Applicative
+import           Control.Exception (throwIO, ErrorCall(..))
+import           Control.Monad
+import           Control.Monad.State
+import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as S
+import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.CIByteString as CIB
+import           Data.Int
+import           Data.IORef
+import           Data.Maybe
+import           Data.Monoid
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import qualified Data.Text.Lazy as LT
+import qualified Data.Text.Lazy.Encoding as LT
+import           Data.Typeable
+import           Prelude hiding (catch, take)
 
 
-------------------------------------------------------------------------------
-import                       Snap.Internal.Http.Types
-import                       Snap.Iteratee
-import                       Snap.Internal.Iteratee.Debug
+------------------------------------------------------------------
+import           Snap.Internal.Http.Types
+import           Snap.Iteratee
+import           Snap.Internal.Iteratee.Debug
 
 
 ------------------------------------------------------------------------------
@@ -239,7 +242,7 @@ getRequestBody = liftM L.fromChunks $ runRequestBody consume
 -- if you called 'finishWith'. Make sure you set any content types, headers,
 -- cookies, etc. before you call this function.
 --
-transformRequestBody :: (forall a . Enumerator ByteString IO a)
+transformRequestBody :: (forall a . Enumerator Builder IO a)
                          -- ^ the output 'Iteratee' is passed to this
                          -- 'Enumerator', and then the resulting 'Iteratee' is
                          -- fed the request body stream. Your 'Enumerator' is
@@ -249,14 +252,16 @@ transformRequestBody trans = do
     req <- getRequest
     let ioref = rqBody req
     senum <- liftIO $ readIORef ioref
-    let (SomeEnumerator enum) = senum
+    let (SomeEnumerator enum') = senum
+    let enum = mapEnum fromByteString enum'
     liftIO $ writeIORef ioref (SomeEnumerator enumEOF)
 
     origRsp <- getResponse
     let rsp = setResponseBody
                 (\writeEnd -> do
-                     let i = iterateeDebugWrapper "transformRequestBody"
-                                                  $ trans writeEnd
+                     let i = iterateeDebugWrapperWith showBuilder
+                                                      "transformRequestBody"
+                                                      $ trans writeEnd
                      st <- liftIO $ runIteratee i
 
                      enum st)
@@ -439,7 +444,7 @@ redirect' target status = do
     finishWith
         $ setResponseCode status
         $ setContentLength 0
-        $ modifyResponseBody (const $ enumBS "")
+        $ modifyResponseBody (const $ enumBuilder mempty)
         $ setHeader "Location" target r
 
 {-# INLINE redirect' #-}
@@ -457,9 +462,17 @@ logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
 -- | Adds the output from the given enumerator to the 'Response'
 -- stored in the 'Snap' monad state.
 addToOutput :: MonadSnap m
-            => (forall a . Enumerator ByteString IO a)   -- ^ output to add
+            => (forall a . Enumerator Builder IO a)   -- ^ output to add
             -> m ()
 addToOutput enum = modifyResponse $ modifyResponseBody (>==> enum)
+
+
+------------------------------------------------------------------------------
+-- | Adds the given 'Builder' to the body of the 'Response' stored in the
+-- | 'Snap' monad state.
+writeBuilder :: MonadSnap m => Builder -> m ()
+writeBuilder b = addToOutput $ enumBuilder b
+{-# INLINE writeBuilder #-}
 
 
 ------------------------------------------------------------------------------
@@ -470,7 +483,7 @@ addToOutput enum = modifyResponse $ modifyResponseBody (>==> enum)
 -- exceptions are raised by the expression creating the 'ByteString',
 -- the exception won't actually be raised within the Snap handler.
 writeBS :: MonadSnap m => ByteString -> m ()
-writeBS s = addToOutput $ enumBS s
+writeBS s = writeBuilder $ fromByteString s
 
 
 ------------------------------------------------------------------------------
@@ -481,7 +494,7 @@ writeBS s = addToOutput $ enumBS s
 -- exceptions are raised by the expression creating the 'ByteString',
 -- the exception won't actually be raised within the Snap handler.
 writeLBS :: MonadSnap m => L.ByteString -> m ()
-writeLBS s = addToOutput $ enumLBS s
+writeLBS s = writeBuilder $ fromLazyByteString s
 
 
 ------------------------------------------------------------------------------
@@ -492,7 +505,7 @@ writeLBS s = addToOutput $ enumLBS s
 -- exceptions are raised by the expression creating the 'ByteString',
 -- the exception won't actually be raised within the Snap handler.
 writeText :: MonadSnap m => T.Text -> m ()
-writeText s = writeBS $ T.encodeUtf8 s
+writeText s = writeBuilder $ fromText s
 
 
 ------------------------------------------------------------------------------
@@ -503,7 +516,7 @@ writeText s = writeBS $ T.encodeUtf8 s
 -- exceptions are raised by the expression creating the 'ByteString',
 -- the exception won't actually be raised within the Snap handler.
 writeLazyText :: MonadSnap m => LT.Text -> m ()
-writeLazyText s = writeLBS $ LT.encodeUtf8 s
+writeLazyText s = writeBuilder $ fromLazyText s
 
 
 ------------------------------------------------------------------------------
@@ -679,7 +692,7 @@ runSnap (Snap m) logerr req = do
   where
     fourohfour = setContentLength 3 $
                  setResponseStatus 404 "Not Found" $
-                 modifyResponseBody (>==> enumBS "404") $
+                 modifyResponseBody (>==> enumBuilder (fromByteString "404")) $
                  emptyResponse
 
     dresp = emptyResponse { rspHttpVersion = rqVersion req }

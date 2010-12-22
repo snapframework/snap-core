@@ -424,7 +424,7 @@ checkRangeReq req fp sz = do
                               . deleteHeader "Content-Type"
                               . deleteHeader "Content-Encoding"
                               . deleteHeader "Transfer-Encoding"
-                              . setResponseBody (enumBS "")
+                              . setResponseBody (enumBuilder mempty)
 
                return True
 

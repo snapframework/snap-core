@@ -11,18 +11,26 @@
 module Snap.Internal.Iteratee.Debug
   ( debugIteratee
   , iterateeDebugWrapper
+  , iterateeDebugWrapperWith
+  , showBuilder
   ) where
 
 ------------------------------------------------------------------------------
-import             Control.Monad.Trans
-import             Data.ByteString (ByteString)
-import             System.IO
+import           Blaze.ByteString.Builder
+import           Control.Monad.Trans
+import           Data.ByteString (ByteString)
+import           System.IO
 ------------------------------------------------------------------------------
 #ifndef NODEBUG
 import           Snap.Internal.Debug
 #endif
-import           Snap.Iteratee
+import           Snap.Iteratee hiding (map)
 ------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------
+showBuilder :: Builder -> String
+showBuilder = show . toByteString
 
 
 ------------------------------------------------------------------------------
@@ -42,11 +50,12 @@ debugIteratee = continue f
 
 #ifndef NODEBUG
 
-iterateeDebugWrapper :: (Show a, MonadIO m) =>
-                        String
-                     -> Iteratee a m b
-                     -> Iteratee a m b
-iterateeDebugWrapper name iter = do
+iterateeDebugWrapperWith :: (MonadIO m) =>
+                            (a -> String)
+                         -> String
+                         -> Iteratee a m b
+                         -> Iteratee a m b
+iterateeDebugWrapperWith shower name iter = do
     debug $ name ++ ": BEGIN"
     step <- lift $ runIteratee iter
     whatWasReturn step
@@ -55,7 +64,7 @@ iterateeDebugWrapper name iter = do
   where
     whatWasReturn (Continue _) = debug $ name ++ ": continue"
     whatWasReturn (Yield _ z)  = debug $ name ++ ": yield, with remainder "
-                                              ++ show z
+                                              ++ showStream z
     whatWasReturn (Error e)    = debug $ name ++ ": error, with " ++ show e
 
     check (Continue k) = continue $ f k
@@ -67,15 +76,35 @@ iterateeDebugWrapper name iter = do
         k EOF
 
     f k ch@(Chunks xs) = do
-        debug $ name ++ ": got chunk: " ++ show xs
+        debug $ name ++ ": got chunk: " ++ showList xs
         step <- lift $ runIteratee $ k ch
         whatWasReturn step
         check step
 
+    showStream = show . fmap shower
+    showList = show . map shower
+
+
+iterateeDebugWrapper :: (Show a, MonadIO m) =>
+                        String
+                     -> Iteratee a m b
+                     -> Iteratee a m b
+iterateeDebugWrapper = iterateeDebugWrapperWith show
+
 
 #else
 
-iterateeDebugWrapper :: String -> Iteratee IO a -> Iteratee IO a
+iterateeDebugWrapperWith :: (MonadIO m) =>
+                            (s -> String)
+                         -> String
+                         -> Iteratee s m a
+                         -> Iteratee s m a
+iterateeDebugWrapperWith _ _ = id
+{-# INLINE iterateeDebugWrapperWith #-}
+
+
+iterateeDebugWrapper :: (MonadIO m, Show s) =>
+                        String -> Iteratee s m a -> Iteratee s m a
 iterateeDebugWrapper _ = id
 {-# INLINE iterateeDebugWrapper #-}
 

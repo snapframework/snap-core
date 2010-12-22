@@ -8,27 +8,29 @@ module Snap.Util.GZip
 ( withCompression
 , withCompression' ) where
 
-import   qualified Codec.Compression.GZip as GZip
-import   qualified Codec.Compression.Zlib as Zlib
-import             Control.Concurrent
-import             Control.Applicative hiding (many)
-import             Control.Exception
-import             Control.Monad
-import             Control.Monad.Trans
-import             Data.Attoparsec.Char8 hiding (Done)
-import   qualified Data.ByteString.Lazy.Char8 as L
-import             Data.ByteString.Char8 (ByteString)
-import             Data.Maybe
-import   qualified Data.Set as Set
-import             Data.Set (Set)
-import             Data.Typeable
-import             Prelude hiding (catch, takeWhile)
+import           Blaze.ByteString.Builder
+import qualified Codec.Compression.GZip as GZip
+import qualified Codec.Compression.Zlib as Zlib
+import           Control.Concurrent
+import           Control.Applicative hiding (many)
+import           Control.Exception
+import           Control.Monad
+import           Control.Monad.Trans
+import           Data.Attoparsec.Char8 hiding (Done)
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.ByteString.Char8 (ByteString)
+import           Data.Maybe
+import qualified Data.Set as Set
+import           Data.Set (Set)
+import           Data.Typeable
+import           Prelude hiding (catch, takeWhile)
 
-------------------------------------------------------------------------------
-import             Snap.Internal.Debug
-import             Snap.Internal.Parsing
-import             Snap.Iteratee
-import             Snap.Types
+----------------------------------------------------------------------------
+import           Snap.Internal.Debug
+import           Snap.Internal.Parsing
+import           Snap.Iteratee
+import qualified Snap.Iteratee as I
+import           Snap.Types
 
 
 ------------------------------------------------------------------------------
@@ -155,28 +157,32 @@ compressCompression ce = modifyResponse f
 
 ------------------------------------------------------------------------------
 -- FIXME: use zlib-bindings
-gcompress :: forall a . Enumerator ByteString IO a
-          -> Enumerator ByteString IO  a
+gcompress :: forall a . Enumerator Builder IO a
+          -> Enumerator Builder IO  a
 gcompress = compressEnumerator GZip.compress
 
 
 ------------------------------------------------------------------------------
-ccompress :: forall a . Enumerator ByteString IO a
-          -> Enumerator ByteString IO a
+ccompress :: forall a . Enumerator Builder IO a
+          -> Enumerator Builder IO a
 ccompress = compressEnumerator Zlib.compress
 
 
 ------------------------------------------------------------------------------
 compressEnumerator :: forall a .
                       (L.ByteString -> L.ByteString)
-                   -> Enumerator ByteString IO a
-                   -> Enumerator ByteString IO a
-compressEnumerator compFunc enum origStep = do
+                   -> Enumerator Builder IO a
+                   -> Enumerator Builder IO a
+compressEnumerator compFunc enum' origStep = do
+    let iter = joinI $ I.map fromByteString origStep
+    step <- lift $ runIteratee iter
     writeEnd <- liftIO $ newChan
     readEnd  <- liftIO $ newChan
     tid      <- liftIO $ forkIO $ threadProc readEnd writeEnd
 
-    enum (f readEnd writeEnd tid origStep)
+    let enum = mapEnum toByteString enum'
+    let outEnum = enum (f readEnd writeEnd tid step)
+    mapIter fromByteString outEnum
 
   where
     --------------------------------------------------------------------------

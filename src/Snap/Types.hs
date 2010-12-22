@@ -110,6 +110,7 @@ module Snap.Types
   , setResponseBody
   , modifyResponseBody
   , addToOutput
+  , writeBuilder
   , writeBS
   , writeLazyText
   , writeText

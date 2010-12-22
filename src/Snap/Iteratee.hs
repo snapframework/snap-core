@@ -17,6 +17,7 @@ module Snap.Iteratee
     -- * Enumerators
     enumBS
   , enumLBS
+  , enumBuilder
   , enumFile
   , enumFilePartial
   , InvalidRangeException
@@ -33,6 +34,8 @@ module Snap.Iteratee
   , takeExactly
   , takeNoMoreThan
   , skipToEof
+  , mapEnum
+  , mapIter
 
   , TooManyBytesReadException
   , ShortWriteException
@@ -103,6 +106,7 @@ import             Prelude hiding (catch,drop)
 
 -}
 
+import             Blaze.ByteString.Builder
 import             Control.DeepSeq
 import             Control.Exception (SomeException, assert)
 import             Control.Monad
@@ -113,6 +117,7 @@ import qualified   Data.ByteString.Char8 as S
 import qualified   Data.ByteString.Unsafe as S
 import qualified   Data.ByteString.Lazy.Char8 as L
 import             Data.Enumerator hiding (drop)
+import qualified   Data.Enumerator as I
 import             Data.Enumerator.IO (enumHandle)
 import             Data.List (foldl')
 import             Data.Monoid (mappend)
@@ -154,11 +159,16 @@ streamLength EOF         = 0
 
 
 ------------------------------------------------------------------------------
+-- | Enumerates a Builder.
+enumBuilder :: (Monad m) => Builder -> Enumerator Builder m a
+enumBuilder = enumList 1 . (:[])
+{-# INLINE enumBuilder #-}
+
+
+------------------------------------------------------------------------------
 -- | Enumerates a strict bytestring.
 enumBS :: (Monad m) => ByteString -> Enumerator ByteString m a
-enumBS bs (Continue k) = k (Chunks [bs])
-enumBS bs (Yield x s)  = Iteratee $ return $ Yield x (s `mappend` Chunks [bs])
-enumBS _  (Error e)    = Iteratee $ return $ Error e
+enumBS = enumList 1 . (:[])
 {-# INLINE enumBS #-}
 
 
@@ -628,3 +638,32 @@ enumFilePartial fp rng@(start,end) st@(Continue k) = do
                                     S.drop (fromEnum start) s ]
 
 #endif
+
+
+------------------------------------------------------------------------------
+mapIter :: (Monad m) =>
+           (aOut -> aIn)
+        -> Iteratee aOut m a
+        -> Iteratee aIn m a
+mapIter f iter = iter >>== check
+  where
+    check (Continue k) = k EOF >>== \s -> case s of
+        Continue _ -> error "divergent iteratee"
+        _ -> check s
+    check (Yield x rest) = yield x (fmap f rest)
+    check (Error e) = throwError e
+
+
+------------------------------------------------------------------------------
+mapEnum :: (Monad m) =>
+           (aOut -> aIn)
+        -> Enumerator aOut m a
+        -> Enumerator aIn m a
+mapEnum f enum builderStep = do
+    -- z :: Iteratee ByteString m (Step Builder m a)
+    let z = I.map f builderStep
+    -- p :: Iteratee ByteString m a
+    let p = joinI z
+    -- q :: Iteratee ByteString m a
+    let q = enum $$ p
+    mapIter f q
