@@ -1,32 +1,31 @@
 {-# LANGUAGE BangPatterns         #-}
 {-# LANGUAGE OverloadedStrings    #-}
-{-# LANGUAGE PackageImports       #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Snap.Iteratee.Tests
   ( tests ) where
 
-import qualified   Control.Exception as E
-import             Control.Exception hiding (try, assert)
-import             Control.Monad
-import "monads-fd" Control.Monad.Identity
-import             Data.ByteString (ByteString)
-import qualified   Data.ByteString as S
-import qualified   Data.ByteString.Lazy.Char8 as L
-import             Data.Int
-import             Data.Maybe
-import             Prelude hiding (head, drop, take)
-import             Test.Framework
-import             Test.Framework.Providers.QuickCheck2
-import             Test.QuickCheck
-import qualified   Test.QuickCheck.Monadic as QC
-import             Test.QuickCheck.Monadic hiding (run)
-import             Test.Framework.Providers.HUnit
-import qualified   Test.HUnit as H
+import qualified Control.Exception as E
+import           Control.Exception hiding (try, assert)
+import           Control.Monad
+import           Control.Monad.Identity
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.Int
+import           Data.Maybe
+import           Prelude hiding (head, drop, take)
+import           Test.Framework
+import           Test.Framework.Providers.QuickCheck2
+import           Test.QuickCheck
+import qualified Test.QuickCheck.Monadic as QC
+import           Test.QuickCheck.Monadic hiding (run)
+import           Test.Framework.Providers.HUnit
+import qualified Test.HUnit as H
 
-import             Snap.Iteratee
-import             Snap.Test.Common ()
+import           Snap.Iteratee
+import           Snap.Test.Common ()
 
 import Snap.Internal.Iteratee.Debug
 
