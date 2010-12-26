@@ -26,6 +26,7 @@ Executable testsuite
     blaze-builder >= 0.2.1 && <0.3,
     bytestring,
     bytestring-nums,
+    cereal == 0.3.*,
     containers,
     deepseq >= 1.1 && <1.2,
     directory,

@@ -5,6 +5,7 @@
 module Snap.Types.Tests
   ( tests ) where
 
+import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.Exception (SomeException)
@@ -16,6 +17,7 @@ import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
+import           Data.Monoid
 import           Data.Text ()
 import           Data.Text.Lazy ()
 import qualified Data.Map as Map
@@ -305,7 +307,7 @@ testParam = testCase "types/getParam" $ do
 getBody :: Response -> IO L.ByteString
 getBody r = do
     let benum = rspBodyToEnum $ rspBody r
-    liftM L.fromChunks (runIteratee consume >>= run_ . benum)
+    liftM (toLazyByteString . mconcat) (runIteratee consume >>= run_ . benum)
 
 
 testWrites :: Test
@@ -316,7 +318,7 @@ testWrites = testCase "types/writes" $ do
   where
     h :: Snap ()
     h = do
-        addToOutput $ enumBS "Foo1"
+        addToOutput $ enumBuilder $ fromByteString "Foo1"
         writeBS "Foo2"
         writeLBS "Foo3"
 
@@ -343,7 +345,7 @@ testDir2 = testCase "types/dir2" $ do
   where
     f = dir "foo" $ dir "bar" $ do
             p <- liftM rqContextPath getRequest
-            addToOutput $ enumBS p
+            addToOutput $ enumBuilder $ fromByteString p
 
 
 testIpHeaderFilter :: Test

@@ -3,14 +3,14 @@
 module Snap.Internal.Http.Types.Tests
   ( tests ) where
 
+import           Blaze.ByteString.Builder
 import           Control.Monad
 import           Control.Parallel.Strategies
-import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
 import           Data.IORef
-import           Data.List (sort)
 import qualified Data.Map as Map
+import           Data.Monoid
 import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Prelude hiding (take)
@@ -91,8 +91,8 @@ testTypes = testCase "show" $ do
     assertEqual "content-length" (Just 4) $ rspContentLength resp
     -- run response body
     let benum = rspBodyToEnum $ rspBody resp
-    bd <- runIteratee consume >>= run_ . benum
-    assertEqual "response body" "PING" $ S.concat bd
+    bd <- liftM (toByteString . mconcat) (runIteratee consume >>= run_ . benum)
+    assertEqual "response body" "PING" $ bd
 
     let !_ = show GET
     let !_ = GET == POST
@@ -107,7 +107,7 @@ testTypes = testCase "show" $ do
     resp = addResponseCookie cook $
            setContentLength 4 $
            modifyResponseBody id $
-           setResponseBody (enumBS "PING") $
+           setResponseBody (enumBuilder (fromByteString "PING")) $
            setContentType "text/plain" $
            setResponseStatus 555 "bogus" $
            emptyResponse

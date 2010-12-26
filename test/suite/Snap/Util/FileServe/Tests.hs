@@ -5,6 +5,7 @@
 module Snap.Util.FileServe.Tests
   ( tests ) where
 
+import           Blaze.ByteString.Builder
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -12,6 +13,7 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
 import qualified Data.Map as Map
 import           Data.Maybe
+import           Data.Monoid
 import           Prelude hiding (take)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
@@ -40,7 +42,7 @@ expect404 m = do
 getBody :: Response -> IO L.ByteString
 getBody r = do
     let benum = rspBodyToEnum $ rspBody r
-    liftM L.fromChunks (runIteratee consume >>= run_ . benum)
+    liftM (toLazyByteString . mconcat) (runIteratee consume >>= run_ . benum)
 
 
 go :: Snap a -> ByteString -> IO Response

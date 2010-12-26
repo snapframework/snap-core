@@ -6,16 +6,17 @@
 module Snap.Util.GZip.Tests
   ( tests ) where
 
+import           Blaze.ByteString.Builder
 import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.Zlib as Zlib
 import           Control.Exception hiding (assert)
 import           Control.Monad (liftM)
-import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Digest.Pure.MD5
 import           Data.IORef
 import qualified Data.Map as Map
-import           Data.Serialize
+import           Data.Monoid
+import           Data.Serialize (encode)
 import           Test.Framework
 import           Test.Framework.Providers.QuickCheck2
 import           Test.QuickCheck
@@ -32,8 +33,8 @@ import           Snap.Util.GZip
 
 
 stream2stream
-  :: Iteratee ByteString IO L.ByteString
-stream2stream = liftM L.fromChunks consume
+  :: Iteratee Builder IO L.ByteString
+stream2stream = liftM (toLazyByteString . mconcat) consume
 
 ------------------------------------------------------------------------------
 tests :: [Test]
@@ -150,20 +151,21 @@ goNoHeaders = goGeneric mkNoHeaders
 
 ------------------------------------------------------------------------------
 noContentType :: L.ByteString -> Snap ()
-noContentType s = modifyResponse $ setResponseBody (enumLBS s)
+noContentType s = modifyResponse $ setResponseBody $
+                  enumBuilder $ fromLazyByteString s
 
 
 ------------------------------------------------------------------------------
 textPlain :: L.ByteString -> Snap ()
 textPlain s = modifyResponse $
-              setResponseBody (enumLBS s) .
+              setResponseBody (enumBuilder $ fromLazyByteString s) .
               setContentType "text/plain"
 
 
 ------------------------------------------------------------------------------
 binary :: L.ByteString -> Snap ()
 binary s = modifyResponse $
-           setResponseBody (enumLBS s) .
+           setResponseBody (enumBuilder $ fromLazyByteString s) .
            setContentType "application/octet-stream"
 
 
