@@ -372,9 +372,10 @@ rspBodyMap f b      = Enum $ f $ rspBodyToEnum b
 ------------------------------------------------------------------------------
 rspBodyToEnum :: ResponseBody -> Enumerator Builder IO a
 rspBodyToEnum (Enum e) = e
-rspBodyToEnum (SendFile fp Nothing)  = I.mapEnum fromByteString $ I.enumFile fp
-rspBodyToEnum (SendFile fp (Just s)) = I.mapEnum fromByteString $
-                                       I.enumFilePartial fp s
+rspBodyToEnum (SendFile fp Nothing) =
+    I.mapEnum toByteString fromByteString $ I.enumFile fp
+rspBodyToEnum (SendFile fp (Just s)) =
+    I.mapEnum toByteString fromByteString $ I.enumFilePartial fp s
 
 
 ------------------------------------------------------------------------------

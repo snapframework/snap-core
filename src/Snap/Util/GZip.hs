@@ -180,9 +180,9 @@ compressEnumerator compFunc enum' origStep = do
     readEnd  <- liftIO $ newChan
     tid      <- liftIO $ forkIO $ threadProc readEnd writeEnd
 
-    let enum = mapEnum toByteString enum'
+    let enum = mapEnum fromByteString toByteString enum'
     let outEnum = enum (f readEnd writeEnd tid step)
-    mapIter fromByteString outEnum
+    mapIter toByteString fromByteString outEnum
 
   where
     --------------------------------------------------------------------------

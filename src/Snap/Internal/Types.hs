@@ -251,7 +251,7 @@ transformRequestBody trans = do
     let ioref = rqBody req
     senum <- liftIO $ readIORef ioref
     let (SomeEnumerator enum') = senum
-    let enum = mapEnum fromByteString enum'
+    let enum = mapEnum toByteString fromByteString enum'
     liftIO $ writeIORef ioref (SomeEnumerator enumEOF)
 
     origRsp <- getResponse

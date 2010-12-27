@@ -641,29 +641,55 @@ enumFilePartial fp rng@(start,end) st@(Continue k) = do
 
 
 ------------------------------------------------------------------------------
-mapIter :: (Monad m) =>
+mapEnum :: (Monad m) =>
            (aOut -> aIn)
-        -> Iteratee aOut m a
-        -> Iteratee aIn m a
-mapIter f iter = iter >>== check
-  where
-    check (Continue k) = k EOF >>== \s -> case s of
-        Continue _ -> error "divergent iteratee"
-        _ -> check s
-    check (Yield x rest) = yield x (fmap f rest)
-    check (Error e) = throwError e
+        -> (aIn -> aOut)
+        -> Enumerator aIn m a
+        -> Enumerator aOut m a
+mapEnum f g enum outStep = do
+    let z = I.map g outStep
+    let p = joinI z
+    let q = enum $$ p
+    (I.joinI . I.map f) $$ q
 
 
 ------------------------------------------------------------------------------
-mapEnum :: (Monad m) =>
+mapIter :: (Monad m) =>
            (aOut -> aIn)
-        -> Enumerator aOut m a
-        -> Enumerator aIn m a
-mapEnum f enum builderStep = do
-    -- z :: Iteratee ByteString m (Step Builder m a)
-    let z = I.map f builderStep
-    -- p :: Iteratee ByteString m a
-    let p = joinI z
-    -- q :: Iteratee ByteString m a
-    let q = enum $$ p
-    mapIter f q
+        -> (aIn -> aOut)
+        -> Iteratee aIn m a
+        -> Iteratee aOut m a
+mapIter f g iter = do
+    step <- lift $ runIteratee iter
+    mapStep step
+  where
+    -- mapStep :: Step aIn m a -> Iteratee aOut m a
+    mapStep (Continue k)   = continue $ wrapK k
+    mapStep (Yield x rest) = yield x (fmap g rest)
+    mapStep (Error e)      = throwError e
+
+    -- wrapK :: (Stream aIn  -> Iteratee aIn m a)
+    --       -> (Stream aOut -> Iteratee aOut m a)
+    wrapK k streamOut = mapIter f g iterIn
+      where
+        streamIn = fmap f streamOut
+        iterIn   = k streamIn
+
+
+------------------------------------------------------------------------------
+-- testIt :: IO ()
+-- testIt = do
+--     xs <- run_ (eInt $$ consume)
+--     putStrLn (show xs)
+
+--     ys <- run_ (eInt $$ replicateM 3 iter1)
+--     putStrLn (show ys)
+
+--   where
+--     eBS :: Enumerator ByteString IO a
+--     eBS = enumList 1 ["12345", "300", "200", "400"]
+
+--     eInt :: Enumerator Int IO a
+--     eInt = mapEnum (S.pack . show) (read . S.unpack) eBS
+
+--     iter1 = mapIter (S.pack . show) (read . S.unpack) I.head
