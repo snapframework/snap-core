@@ -264,7 +264,7 @@ fileServeCfg cfg base = do
 fileServe :: MonadSnap m
           => FilePath  -- ^ root directory
           -> m ()
-fileServe = fileServe' defaultMimeTypes
+fileServe = fileServeCfg (FileServeConfig [] Nothing defaultMimeTypes)
 {-# INLINE fileServe #-}
 
 
@@ -274,16 +274,7 @@ fileServe' :: MonadSnap m
            => MimeMap           -- ^ MIME type mapping
            -> FilePath          -- ^ root directory
            -> m ()
-fileServe' mm root = do
-    sp <- getSafePath
-    let fp   = root </> sp
-
-    -- check that the file exists
-    liftIO (doesFileExist fp) >>= flip unless pass
-
-    let fn   = takeFileName fp
-    let mime = fileType mm fn
-    fileServeSingle' mime fp
+fileServe' mm = fileServeCfg (FileServeConfig [] Nothing mm)
 {-# INLINE fileServe' #-}
 
 
