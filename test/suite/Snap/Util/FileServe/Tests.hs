@@ -26,6 +26,7 @@ import           Snap.Iteratee
 
 tests :: [Test]
 tests = [ testFs
+        , testFsCfg
         , testFsSingle
         , testRangeOK
         , testRangeBad
@@ -37,6 +38,15 @@ expect404 :: IO Response -> IO ()
 expect404 m = do
     r <- m
     assertBool "expected 404" (rspStatus r == 404)
+
+
+expect302 :: ByteString -> IO Response -> IO ()
+expect302 p m = do
+    r <- m
+    assertBool "expected 302" (rspStatus r == 302)
+    assertEqual "redir location"
+                (Just p)
+                (getHeader "location" r)
 
 
 getBody :: Response -> IO L.ByteString
@@ -123,6 +133,12 @@ fsSingle = do
     return $! x `seq` ()
 
 
+fsCfg :: FileServeConfig Snap -> Snap ()
+fsCfg cfg = do
+    x <- fileServeCfg cfg "data/fileServe"
+    return $! x `seq` ()
+
+
 testFs :: Test
 testFs = testCase "fileServe/multi" $ do
     r1 <- go fs "foo.bin"
@@ -192,6 +208,101 @@ testFsSingle = testCase "fileServe/Single" $ do
                 (getHeader "content-type" r1)
 
     assertEqual "foo.html size" (Just 4) (rspContentLength r1)
+
+
+testFsCfg :: Test
+testFsCfg = testCase "fileServe/Cfg" $ do
+
+    let cfgA = FileServeConfig {
+        indexFiles     = [],
+        indexGenerator = Nothing,
+        mimeTypes      = defaultMimeTypes
+        }
+
+    -- Named file in the root directory
+    rA1 <- go (fsCfg cfgA) "foo.bin"
+    bA1 <- getBody rA1
+
+    assertEqual "A1" "FOO\n" bA1
+    assertEqual "A1 content-type"
+                (Just "application/octet-stream")
+                (getHeader "content-type" rA1)
+
+    -- Missing file in the root directory
+    expect404 $ go (fsCfg cfgA) "bar.bin"
+
+    -- Named file in a subdirectory
+    rA2 <- go (fsCfg cfgA) "mydir2/foo.txt"
+    bA2 <- getBody rA2
+
+    assertEqual "A2" "FOO\n" bA2
+    assertEqual "A2 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rA2)
+
+    -- Missing file in a subdirectory
+    expect404 $ go (fsCfg cfgA) "mydir2/bar.txt"
+
+    -- Request for directory with no trailing slash
+    expect302 "/mydir1/" $ go (fsCfg cfgA) "mydir1"
+
+    -- Request for directory with trailing slash, no index
+    expect404 $ go (fsCfg cfgA) "mydir1/"
+    expect404 $ go (fsCfg cfgA) "mydir2/"
+
+    -- Request file with trailing slash
+    expect404 $ go (fsCfg cfgA) "foo.html/"
+    expect404 $ go (fsCfg cfgA) "mydir2/foo.txt/"
+
+    let cfgB = FileServeConfig {
+        indexFiles     = ["index.txt", "altindex.html"],
+        indexGenerator = Nothing,
+        mimeTypes      = defaultMimeTypes
+        }
+
+    -- Request for root directory with index
+    rB1 <- go (fsCfg cfgB) "mydir1/"
+    bB1 <- getBody rB1
+
+    assertEqual "B1" "INDEX\n" bB1
+    assertEqual "B1 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rB1)
+
+    -- Request for root directory with alternate index
+    rB2 <- go (fsCfg cfgB) "mydir3/"
+    bB2 <- getBody rB2
+
+    assertEqual "B2" "ALTINDEX\n" bB2
+    assertEqual "B2 content-type"
+                (Just "text/html")
+                (getHeader "content-type" rB2)
+
+    -- Request for root directory with no index
+    expect404 $ go (fsCfg cfgB) "mydir2/"
+
+
+    let cfgC = FileServeConfig {
+        indexFiles     = ["index.txt", "altindex.html"],
+        indexGenerator = Just (\c -> writeBS $ snd $ S.breakEnd (=='y')
+                                             $ (S.pack c)),
+        mimeTypes      = defaultMimeTypes
+        }
+
+    -- Request for root directory with index
+    rC1 <- go (fsCfg cfgC) "mydir1/"
+    bC1 <- getBody rC1
+
+    assertEqual "C1" "INDEX\n" bC1
+    assertEqual "C1 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rC1)
+
+    -- Request for root directory with generated index
+    rC2 <- go (fsCfg cfgC) "mydir2/"
+    bC2 <- getBody rC2
+
+    assertEqual "C2" "dir2" bC2
 
 
 testRangeOK :: Test

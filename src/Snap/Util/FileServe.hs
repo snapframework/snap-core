@@ -7,6 +7,8 @@
 module Snap.Util.FileServe
 (
   getSafePath
+, FileServeConfig(..)
+, fileServeCfg
 , fileServe
 , fileServe'
 , fileServeSingle
@@ -26,6 +28,7 @@ import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Internal (c2w)
 import           Data.Int
+import           Data.List
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe, isNothing)
@@ -184,6 +187,70 @@ getSafePath = do
     when (elem ".." dirs) pass
 
     return $ joinPath dirs
+
+
+------------------------------------------------------------------------------
+-- | A collection of options for serving static files out of a directory.
+data FileServeConfig m = FileServeConfig {
+    -- | Files to look for when a directory is requested (e.g., index.html)
+    indexFiles      :: [FilePath],
+
+    -- | Handler to generate a directory listing if there is no index.
+    indexGenerator  :: Maybe (FilePath -> m ()),
+
+    -- | MIME type map to look up content types.
+    mimeTypes       :: MimeMap
+    }
+
+
+------------------------------------------------------------------------------
+-- | The ultimate static file and directory server.  Configuration options are
+-- passed in a 'FileServeConfig' that captures all of the relevant choices
+-- about serving the directory.
+fileServeCfg :: MonadSnap m
+             => FileServeConfig m  -- ^ Configuration options
+             -> FilePath           -- ^ Base directory to serve from
+             -> m ()
+fileServeCfg cfg base = do
+    b <- directory <|> file <|> redir
+    when (not b) pass
+
+  where
+
+    idxs       = indexFiles cfg
+    generate d = maybe pass ($ d) (indexGenerator cfg)
+    mimes      = mimeTypes cfg
+
+    -- Serves a file if it exists; passes if not
+    serve f = do
+        liftIO (doesFileExist f) >>= flip unless pass
+        fileServeSingle' (fileType mimes (takeFileName f)) f
+        return True
+
+    -- Serves a directory via indices if available.  Returns True on success,
+    -- False on failure to find an index.  Passes /only/ if the request was
+    -- not for a directory (no trailing slash).
+    directory = do
+        rq  <- getRequest
+        unless ("/" `S.isSuffixOf` rqURI rq) pass
+        rel <- (base </>) <$> getSafePath
+        b   <- liftIO $ doesDirectoryExist rel
+        if b then do let serveRel f = serve (rel </> f)
+                     foldl' (<|>) pass (Prelude.map serveRel idxs)
+                         <|> (generate rel >> return True)
+                         <|> return False
+             else return False
+
+    -- Serves a file requested by name.  Passes if the file doesn't exist.
+    file = serve =<< ((base </>) <$> getSafePath)
+
+    -- If the request is for a directory but lacks a trailing slash, redirects
+    -- to the directory name with a trailing slash.
+    redir = do
+        rel <- (base </>) <$> getSafePath
+        liftIO (doesDirectoryExist rel) >>= flip unless pass
+        rq <- getRequest
+        redirect $ rqURI rq `S.append` "/" `S.append` rqQueryString rq
 
 
 ------------------------------------------------------------------------------
