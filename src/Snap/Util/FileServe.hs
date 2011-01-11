@@ -15,6 +15,8 @@ module Snap.Util.FileServe
 , fileServeSingle'
 , defaultMimeTypes
 , MimeMap
+, defaultIndexGenerator
+, HandlerMap
 ) where
 
 ------------------------------------------------------------------------------
@@ -48,6 +50,11 @@ import           Snap.Types
 ------------------------------------------------------------------------------
 -- | A type alias for MIME type
 type MimeMap = Map FilePath ByteString
+
+
+------------------------------------------------------------------------------
+-- | A type alias for dynamic handlers
+type HandlerMap m = Map FilePath (FilePath -> m ())
 
 
 ------------------------------------------------------------------------------
@@ -196,7 +203,12 @@ data FileServeConfig m = FileServeConfig {
     indexFiles      :: [FilePath],
 
     -- | Handler to generate a directory listing if there is no index.
-    indexGenerator  :: Maybe (FilePath -> m ()),
+    indexGenerator  :: FilePath -> m (),
+
+    -- | Map of extensions to pass to dynamic file handlers.  This could be
+    -- used, for example, to implement CGI dispatch, pretty printing of source
+    -- code, etc.
+    dynamicHandlers :: HandlerMap m,
 
     -- | MIME type map to look up content types.
     mimeTypes       :: MimeMap
@@ -217,14 +229,17 @@ fileServeCfg cfg base = do
 
   where
 
-    idxs       = indexFiles cfg
-    generate d = maybe pass ($ d) (indexGenerator cfg)
-    mimes      = mimeTypes cfg
+    idxs     = indexFiles cfg
+    generate = indexGenerator cfg
+    mimes    = mimeTypes cfg
+    dyns     = dynamicHandlers cfg
 
     -- Serves a file if it exists; passes if not
     serve f = do
         liftIO (doesFileExist f) >>= flip unless pass
-        fileServeSingle' (fileType mimes (takeFileName f)) f
+        let fname       = takeFileName f
+        let staticServe = fileServeSingle' (fileType mimes fname)
+        lookupExt staticServe dyns fname f
         return True
 
     -- Serves a directory via indices if available.  Returns True on success,
@@ -254,6 +269,75 @@ fileServeCfg cfg base = do
 
 
 ------------------------------------------------------------------------------
+-- | An automatic index generator that copies the Snap look and feel to some
+-- extent while remaining fairly small and not relying on external files
+-- (which may not be there depending on external request routing).
+defaultIndexGenerator :: MonadSnap m => MimeMap -> FilePath -> m ()
+defaultIndexGenerator mm d = do
+    modifyResponse $ setContentType "text/html"
+
+    rq      <- getRequest
+
+    writeBS "<style type=\"text/css\">body{margin: 0px 0px 0px 0px;"
+    writeBS "font-family: sans-serif}div.header{padding:40px 40px 0px"
+    writeBS " 40px;background:rgb(25,50,87);background-image:"
+    writeBS "-webkit-gradient(linear,left bottom,left top,color-stop("
+    writeBS "0.00, rgb(31,62,108)),color-stop(1.00, rgb(19,38,66))"
+    writeBS ");background-image:-moz-linear-gradient(center bottom,"
+    writeBS "rgb(31,62,108) 0%,rgb(19,38,66) 100%);text-shadow:-1px"
+    writeBS " 3px 1px rgb(16,33,57);height:35px;font-size:16pt;"
+    writeBS "letter-spacing: 2pt;color: white}div.divider {background:"
+    writeBS "rgb(46,93,156);height:10px}div.content{background:rgb("
+    writeBS "255,255,255);background-image: -webkit-gradient(linear,"
+    writeBS "left bottom, left top,color-stop(0.50, rgb(255,255,255)),"
+    writeBS "color-stop(1.00, rgb(224,234,247)));background-image:"
+    writeBS "-moz-linear-gradient(center bottom,rgb(255,255,255) 50%,"
+    writeBS "rgb(224,234,247) 100%);padding: 40px 40px 40px 40px}div"
+    writeBS ".footer{padding:16px 0px 10px 10px;border-top:1px solid"
+    writeBS " rgb(194,209,225);color:rgb(160,172,186);height:31px;"
+    writeBS "font-family:sans-serif;font-size:10pt;background: rgb(245,"
+    writeBS "249,255)}table{width:100%}tr:hover{background:rgb(256,256,"
+    writeBS "224)}td{border:dotted thin black;font-family:monospace}"
+    writeBS "th{border:solid thin black;background:rgb(28,56,97);"
+    writeBS "text-shadow:-1px 3px 1px rgb(16,33,57);color: white}</style>"
+    writeBS "<div class=\"header\">Directory Listing: "
+    writeBS (rqURI rq)
+    writeBS "</div><div class=\"divider\"></div><div class=\"content\">"
+    writeBS "<table><tr><th>File Name</th><th>Type</th><th>Last Modified"
+    writeBS "</th></tr>"
+
+    when (rqURI rq /= "/") $
+        writeBS "<tr><td><a href='../'>..</a></td><td colspan=2>DIR</td></tr>"
+
+    entries <- liftIO $ getDirectoryContents d
+    dirs    <- liftIO $ filterM (doesDirectoryExist . (d </>)) entries
+    files   <- liftIO $ filterM (doesFileExist . (d </>)) entries
+
+    forM_ (filter (not . (`elem` ["..", "."])) dirs) $ \f -> do
+        writeBS "<tr><td><a href='"
+        writeBS (S.pack f)
+        writeBS "/'>"
+        writeBS (S.pack f)
+        writeBS "</a></td><td colspan=2>DIR</td></tr>"
+
+    forM_ files $ \f -> do
+        stat <- liftIO $ getFileStatus (d </> f)
+        tm   <- liftIO $ formatHttpTime (modificationTime stat)
+        writeBS "<tr><td><a href='"
+        writeBS (S.pack f)
+        writeBS "'>"
+        writeBS (S.pack f)
+        writeBS "</a></td><td>"
+        writeBS (fileType mm f)
+        writeBS "</td><td>"
+        writeBS tm
+        writeBS "</tr>"
+
+    writeBS "</table></div><div class=\"footer\">Powered by "
+    writeBS "<b><a href=\"http://snapframework.com\">Snap</a></b></div>"
+
+
+------------------------------------------------------------------------------
 -- | Serves files out of the given directory. The relative path given in
 -- 'rqPathInfo' is searched for the given file, and the file is served with
 -- the appropriate mime type if it is found. Absolute paths and \"@..@\" are
@@ -264,7 +348,12 @@ fileServeCfg cfg base = do
 fileServe :: MonadSnap m
           => FilePath  -- ^ root directory
           -> m ()
-fileServe = fileServeCfg (FileServeConfig [] Nothing defaultMimeTypes)
+fileServe = fileServeCfg $ FileServeConfig {
+    indexFiles = [],
+    indexGenerator = const pass,
+    dynamicHandlers = Map.empty,
+    mimeTypes = defaultMimeTypes
+    }
 {-# INLINE fileServe #-}
 
 
@@ -274,7 +363,12 @@ fileServe' :: MonadSnap m
            => MimeMap           -- ^ MIME type mapping
            -> FilePath          -- ^ root directory
            -> m ()
-fileServe' mm = fileServeCfg (FileServeConfig [] Nothing mm)
+fileServe' mm = fileServeCfg $ FileServeConfig {
+    indexFiles = [],
+    indexGenerator = const pass,
+    dynamicHandlers = Map.empty,
+    mimeTypes = mm
+    }
 {-# INLINE fileServe' #-}
 
 
@@ -366,16 +460,20 @@ fileServeSingle' mime fp = do
 
 
 ------------------------------------------------------------------------------
-fileType :: MimeMap -> FilePath -> ByteString
-fileType mm f =
+lookupExt :: a -> Map FilePath a -> FilePath -> a
+lookupExt def m f =
     if null ext
-      then defaultMimeType
-      else fromMaybe (fileType mm (drop 1 ext))
-                     mbe
+      then def
+      else fromMaybe (lookupExt def m (drop 1 ext)) mbe
 
   where
     ext             = takeExtensions f
-    mbe             = Map.lookup ext mm
+    mbe             = Map.lookup ext m
+
+
+------------------------------------------------------------------------------
+fileType :: MimeMap -> FilePath -> ByteString
+fileType = lookupExt defaultMimeType
 
 
 ------------------------------------------------------------------------------

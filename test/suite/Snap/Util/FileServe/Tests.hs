@@ -214,9 +214,10 @@ testFsCfg :: Test
 testFsCfg = testCase "fileServe/Cfg" $ do
 
     let cfgA = FileServeConfig {
-        indexFiles     = [],
-        indexGenerator = Nothing,
-        mimeTypes      = defaultMimeTypes
+        indexFiles      = [],
+        indexGenerator  = const pass,
+        dynamicHandlers = Map.empty,
+        mimeTypes       = defaultMimeTypes
         }
 
     -- Named file in the root directory
@@ -255,9 +256,10 @@ testFsCfg = testCase "fileServe/Cfg" $ do
     expect404 $ go (fsCfg cfgA) "mydir2/foo.txt/"
 
     let cfgB = FileServeConfig {
-        indexFiles     = ["index.txt", "altindex.html"],
-        indexGenerator = Nothing,
-        mimeTypes      = defaultMimeTypes
+        indexFiles      = ["index.txt", "altindex.html"],
+        indexGenerator  = const pass,
+        dynamicHandlers = Map.empty,
+        mimeTypes       = defaultMimeTypes
         }
 
     -- Request for root directory with index
@@ -281,12 +283,13 @@ testFsCfg = testCase "fileServe/Cfg" $ do
     -- Request for root directory with no index
     expect404 $ go (fsCfg cfgB) "mydir2/"
 
+    let printName c = writeBS $ snd $ S.breakEnd (=='/') $ S.pack c
 
     let cfgC = FileServeConfig {
-        indexFiles     = ["index.txt", "altindex.html"],
-        indexGenerator = Just (\c -> writeBS $ snd $ S.breakEnd (=='y')
-                                             $ (S.pack c)),
-        mimeTypes      = defaultMimeTypes
+        indexFiles      = ["index.txt", "altindex.html"],
+        indexGenerator  = printName,
+        dynamicHandlers = Map.empty,
+        mimeTypes       = defaultMimeTypes
         }
 
     -- Request for root directory with index
@@ -302,7 +305,39 @@ testFsCfg = testCase "fileServe/Cfg" $ do
     rC2 <- go (fsCfg cfgC) "mydir2/"
     bC2 <- getBody rC2
 
-    assertEqual "C2" "dir2" bC2
+    assertEqual "C2" "mydir2" bC2
+
+    let cfgD = FileServeConfig {
+        indexFiles      = [],
+        indexGenerator  = const pass,
+        dynamicHandlers = Map.fromList [ (".txt", printName) ],
+        mimeTypes       = defaultMimeTypes
+        }
+
+    -- Request for file with dynamic handler
+    rD1 <- go (fsCfg cfgD) "mydir2/foo.txt"
+    bD1 <- getBody rD1
+
+    assertEqual "D1" "foo.txt" bD1
+
+    let cfgE = FileServeConfig {
+        indexFiles      = [],
+        indexGenerator  = defaultIndexGenerator defaultMimeTypes,
+        dynamicHandlers = Map.empty,
+        mimeTypes       = defaultMimeTypes
+        }
+
+    -- Request for directory with autogen index
+    rE1 <- go (fsCfg cfgE) "mydir2/"
+    bE1 <- S.concat `fmap` L.toChunks `fmap` getBody rE1
+    print bE1
+
+    assertBool "autogen-sub-index" $
+        "Directory Listing: /mydir2/" `S.isInfixOf` bE1
+    assertBool "autogen-sub-parent" $
+        "<a href='../'" `S.isInfixOf` bE1
+    assertBool "autogen-sub-file" $
+        "<a href='foo.txt'" `S.isInfixOf` bE1
 
 
 testRangeOK :: Test
