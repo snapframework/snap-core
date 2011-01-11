@@ -122,20 +122,22 @@ mkRequest uri = do
                      enum Nothing GET (1,1) [] "" uri "/"
                      (S.concat ["/",uri]) "" Map.empty
 
+
 fs :: Snap ()
 fs = do
-    x <- fileServe "data/fileServe"
+    x <- serveDirectory "data/fileServe"
     return $! x `seq` ()
+
 
 fsSingle :: Snap ()
 fsSingle = do
-    x <- fileServeSingle "data/fileServe/foo.html"
+    x <- serveFile "data/fileServe/foo.html"
     return $! x `seq` ()
 
 
-fsCfg :: FileServeConfig Snap -> Snap ()
+fsCfg :: DirectoryConfig Snap -> Snap ()
 fsCfg cfg = do
-    x <- fileServeCfg cfg "data/fileServe"
+    x <- serveDirectoryWith cfg "data/fileServe"
     return $! x `seq` ()
 
 
@@ -213,7 +215,7 @@ testFsSingle = testCase "fileServe/Single" $ do
 testFsCfg :: Test
 testFsCfg = testCase "fileServe/Cfg" $ do
 
-    let cfgA = FileServeConfig {
+    let cfgA = DirectoryConfig {
         indexFiles      = [],
         indexGenerator  = const pass,
         dynamicHandlers = Map.empty,
@@ -255,7 +257,7 @@ testFsCfg = testCase "fileServe/Cfg" $ do
     expect404 $ go (fsCfg cfgA) "foo.html/"
     expect404 $ go (fsCfg cfgA) "mydir2/foo.txt/"
 
-    let cfgB = FileServeConfig {
+    let cfgB = DirectoryConfig {
         indexFiles      = ["index.txt", "altindex.html"],
         indexGenerator  = const pass,
         dynamicHandlers = Map.empty,
@@ -285,7 +287,7 @@ testFsCfg = testCase "fileServe/Cfg" $ do
 
     let printName c = writeBS $ snd $ S.breakEnd (=='/') $ S.pack c
 
-    let cfgC = FileServeConfig {
+    let cfgC = DirectoryConfig {
         indexFiles      = ["index.txt", "altindex.html"],
         indexGenerator  = printName,
         dynamicHandlers = Map.empty,
@@ -307,7 +309,7 @@ testFsCfg = testCase "fileServe/Cfg" $ do
 
     assertEqual "C2" "mydir2" bC2
 
-    let cfgD = FileServeConfig {
+    let cfgD = DirectoryConfig {
         indexFiles      = [],
         indexGenerator  = const pass,
         dynamicHandlers = Map.fromList [ (".txt", printName) ],
@@ -320,15 +322,8 @@ testFsCfg = testCase "fileServe/Cfg" $ do
 
     assertEqual "D1" "foo.txt" bD1
 
-    let cfgE = FileServeConfig {
-        indexFiles      = [],
-        indexGenerator  = defaultIndexGenerator defaultMimeTypes,
-        dynamicHandlers = Map.empty,
-        mimeTypes       = defaultMimeTypes
-        }
-
     -- Request for directory with autogen index
-    rE1 <- go (fsCfg cfgE) "mydir2/"
+    rE1 <- go (fsCfg fancyDirectoryConfig) "mydir2/"
     bE1 <- S.concat `fmap` L.toChunks `fmap` getBody rE1
     print bE1
 

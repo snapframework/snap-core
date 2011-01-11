@@ -7,16 +7,25 @@
 module Snap.Util.FileServe
 (
   getSafePath
-, FileServeConfig(..)
-, fileServeCfg
+  -- * Configuration for directory serving
+, MimeMap
+, HandlerMap
+, DirectoryConfig(..)
+, simpleDirectoryConfig
+, defaultDirectoryConfig
+, fancyDirectoryConfig
+, defaultIndexGenerator
+, defaultMimeTypes
+  -- * File servers
+, serveDirectory
+, serveDirectoryWith
+, serveFile
+, serveFileAs
+  -- * Deprecated interface
 , fileServe
 , fileServe'
 , fileServeSingle
 , fileServeSingle'
-, defaultMimeTypes
-, MimeMap
-, defaultIndexGenerator
-, HandlerMap
 ) where
 
 ------------------------------------------------------------------------------
@@ -48,13 +57,34 @@ import           Snap.Types
 
 
 ------------------------------------------------------------------------------
--- | A type alias for MIME type
-type MimeMap = Map FilePath ByteString
+-- | Gets a path from the 'Request' using 'rqPathInfo' and makes sure it is
+-- safe to use for opening files.  A path is safe if it is a relative path
+-- and has no ".." elements to escape the intended directory structure.
+getSafePath :: MonadSnap m => m FilePath
+getSafePath = do
+    req <- getRequest
+    let mp = urlDecode $ rqPathInfo req
+
+    p <- maybe pass (return . S.unpack) mp
+
+    -- relative paths only!
+    when (not $ isRelative p) pass
+
+    -- check that we don't have any sneaky .. paths
+    let dirs = splitDirectories p
+    when (elem ".." dirs) pass
+
+    return $ joinPath dirs
 
 
 ------------------------------------------------------------------------------
 -- | A type alias for dynamic handlers
 type HandlerMap m = Map FilePath (FilePath -> m ())
+
+
+------------------------------------------------------------------------------
+-- | A type alias for MIME type
+type MimeMap = Map FilePath ByteString
 
 
 ------------------------------------------------------------------------------
@@ -175,30 +205,10 @@ defaultMimeTypes = Map.fromList [
   ( ".xwd"     , "image/x-xwindowdump"               ),
   ( ".zip"     , "application/zip"                   ) ]
 
-------------------------------------------------------------------------------
--- | Gets a path from the 'Request' using 'rqPathInfo' and makes sure it is
--- safe to use for opening files.  A path is safe if it is a relative path
--- and has no ".." elements to escape the intended directory structure.
-getSafePath :: MonadSnap m => m FilePath
-getSafePath = do
-    req <- getRequest
-    let mp = urlDecode $ rqPathInfo req
-
-    p <- maybe pass (return . S.unpack) mp
-
-    -- relative paths only!
-    when (not $ isRelative p) pass
-
-    -- check that we don't have any sneaky .. paths
-    let dirs = splitDirectories p
-    when (elem ".." dirs) pass
-
-    return $ joinPath dirs
-
 
 ------------------------------------------------------------------------------
 -- | A collection of options for serving static files out of a directory.
-data FileServeConfig m = FileServeConfig {
+data DirectoryConfig m = DirectoryConfig {
     -- | Files to look for when a directory is requested (e.g., index.html)
     indexFiles      :: [FilePath],
 
@@ -216,93 +226,71 @@ data FileServeConfig m = FileServeConfig {
 
 
 ------------------------------------------------------------------------------
--- | The ultimate static file and directory server.  Configuration options are
--- passed in a 'FileServeConfig' that captures all of the relevant choices
--- about serving the directory.
-fileServeCfg :: MonadSnap m
-             => FileServeConfig m  -- ^ Configuration options
-             -> FilePath           -- ^ Base directory to serve from
-             -> m ()
-fileServeCfg cfg base = do
-    b <- directory <|> file <|> redir
-    when (not b) pass
-
-  where
-
-    idxs     = indexFiles cfg
-    generate = indexGenerator cfg
-    mimes    = mimeTypes cfg
-    dyns     = dynamicHandlers cfg
-
-    -- Serves a file if it exists; passes if not
-    serve f = do
-        liftIO (doesFileExist f) >>= flip unless pass
-        let fname       = takeFileName f
-        let staticServe = fileServeSingle' (fileType mimes fname)
-        lookupExt staticServe dyns fname f
-        return True
-
-    -- Serves a directory via indices if available.  Returns True on success,
-    -- False on failure to find an index.  Passes /only/ if the request was
-    -- not for a directory (no trailing slash).
-    directory = do
-        rq  <- getRequest
-        unless ("/" `S.isSuffixOf` rqURI rq) pass
-        rel <- (base </>) <$> getSafePath
-        b   <- liftIO $ doesDirectoryExist rel
-        if b then do let serveRel f = serve (rel </> f)
-                     foldl' (<|>) pass (Prelude.map serveRel idxs)
-                         <|> (generate rel >> return True)
-                         <|> return False
-             else return False
-
-    -- Serves a file requested by name.  Passes if the file doesn't exist.
-    file = serve =<< ((base </>) <$> getSafePath)
-
-    -- If the request is for a directory but lacks a trailing slash, redirects
-    -- to the directory name with a trailing slash.
-    redir = do
-        rel <- (base </>) <$> getSafePath
-        liftIO (doesDirectoryExist rel) >>= flip unless pass
-        rq <- getRequest
-        redirect $ rqURI rq `S.append` "/" `S.append` rqQueryString rq
+-- | Style information for the default directory index generator.
+snapIndexStyles :: ByteString
+snapIndexStyles =
+    "body { margin: 0px 0px 0px 0px; font-family: sans-serif }"
+    `S.append` "div.header {"
+    `S.append`     "padding: 40px 40px 0px 40px; height:35px;"
+    `S.append`     "background:rgb(25,50,87);"
+    `S.append`     "background-image:-webkit-gradient("
+    `S.append`         "linear,left bottom,left top,"
+    `S.append`         "color-stop(0.00, rgb(31,62,108)),"
+    `S.append`         "color-stop(1.00, rgb(19,38,66)));"
+    `S.append`     "background-image:-moz-linear-gradient("
+    `S.append`         "center bottom,rgb(31,62,108) 0%,rgb(19,38,66) 100%);"
+    `S.append`     "text-shadow:-1px 3px 1px rgb(16,33,57);"
+    `S.append`     "font-size:16pt; letter-spacing: 2pt; color:white;"
+    `S.append`     "border-bottom:10px solid rgb(46,93,156) }"
+    `S.append` "div.content {"
+    `S.append`     "background:rgb(255,255,255);"
+    `S.append`     "background-image:-webkit-gradient("
+    `S.append`         "linear,left bottom, left top,"
+    `S.append`         "color-stop(0.50, rgb(255,255,255)),"
+    `S.append`         "color-stop(1.00, rgb(224,234,247)));"
+    `S.append`     "background-image:-moz-linear-gradient("
+    `S.append`         "center bottom, white 50%, rgb(224,234,247) 100%);"
+    `S.append`     "padding: 40px 40px 40px 40px }"
+    `S.append` "div.footer {"
+    `S.append`     "padding: 16px 0px 10px 10px; height:31px;"
+    `S.append`     "border-top: 1px solid rgb(194,209,225);"
+    `S.append`     "color: rgb(160,172,186); font-size:10pt;"
+    `S.append`     "background: rgb(245,249,255) }"
+    `S.append` "table { width:100% }"
+    `S.append` "tr:hover { background:rgb(256,256,224) }"
+    `S.append` "td { border:dotted thin black; font-family:monospace }"
+    `S.append` "th { border:solid thin black; background:rgb(28,56,97);"
+    `S.append`      "text-shadow:-1px 3px 1px rgb(16,33,57); color: white}"
 
 
 ------------------------------------------------------------------------------
--- | An automatic index generator that copies the Snap look and feel to some
--- extent while remaining fairly small and not relying on external files
--- (which may not be there depending on external request routing).
-defaultIndexGenerator :: MonadSnap m => MimeMap -> FilePath -> m ()
-defaultIndexGenerator mm d = do
+-- | An automatic index generator, which is fairly small and does not rely on
+-- any external files (which may not be there depending on external request
+-- routing).
+--
+-- A 'MimeMap' is passed in to display the types of files in the directory
+-- listing based on their extension.  Preferably, this is the same as the map
+-- in the 'DirectoryConfig'
+--
+-- The styles parameter allows you to apply styles to the directory listing.
+-- The listing itself consists of a table, containing a header row using
+-- th elements, and one row per file using td elements, so styles for those
+-- pieces may be attached to the appropriate tags.
+defaultIndexGenerator :: MonadSnap m
+                      => MimeMap    -- ^ MIME type mapping for reporting types
+                      -> ByteString -- ^ Style info to insert in header
+                      -> FilePath   -- ^ Directory to generate index for
+                      -> m ()
+defaultIndexGenerator mm styles d = do
     modifyResponse $ setContentType "text/html"
 
     rq      <- getRequest
 
-    writeBS "<style type=\"text/css\">body{margin: 0px 0px 0px 0px;"
-    writeBS "font-family: sans-serif}div.header{padding:40px 40px 0px"
-    writeBS " 40px;background:rgb(25,50,87);background-image:"
-    writeBS "-webkit-gradient(linear,left bottom,left top,color-stop("
-    writeBS "0.00, rgb(31,62,108)),color-stop(1.00, rgb(19,38,66))"
-    writeBS ");background-image:-moz-linear-gradient(center bottom,"
-    writeBS "rgb(31,62,108) 0%,rgb(19,38,66) 100%);text-shadow:-1px"
-    writeBS " 3px 1px rgb(16,33,57);height:35px;font-size:16pt;"
-    writeBS "letter-spacing: 2pt;color: white}div.divider {background:"
-    writeBS "rgb(46,93,156);height:10px}div.content{background:rgb("
-    writeBS "255,255,255);background-image: -webkit-gradient(linear,"
-    writeBS "left bottom, left top,color-stop(0.50, rgb(255,255,255)),"
-    writeBS "color-stop(1.00, rgb(224,234,247)));background-image:"
-    writeBS "-moz-linear-gradient(center bottom,rgb(255,255,255) 50%,"
-    writeBS "rgb(224,234,247) 100%);padding: 40px 40px 40px 40px}div"
-    writeBS ".footer{padding:16px 0px 10px 10px;border-top:1px solid"
-    writeBS " rgb(194,209,225);color:rgb(160,172,186);height:31px;"
-    writeBS "font-family:sans-serif;font-size:10pt;background: rgb(245,"
-    writeBS "249,255)}table{width:100%}tr:hover{background:rgb(256,256,"
-    writeBS "224)}td{border:dotted thin black;font-family:monospace}"
-    writeBS "th{border:solid thin black;background:rgb(28,56,97);"
-    writeBS "text-shadow:-1px 3px 1px rgb(16,33,57);color: white}</style>"
-    writeBS "<div class=\"header\">Directory Listing: "
+    writeBS "<style type='text/css'>"
+    writeBS styles
+    writeBS "</style><div class=\"header\">Directory Listing: "
     writeBS (rqURI rq)
-    writeBS "</div><div class=\"divider\"></div><div class=\"content\">"
+    writeBS "</div><div class=\"content\">"
     writeBS "<table><tr><th>File Name</th><th>Type</th><th>Last Modified"
     writeBS "</th></tr>"
 
@@ -338,59 +326,134 @@ defaultIndexGenerator mm d = do
 
 
 ------------------------------------------------------------------------------
--- | Serves files out of the given directory. The relative path given in
--- 'rqPathInfo' is searched for the given file, and the file is served with
--- the appropriate mime type if it is found. Absolute paths and \"@..@\" are
--- prohibited to prevent files from being served from outside the sandbox.
---
--- Uses 'defaultMimeTypes' to determine the @Content-Type@ based on the file's
--- extension.
-fileServe :: MonadSnap m
-          => FilePath  -- ^ root directory
-          -> m ()
-fileServe = fileServeCfg $ FileServeConfig {
+-- | A very simple configuration for directory serving.  This configuration
+-- uses built-in MIME types from 'defaultMimeTypes', and has no index files,
+-- index generator, or dynamic file handlers.
+simpleDirectoryConfig :: MonadSnap m => DirectoryConfig m
+simpleDirectoryConfig = DirectoryConfig {
     indexFiles = [],
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
     mimeTypes = defaultMimeTypes
     }
-{-# INLINE fileServe #-}
 
 
 ------------------------------------------------------------------------------
--- | Same as 'fileServe', with control over the MIME mapping used.
-fileServe' :: MonadSnap m
-           => MimeMap           -- ^ MIME type mapping
-           -> FilePath          -- ^ root directory
-           -> m ()
-fileServe' mm = fileServeCfg $ FileServeConfig {
-    indexFiles = [],
+-- | A reasonable default configuration for directory serving.  This
+-- configuration uses built-in MIME types from 'defaultMimeTypes', serves
+-- common index files @index.html@ and @index.htm@, but does not autogenerate
+-- directory indexes, nor have any dynamic file handlers.
+defaultDirectoryConfig :: MonadSnap m => DirectoryConfig m
+defaultDirectoryConfig = DirectoryConfig {
+    indexFiles = ["index.html", "index.htm"],
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
-    mimeTypes = mm
+    mimeTypes = defaultMimeTypes
     }
-{-# INLINE fileServe' #-}
 
 
 ------------------------------------------------------------------------------
--- | Serves a single file specified by a full or relative path.  The
--- path restrictions on fileServe don't apply to this function since
--- the path is not being supplied by the user.
-fileServeSingle :: MonadSnap m
-                => FilePath          -- ^ path to file
-                -> m ()
-fileServeSingle fp =
-    fileServeSingle' (fileType defaultMimeTypes (takeFileName fp)) fp
-{-# INLINE fileServeSingle #-}
+-- | A more elaborate configuration for file serving.  This configuration
+-- uses built-in MIME types from 'defaultMimeTypes', serves common index files
+-- @index.html@ and @index.htm@, and autogenerates directory indexes with a
+-- Snap-like feel.  It still has no dynamic file handlers, which should be
+-- added as needed.
+--
+-- Files recognized as indexes include @index.html@, @index.htm@,
+-- @default.html@, @default.htm@, @home.html@
+fancyDirectoryConfig :: MonadSnap m => DirectoryConfig m
+fancyDirectoryConfig = DirectoryConfig {
+    indexFiles = ["index.html", "index.htm"],
+    indexGenerator = defaultIndexGenerator defaultMimeTypes snapIndexStyles,
+    dynamicHandlers = Map.empty,
+    mimeTypes = defaultMimeTypes
+    }
 
 
 ------------------------------------------------------------------------------
--- | Same as 'fileServeSingle', with control over the MIME mapping used.
-fileServeSingle' :: MonadSnap m
-                 => ByteString        -- ^ MIME type mapping
-                 -> FilePath          -- ^ path to file
-                 -> m ()
-fileServeSingle' mime fp = do
+-- | Serves static files from a directory using the default configuration
+-- as given in 'defaultDirectoryConfig'.
+serveDirectory :: MonadSnap m
+               => FilePath           -- ^ Directory to serve from
+               -> m ()
+serveDirectory = serveDirectoryWith defaultDirectoryConfig
+{-# INLINE serveDirectory #-}
+
+
+------------------------------------------------------------------------------
+-- | Serves static files from a directory.  Configuration options are
+-- passed in a 'DirectoryConfig' that captures various choices about desired
+-- behavior.  The relative path given in 'rqPathInfo' is searched for a
+-- requested file, and the file is served with the appropriate mime type if it
+-- is found. Absolute paths and \"@..@\" are prohibited to prevent files from
+-- being served from outside the sandbox.
+serveDirectoryWith :: MonadSnap m
+                   => DirectoryConfig m  -- ^ Configuration options
+                   -> FilePath           -- ^ Directory to serve from
+                   -> m ()
+serveDirectoryWith cfg base = do
+    b <- directory <|> file <|> redir
+    when (not b) pass
+
+  where
+
+    idxs     = indexFiles cfg
+    generate = indexGenerator cfg
+    mimes    = mimeTypes cfg
+    dyns     = dynamicHandlers cfg
+
+    -- Serves a file if it exists; passes if not
+    serve f = do
+        liftIO (doesFileExist f) >>= flip unless pass
+        let fname       = takeFileName f
+        let staticServe = do serveFileAs (fileType mimes fname)
+        lookupExt staticServe dyns fname f >> return True <|> return False
+
+    -- Serves a directory via indices if available.  Returns True on success,
+    -- False on failure to find an index.  Passes /only/ if the request was
+    -- not for a directory (no trailing slash).
+    directory = do
+        rq  <- getRequest
+        unless ("/" `S.isSuffixOf` rqURI rq) pass
+        rel <- (base </>) <$> getSafePath
+        b   <- liftIO $ doesDirectoryExist rel
+        if b then do let serveRel f = serve (rel </> f)
+                     foldl' (<|>) pass (Prelude.map serveRel idxs)
+                         <|> (generate rel >> return True)
+                         <|> return False
+             else return False
+
+    -- Serves a file requested by name.  Passes if the file doesn't exist.
+    file = serve =<< ((base </>) <$> getSafePath)
+
+    -- If the request is for a directory but lacks a trailing slash, redirects
+    -- to the directory name with a trailing slash.
+    redir = do
+        rel <- (base </>) <$> getSafePath
+        liftIO (doesDirectoryExist rel) >>= flip unless pass
+        rq <- getRequest
+        redirect $ rqURI rq `S.append` "/" `S.append` rqQueryString rq
+
+
+------------------------------------------------------------------------------
+-- | Serves a single file specified by a full or relative path.  If the file
+-- does not exist, throws an exception (not that it does /not/ pass to the
+-- next handler).   The path restrictions on 'serveDirectory' don't apply to
+-- this function since the path is not being supplied by the user.
+serveFile :: MonadSnap m
+          => FilePath          -- ^ path to file
+          -> m ()
+serveFile fp = serveFileAs (fileType defaultMimeTypes (takeFileName fp)) fp
+{-# INLINE serveFile #-}
+
+
+------------------------------------------------------------------------------
+-- | Same as 'serveFile', with control over the MIME mapping used.
+serveFileAs :: MonadSnap m
+            => ByteString        -- ^ MIME type
+            -> FilePath          -- ^ path to file
+            -> m ()
+serveFileAs mime fp = do
     reqOrig <- getRequest
 
     -- If-Range header must be ignored if there is no Range: header in the
@@ -588,3 +651,66 @@ checkRangeReq req fp sz = do
 ------------------------------------------------------------------------------
 dbg :: (MonadIO m) => String -> m ()
 dbg s = debug $ "FileServe:" ++ s
+
+
+------------------------------------------------------------------------------
+-- Obsolete functions retained for compatibility.
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- | Serves files out of the given directory, using no index files and default
+-- MIME types.
+--
+-- The function name is obsolete.  You should use 'serveDirectory' or
+-- 'serveDirectoryWith' instead, which do similar things but with more options
+-- and clearer, more consistent names.
+fileServe :: MonadSnap m
+          => FilePath  -- ^ root directory
+          -> m ()
+fileServe = serveDirectoryWith simpleDirectoryConfig
+{-# INLINE fileServe #-}
+{-# DEPRECATED fileServe "Use serveDirectory or serveDirectoryWith" #-}
+
+
+------------------------------------------------------------------------------
+-- | Serves files out of the givendirectory, with a given MIME type mapping.
+--
+-- The function name is obsolete.  You should use 'serveDirectoryWith'
+-- instead, which offers more options and a clearer, more consistent name.
+fileServe' :: MonadSnap m
+           => MimeMap           -- ^ MIME type mapping
+           -> FilePath          -- ^ root directory
+           -> m ()
+fileServe' mm = serveDirectoryWith (simpleDirectoryConfig { mimeTypes = mm })
+{-# INLINE fileServe' #-}
+{-# DEPRECATED fileServe' "Use serveDirectoryWith instead" #-}
+
+
+------------------------------------------------------------------------------
+-- | Serves a single file specified by a full or relative path.  The
+-- path restrictions on fileServe don't apply to this function since
+-- the path is not being supplied by the user.
+--
+-- The function name is obsolete.  You should use 'serveFile' instead, which
+-- does the same thing but with a clearer, more consistent name.
+fileServeSingle :: MonadSnap m
+                => FilePath          -- ^ path to file
+                -> m ()
+fileServeSingle = serveFile
+{-# INLINE fileServeSingle #-}
+{-# DEPRECATED fileServeSingle "Use serveFile instead" #-}
+
+
+------------------------------------------------------------------------------
+-- | Same as 'fileServeSingle', with control over the MIME mapping used.
+--
+-- The function name is obsolete.  You should use 'serveFileAs' instead, which
+-- does the same thing but with a clearer, more consistent name.
+fileServeSingle' :: MonadSnap m
+                 => ByteString        -- ^ MIME type mapping
+                 -> FilePath          -- ^ path to file
+                 -> m ()
+fileServeSingle' = serveFileAs
+{-# INLINE fileServeSingle' #-}
+{-# DEPRECATED fileServeSingle' "Use serveFileAs instead" #-}
+
