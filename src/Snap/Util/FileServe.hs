@@ -313,14 +313,14 @@ defaultIndexGenerator mm d = do
     dirs    <- liftIO $ filterM (doesDirectoryExist . (d </>)) entries
     files   <- liftIO $ filterM (doesFileExist . (d </>)) entries
 
-    forM_ (filter (not . (`elem` ["..", "."])) dirs) $ \f -> do
+    forM_ (sort $ filter (not . (`elem` ["..", "."])) dirs) $ \f -> do
         writeBS "<tr><td><a href='"
         writeBS (S.pack f)
         writeBS "/'>"
         writeBS (S.pack f)
         writeBS "</a></td><td colspan=2>DIR</td></tr>"
 
-    forM_ files $ \f -> do
+    forM_ (sort files) $ \f -> do
         stat <- liftIO $ getFileStatus (d </> f)
         tm   <- liftIO $ formatHttpTime (modificationTime stat)
         writeBS "<tr><td><a href='"
