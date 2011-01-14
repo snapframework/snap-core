@@ -112,7 +112,7 @@ import             Data.ByteString (ByteString)
 import qualified   Data.ByteString.Char8 as S
 import qualified   Data.ByteString.Unsafe as S
 import qualified   Data.ByteString.Lazy.Char8 as L
-import             Data.Enumerator hiding (drop)
+import             Data.Enumerator hiding (drop, foldl')
 import             Data.Enumerator.IO (enumHandle)
 import             Data.List (foldl')
 import             Data.Monoid (mappend)
