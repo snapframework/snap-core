@@ -98,7 +98,7 @@ module Snap.Iteratee
 
 import             Blaze.ByteString.Builder
 import             Control.DeepSeq
-import             Control.Exception (assert)
+import             Control.Exception (SomeException, assert)
 import             Control.Monad
 import "MonadCatchIO-transformers" Control.Monad.CatchIO
 import             Control.Monad.Trans (MonadIO, lift, liftIO)
