@@ -26,6 +26,7 @@ import           Snap.Iteratee
 
 tests :: [Test]
 tests = [ testFs
+        , testFsCfg
         , testFsSingle
         , testRangeOK
         , testRangeBad
@@ -37,6 +38,15 @@ expect404 :: IO Response -> IO ()
 expect404 m = do
     r <- m
     assertBool "expected 404" (rspStatus r == 404)
+
+
+expect302 :: ByteString -> IO Response -> IO ()
+expect302 p m = do
+    r <- m
+    assertBool "expected 302" (rspStatus r == 302)
+    assertEqual "redir location"
+                (Just p)
+                (getHeader "location" r)
 
 
 getBody :: Response -> IO L.ByteString
@@ -112,14 +122,22 @@ mkRequest uri = do
                      enum Nothing GET (1,1) [] "" uri "/"
                      (S.concat ["/",uri]) "" Map.empty
 
+
 fs :: Snap ()
 fs = do
-    x <- fileServe "data/fileServe"
+    x <- serveDirectory "data/fileServe"
     return $! x `seq` ()
+
 
 fsSingle :: Snap ()
 fsSingle = do
-    x <- fileServeSingle "data/fileServe/foo.html"
+    x <- serveFile "data/fileServe/foo.html"
+    return $! x `seq` ()
+
+
+fsCfg :: DirectoryConfig Snap -> Snap ()
+fsCfg cfg = do
+    x <- serveDirectoryWith cfg "data/fileServe"
     return $! x `seq` ()
 
 
@@ -192,6 +210,129 @@ testFsSingle = testCase "fileServe/Single" $ do
                 (getHeader "content-type" r1)
 
     assertEqual "foo.html size" (Just 4) (rspContentLength r1)
+
+
+testFsCfg :: Test
+testFsCfg = testCase "fileServe/Cfg" $ do
+
+    let cfgA = DirectoryConfig {
+        indexFiles      = [],
+        indexGenerator  = const pass,
+        dynamicHandlers = Map.empty,
+        mimeTypes       = defaultMimeTypes
+        }
+
+    -- Named file in the root directory
+    rA1 <- go (fsCfg cfgA) "foo.bin"
+    bA1 <- getBody rA1
+
+    assertEqual "A1" "FOO\n" bA1
+    assertEqual "A1 content-type"
+                (Just "application/octet-stream")
+                (getHeader "content-type" rA1)
+
+    -- Missing file in the root directory
+    expect404 $ go (fsCfg cfgA) "bar.bin"
+
+    -- Named file in a subdirectory
+    rA2 <- go (fsCfg cfgA) "mydir2/foo.txt"
+    bA2 <- getBody rA2
+
+    assertEqual "A2" "FOO\n" bA2
+    assertEqual "A2 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rA2)
+
+    -- Missing file in a subdirectory
+    expect404 $ go (fsCfg cfgA) "mydir2/bar.txt"
+
+    -- Request for directory with no trailing slash
+    expect302 "/mydir1/" $ go (fsCfg cfgA) "mydir1"
+
+    -- Request for directory with trailing slash, no index
+    expect404 $ go (fsCfg cfgA) "mydir1/"
+    expect404 $ go (fsCfg cfgA) "mydir2/"
+
+    -- Request file with trailing slash
+    expect404 $ go (fsCfg cfgA) "foo.html/"
+    expect404 $ go (fsCfg cfgA) "mydir2/foo.txt/"
+
+    let cfgB = DirectoryConfig {
+        indexFiles      = ["index.txt", "altindex.html"],
+        indexGenerator  = const pass,
+        dynamicHandlers = Map.empty,
+        mimeTypes       = defaultMimeTypes
+        }
+
+    -- Request for root directory with index
+    rB1 <- go (fsCfg cfgB) "mydir1/"
+    bB1 <- getBody rB1
+
+    assertEqual "B1" "INDEX\n" bB1
+    assertEqual "B1 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rB1)
+
+    -- Request for root directory with alternate index
+    rB2 <- go (fsCfg cfgB) "mydir3/"
+    bB2 <- getBody rB2
+
+    assertEqual "B2" "ALTINDEX\n" bB2
+    assertEqual "B2 content-type"
+                (Just "text/html")
+                (getHeader "content-type" rB2)
+
+    -- Request for root directory with no index
+    expect404 $ go (fsCfg cfgB) "mydir2/"
+
+    let printName c = writeBS $ snd $ S.breakEnd (=='/') $ S.pack c
+
+    let cfgC = DirectoryConfig {
+        indexFiles      = ["index.txt", "altindex.html"],
+        indexGenerator  = printName,
+        dynamicHandlers = Map.empty,
+        mimeTypes       = defaultMimeTypes
+        }
+
+    -- Request for root directory with index
+    rC1 <- go (fsCfg cfgC) "mydir1/"
+    bC1 <- getBody rC1
+
+    assertEqual "C1" "INDEX\n" bC1
+    assertEqual "C1 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rC1)
+
+    -- Request for root directory with generated index
+    rC2 <- go (fsCfg cfgC) "mydir2/"
+    bC2 <- getBody rC2
+
+    assertEqual "C2" "mydir2" bC2
+
+    let cfgD = DirectoryConfig {
+        indexFiles      = [],
+        indexGenerator  = const pass,
+        dynamicHandlers = Map.fromList [ (".txt", printName) ],
+        mimeTypes       = defaultMimeTypes
+        }
+
+    -- Request for file with dynamic handler
+    rD1 <- go (fsCfg cfgD) "mydir2/foo.txt"
+    bD1 <- getBody rD1
+
+    assertEqual "D1" "foo.txt" bD1
+
+    -- Request for directory with autogen index
+    rE1 <- go (fsCfg fancyDirectoryConfig) "mydir2/"
+    bE1 <- S.concat `fmap` L.toChunks `fmap` getBody rE1
+    print bE1
+
+    assertBool "autogen-sub-index" $
+        "Directory Listing: /mydir2/" `S.isInfixOf` bE1
+    assertBool "autogen-sub-parent" $
+        "<a href='../'" `S.isInfixOf` bE1
+    assertBool "autogen-sub-file" $
+        "<a href='foo.txt'" `S.isInfixOf` bE1
 
 
 testRangeOK :: Test
