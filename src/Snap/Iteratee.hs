@@ -96,19 +96,9 @@ module Snap.Iteratee
 
 ------------------------------------------------------------------------------
 
-{-
-
-import             Control.Exception (SomeException)
-import "MonadCatchIO-transformers" Control.Monad.CatchIO
-import qualified   Data.DList as D
-import             Data.IORef
-import             Prelude hiding (catch,drop)
-
--}
-
 import             Blaze.ByteString.Builder
 import             Control.DeepSeq
-import             Control.Exception (SomeException, assert)
+import             Control.Exception (assert)
 import             Control.Monad
 import "MonadCatchIO-transformers" Control.Monad.CatchIO
 import             Control.Monad.Trans (MonadIO, lift, liftIO)
@@ -116,10 +106,11 @@ import             Data.ByteString (ByteString)
 import qualified   Data.ByteString.Char8 as S
 import qualified   Data.ByteString.Unsafe as S
 import qualified   Data.ByteString.Lazy.Char8 as L
-import             Data.Enumerator hiding (drop)
+import             Data.Enumerator hiding (consume, drop, head)
 import qualified   Data.Enumerator as I
-import             Data.Enumerator.IO (enumHandle)
-import             Data.List (foldl')
+import             Data.Enumerator.Binary (enumHandle)
+import             Data.Enumerator.List hiding (take, drop)
+import qualified   Data.List as List
 import             Data.Monoid (mappend)
 import             Data.Typeable
 import             Foreign hiding (peek)
@@ -154,7 +145,7 @@ instance (Functor m, MonadCatchIO m) =>
 ------------------------------------------------------------------------------
 -- | Get the length of a bytestring Stream
 streamLength :: Stream ByteString -> Int
-streamLength (Chunks xs) = foldl' (\c s -> c + S.length s) 0 xs
+streamLength (Chunks xs) = List.foldl' (\c s -> c + S.length s) 0 xs
 streamLength EOF         = 0
 
 
