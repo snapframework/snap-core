@@ -276,6 +276,23 @@ finishWith = liftSnap . Snap . return . Just . Left
 
 
 ------------------------------------------------------------------------------
+-- | Capture the flow of control in case a handler calls 'finishWith'.
+--
+-- /WARNING/: in the event of a call to 'transformRequestBody' it is possible
+-- to violate HTTP protocol safety when using this function. If you call
+-- 'catchFinishWith' it is suggested that you do not modify the body of the
+-- 'Response' which was passed to the 'finishWith' call.
+catchFinishWith :: Snap a -> Snap (Either Response a)
+catchFinishWith (Snap m) = Snap $ do
+    eth <- m
+    maybe (return Nothing)
+          (either (\resp -> return $ Just $ Right $ Left resp)
+                  (\a    -> return $ Just $ Right $ Right a))
+          eth
+{-# INLINE catchFinishWith #-}
+
+
+------------------------------------------------------------------------------
 -- | Fails out of a 'Snap' monad action.  This is used to indicate
 -- that you choose not to handle the given request within the given
 -- handler.

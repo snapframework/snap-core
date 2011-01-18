@@ -37,6 +37,7 @@ tests :: [Test]
 tests = [ testFail
         , testAlternative
         , testEarlyTermination
+        , testCatchFinishWith
         , testRqBody
         , testTrivials
         , testMethod
@@ -207,6 +208,26 @@ testEarlyTermination :: Test
 testEarlyTermination = testCase "types/earlyTermination" $ do
     (_,resp) <- go (finishWith sampleResponse >>= \_ -> setFoo "Bar")
     assertEqual "foo" (Just ["Quux"]) $ getHeaders "Foo" resp
+
+
+testCatchFinishWith :: Test
+testCatchFinishWith = testCase "types/catchFinishWith" $ do
+    rq <- mkZomgRq
+    x <- run_ $ evalSnap (catchFinishWith $ finishWith emptyResponse)
+                         (const $ return ())
+                         rq
+    assertBool "catchFinishWith" $ isLeft x
+    y <- run_ $ evalSnap (catchFinishWith $ return ())
+                         (const $ return ())
+                         rq
+    assertBool "catchFinishWith" $ isRight y
+
+  where
+    isLeft (Left _) = True
+    isLeft _        = False
+
+    isRight (Right _) = True
+    isRight _         = False
 
 
 testRqBody :: Test

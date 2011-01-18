@@ -15,6 +15,7 @@ module Snap.Types
     -- ** Functions for control flow and early termination
   , bracketSnap
   , finishWith
+  , catchFinishWith
   , pass
 
     -- ** Routing
