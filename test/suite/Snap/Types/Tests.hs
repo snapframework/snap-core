@@ -141,19 +141,23 @@ testCatchIO = testCase "types/catchIO" $ do
 go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
-    run_ $ runSnap m (\x -> return $! (show x `using` rdeepseq) `seq` ()) zomgRq
-
+    run_ $ runSnap m dummy dummy zomgRq
+  where
+    dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
 goIP :: Snap a -> IO (Request,Response)
 goIP m = do
     rq <- mkIpHeaderRq
-    run_ $ runSnap m (const $ return ()) rq
-
+    run_ $ runSnap m dummy dummy rq
+  where
+    dummy = const $ return ()
 
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
-    run_ $ runSnap m (const $ return ()) rq
+    run_ $ runSnap m dummy dummy rq
+  where
+    dummy = const $ return ()
 
 
 goPathQuery :: ByteString
@@ -163,13 +167,17 @@ goPathQuery :: ByteString
             -> IO (Request,Response)
 goPathQuery s k v m = do
     rq <- mkRequestQuery s k v
-    run_ $ runSnap m (const $ return ()) rq
+    run_ $ runSnap m dummy dummy rq
+  where
+    dummy = const $ return ()
 
 
 goBody :: Snap a -> IO (Request,Response)
 goBody m = do
     rq <- mkRqWithBody
-    run_ $ runSnap m (const $ return ()) rq
+    run_ $ runSnap m dummy dummy rq
+  where
+    dummy = const $ return ()
 
 
 testFail :: Test
@@ -215,9 +223,11 @@ testCatchFinishWith = testCase "types/catchFinishWith" $ do
     rq <- mkZomgRq
     x <- run_ $ evalSnap (catchFinishWith $ finishWith emptyResponse)
                          (const $ return ())
+                         (const $ return ())
                          rq
     assertBool "catchFinishWith" $ isLeft x
     y <- run_ $ evalSnap (catchFinishWith $ return ())
+                         (const $ return ())
                          (const $ return ())
                          rq
     assertBool "catchFinishWith" $ isRight y
@@ -400,6 +410,7 @@ testEvalSnap :: Test
 testEvalSnap = testCase "types/evalSnap-exception" $ do
     rq <- mkZomgRq
     expectException (run_ $ evalSnap f
+                                    (const $ return ())
                                     (const $ return ())
                                     rq >> return ())
   where

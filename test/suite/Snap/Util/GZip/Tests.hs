@@ -137,7 +137,10 @@ seqSnap m = do
 goGeneric :: IO Request -> Snap a -> IO (Request, Response)
 goGeneric mkRq m = do
     rq <- mkRq
-    run_ $! runSnap (seqSnap m) (const $ return ()) rq
+    run_ $! runSnap (seqSnap m) d d rq
+  where
+    d = (const $ return ())
+
 
 goGZip, goCompress, goXGZip     :: Snap a -> IO (Request,Response)
 goNoHeaders, goXCompress, goBad :: Snap a -> IO (Request,Response)

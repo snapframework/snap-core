@@ -87,6 +87,12 @@ import           Snap.Internal.Iteratee.Debug
    > a :: Snap ()
    > a = liftIO fireTheMissiles
 
+7. the ability to set a timeout which will kill the handler thread after @N@
+   seconds of inactivity:
+
+   > a :: Snap ()
+   > a = setTimeout 30
+
 You may notice that most of the type signatures in this module contain a
 @(MonadSnap m) => ...@ typeclass constraint. 'MonadSnap' is a typeclass which,
 in essence, says \"you can get back to the 'Snap' monad from here\". Using
@@ -114,9 +120,10 @@ newtype Snap a = Snap {
 
 ------------------------------------------------------------------------------
 data SnapState = SnapState
-    { _snapRequest  :: Request
-    , _snapResponse :: Response
-    , _snapLogError :: ByteString -> IO () }
+    { _snapRequest    :: Request
+    , _snapResponse   :: Response
+    , _snapLogError   :: ByteString -> IO ()
+    , _snapSetTimeout :: Int -> IO () }
 
 
 ------------------------------------------------------------------------------
@@ -688,9 +695,10 @@ instance Exception NoHandlerException
 -- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
 runSnap :: Snap a
         -> (ByteString -> IO ())
+        -> (Int -> IO ())
         -> Request
         -> Iteratee ByteString IO (Request,Response)
-runSnap (Snap m) logerr req = do
+runSnap (Snap m) logerr timeoutAction req = do
     (r, ss') <- runStateT m ss
 
     e <- maybe (return $ Left fourohfour)
@@ -712,16 +720,17 @@ runSnap (Snap m) logerr req = do
 
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
 
-    ss = SnapState req dresp logerr
+    ss = SnapState req dresp logerr timeoutAction
 {-# INLINE runSnap #-}
 
 
 ------------------------------------------------------------------------------
 evalSnap :: Snap a
          -> (ByteString -> IO ())
+         -> (Int -> IO ())
          -> Request
          -> Iteratee ByteString IO a
-evalSnap (Snap m) logerr req = do
+evalSnap (Snap m) logerr timeoutAction req = do
     (r, _) <- runStateT m ss
 
     e <- maybe (liftIO $ throwIO NoHandlerException)
@@ -734,7 +743,7 @@ evalSnap (Snap m) logerr req = do
       Right x -> return x
   where
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
-    ss = SnapState req dresp logerr
+    ss = SnapState req dresp logerr timeoutAction
 {-# INLINE evalSnap #-}
 
 
@@ -770,3 +779,17 @@ getCookie name = withRequest $
     return . listToMaybe . filter (\c -> cookieName c == name) . rqCookies
 
 
+------------------------------------------------------------------------------
+-- | Causes the handler thread to be killed @n@ seconds from now.
+setTimeout :: MonadSnap m
+           => Int -> m ()
+setTimeout n = do
+    t <- getTimeoutAction
+    liftIO $ t n
+
+
+------------------------------------------------------------------------------
+-- | Returns an 'IO' action which you can use to reset the handling thread's
+-- timeout value.
+getTimeoutAction :: MonadSnap m => m (Int -> IO ())
+getTimeoutAction = liftSnap $ liftM _snapSetTimeout sget

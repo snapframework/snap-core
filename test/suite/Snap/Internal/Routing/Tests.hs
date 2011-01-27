@@ -72,8 +72,9 @@ mkRequest uri = do
 go :: Snap a -> ByteString -> IO a
 go m s = do
     req <- mkRequest s
-    run_ $ evalSnap m (const $ return ()) req
-
+    run_ $ evalSnap m dummy dummy req
+  where
+    dummy = const $ return ()
 
 routes :: Snap ByteString
 routes = route [ ("foo"          , topFoo    )

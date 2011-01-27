@@ -55,17 +55,22 @@ getBody r = do
     liftM (toLazyByteString . mconcat) (runIteratee consume >>= run_ . benum)
 
 
+runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
+runIt m rq = runSnap m d d rq
+  where
+    d = const $ return ()
+
 go :: Snap a -> ByteString -> IO Response
 go m s = do
     rq <- mkRequest s
-    liftM snd (run_ $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runIt m rq)
 
 
 goIfModifiedSince :: Snap a -> ByteString -> ByteString -> IO Response
 goIfModifiedSince m s lm = do
     rq <- mkRequest s
     let r = setHeader "if-modified-since" lm rq
-    liftM snd (run_ $ runSnap m (const $ return ()) r)
+    liftM snd (run_ $ runIt m r)
 
 
 goIfRange :: Snap a -> ByteString -> (Int,Int) -> ByteString -> IO Response
@@ -75,7 +80,7 @@ goIfRange m s (start,end) lm = do
             setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
                        rq
-    liftM snd (run_ $ runSnap m (const $ return ()) r)
+    liftM snd (run_ $ runIt m r)
 
 
 goRange :: Snap a -> ByteString -> (Int,Int) -> IO Response
@@ -84,7 +89,7 @@ goRange m s (start,end) = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
                        rq'
-    liftM snd (run_ $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runIt m rq)
 
 
 goMultiRange :: Snap a -> ByteString -> (Int,Int) -> (Int,Int) -> IO Response
@@ -94,7 +99,7 @@ goMultiRange m s (start,end) (start2,end2) = do
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end
                                  ++ "," ++ show start2 ++ "-" ++ show end2)
                        rq'
-    liftM snd (run_ $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runIt m rq)
 
 
 goRangePrefix :: Snap a -> ByteString -> Int -> IO Response
@@ -103,7 +108,7 @@ goRangePrefix m s start = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-")
                        rq'
-    liftM snd (run_ $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runIt m rq)
 
 
 goRangeSuffix :: Snap a -> ByteString -> Int -> IO Response
@@ -112,7 +117,7 @@ goRangeSuffix m s end = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=-" ++ show end)
                        rq'
-    liftM snd (run_ $ runSnap m (const $ return ()) rq)
+    liftM snd (run_ $ runIt m rq)
 
 
 mkRequest :: ByteString -> IO Request
