@@ -119,6 +119,10 @@ module Snap.Types
   , sendFile
   , sendFilePartial
 
+    -- ** Timeouts
+  , setTimeout
+  , getTimeoutAction
+
     -- * Iteratee
   , Enumerator
   , SomeEnumerator(..)
