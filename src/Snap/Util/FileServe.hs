@@ -673,7 +673,7 @@ fileServe = serveDirectoryWith simpleDirectoryConfig
 
 
 ------------------------------------------------------------------------------
--- | Serves files out of the givendirectory, with a given MIME type mapping.
+-- | Serves files out of the given directory, with a given MIME type mapping.
 --
 -- The function name is obsolete.  You should use 'serveDirectoryWith'
 -- instead, which offers more options and a clearer, more consistent name.
