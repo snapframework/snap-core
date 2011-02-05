@@ -299,6 +299,12 @@ data PartInfo =
 
 
 ------------------------------------------------------------------------------
+-- | All of the exceptions defined in this package inherit from
+-- 'FileUploadException', so if you write
+--
+-- > foo `catch` \(e :: FileUploadException) -> ...
+--
+-- you can catch a 'BadPartException', a 'PolicyViolationException', etc.
 data FileUploadException =
     GenericFileUploadException {
       _genericFileUploadExceptionReason :: Text
