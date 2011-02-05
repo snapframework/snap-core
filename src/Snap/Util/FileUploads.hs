@@ -99,6 +99,193 @@ import           Snap.Types
 
 
 ------------------------------------------------------------------------------
+-- | Read uploaded files into a temporary directory and calls a user handler to
+-- process them.
+--
+-- Given a temporary directory, global and file-specific upload policies, and a
+-- user handler, this function consumes a request body uploaded with
+-- @Content-type: multipart/form-data@. Each file is read into the temporary
+-- directory, and then a list of the uploaded files is passed to the user
+-- handler. After the user handler runs (but before the 'Response' body
+-- 'Enumerator' is streamed to the client), the files are deleted from disk; so
+-- if you want to retain or use the uploaded files in the generated response,
+-- you would need to move or otherwise process them.
+--
+-- The argument passed to the user handler is a list of:
+--
+-- > (PartInfo, Either PolicyViolationException FilePath)
+--
+-- The first half of this tuple is a 'PartInfo', which contains the information
+-- the client browser sent about the given upload part (like filename,
+-- content-type, etc). The second half of this tuple is an 'Either' stipulating
+-- that either:
+--
+-- 1. the file was rejected on a policy basis because of the provided
+--    'PartUploadPolicy' handler
+--
+-- 2. the file was accepted and exists at the given path.
+--
+-- If the request's @Content-type@ was not \"@multipart/formdata@\", this
+-- function skips processing using 'pass'.
+--
+-- If the client's upload rate passes below the configured minimum (see
+-- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function throws
+-- a 'RateTooSlowException'. This setting is there to protect the server
+-- against slowloris-style denial of service attacks.
+--
+-- If the given 'UploadPolicy' stipulates that you wish form inputs to be
+-- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and a
+-- form input exceeds the maximum allowable size, this function will throw a
+-- 'PolicyViolationException'.
+--
+-- If an uploaded part contains MIME headers longer than a fixed internal
+-- threshold (currently 32KB), this function will throw a 'BadPartException'.
+
+handleFileUploads ::
+       (MonadSnap m) =>
+       FilePath                       -- ^ temporary directory
+    -> UploadPolicy                   -- ^ general upload policy
+    -> (PartInfo -> PartUploadPolicy) -- ^ per-part upload policy
+    -> ([(PartInfo, Either PolicyViolationException FilePath)] -> m a)
+                                      -- ^ user handler (see function
+                                      -- description)
+    -> m a
+handleFileUploads tmpdir uploadPolicy partPolicy handler = do
+    uploadedFiles <- newUploadedFiles
+
+    (do
+        xs <- handleMultipart uploadPolicy (iter uploadedFiles)
+        handler xs
+        ) `finally` (cleanupUploadedFiles uploadedFiles)
+
+  where
+    iter uploadedFiles partInfo = maybe disallowed takeIt mbFs
+      where
+        ctText = partContentType partInfo
+        fnText = fromMaybe "" $ partFileName partInfo
+
+        ct = TE.decodeUtf8 ctText
+        fn = TE.decodeUtf8 fnText
+
+        (PartUploadPolicy mbFs) = partPolicy partInfo
+
+        retVal (_,x) = (partInfo, Right x)
+
+        takeIt maxSize = do
+            let it = fmap retVal $
+                     joinI' $
+                     takeNoMoreThan maxSize $$
+                     fileReader uploadedFiles tmpdir partInfo
+
+            it `catches` [ Handler $ \(_ :: TooManyBytesReadException) ->
+                                     (skipToEof >> tooMany maxSize)
+                         , Handler $ \(e :: SomeException) -> throw e
+                         ]
+
+        tooMany maxSize =
+            return ( partInfo
+                   , Left $ PolicyViolationException
+                          $ T.concat [ "File \""
+                                     , fn
+                                     , "\" exceeded maximum allowable size "
+                                     , T.pack $ show maxSize ] )
+
+        disallowed =
+            return ( partInfo
+                   , Left $ PolicyViolationException
+                          $ T.concat [ "Policy disallowed upload of file \""
+                                     , fn
+                                     , "\" with content-type \""
+                                     , ct
+                                     , "\"" ] )
+
+
+------------------------------------------------------------------------------
+-- | Given an upload policy and a function to consume uploaded \"parts\",
+-- consume a request body uploaded with @Content-type: multipart/form-data@.
+-- Normally most users will want to use 'handleFileUploads' (which writes
+-- uploaded files to a temporary directory and passes their names to a given
+-- handler) rather than this function; the lower-level 'handleMultipart'
+-- function should be used if you want to stream uploaded files to your own
+-- iteratee function.
+--
+-- If the request's @Content-type@ was not \"@multipart/formdata@\", this
+-- function skips processing using 'pass'.
+--
+-- If the client's upload rate passes below the configured minimum (see
+-- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function throws
+-- a 'RateTooSlowException'. This setting is there to protect the server
+-- against slowloris-style denial of service attacks.
+--
+-- If the given 'UploadPolicy' stipulates that you wish form inputs to be
+-- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and a
+-- form input exceeds the maximum allowable size, this function will throw a
+-- 'PolicyViolationException'.
+--
+-- If an uploaded part contains MIME headers longer than a fixed internal
+-- threshold (currently 32KB), this function will throw a 'BadPartException'.
+--
+handleMultipart ::
+       (MonadSnap m) =>
+       UploadPolicy                            -- ^ global upload policy
+    -> (PartInfo -> Iteratee ByteString IO a)  -- ^ part processor
+    -> m [a]
+handleMultipart uploadPolicy origPartHandler = do
+    hdrs <- liftM headers getRequest
+    let (ct, mbBoundary) = getContentType hdrs
+
+    tickleTimeout <- getTimeoutAction
+    let bumpTimeout = tickleTimeout $ uploadTimeout uploadPolicy
+
+    let partHandler = if doProcessFormInputs uploadPolicy
+                        then captureVariableOrReadFile
+                                 (getMaximumFormInputSize uploadPolicy)
+                                 origPartHandler
+                        else (\p -> fmap File (origPartHandler p))
+
+    -- not well-formed multipart? bomb out.
+    when (ct /= "multipart/form-data") $ do
+        debug $ "handleMultipart called with content-type=" ++ S.unpack ct
+                  ++ ", passing"
+        pass
+
+    when (isNothing mbBoundary) $
+         throw $ BadPartException $
+         "got multipart/form-data without boundary"
+
+    let boundary = fromJust mbBoundary
+    captures <- runRequestBody (iter bumpTimeout boundary partHandler `catch`
+                                errHandler)
+
+    procCaptures [] captures
+
+  where
+    iter bump boundary ph = killIfTooSlow
+                              bump
+                              (minimumUploadRate uploadPolicy)
+                              (minimumUploadSeconds uploadPolicy)
+                              (internalHandleMultipart boundary ph)
+
+    errHandler (e :: SomeException) = skipToEof >> (lift $ throw e)
+
+    ins k v = Map.insertWith' (\a b -> Prelude.head a : b) k [v]
+
+    maxFormVars = maximumNumberOfFormInputs uploadPolicy
+
+    procCaptures l [] = return $ reverse l
+    procCaptures l ((File x):xs) = procCaptures (x:l) xs
+    procCaptures l ((Capture k v):xs) = do
+        rq <- getRequest
+        let n = Map.size $ rqParams rq
+        when (n >= maxFormVars) $
+          throw $ PolicyViolationException $
+          T.concat [ "number of form inputs exceeded maximum of "
+                   , T.pack $ show maxFormVars ]
+        modifyRequest $ rqModifyParams (ins k v)
+        procCaptures l xs
+
+
+------------------------------------------------------------------------------
 -- | 'PartInfo' contains information about a \"part\" in a request uploaded
 -- with @Content-type: multipart/form-data@.
 data PartInfo =
@@ -185,7 +372,7 @@ instance Show PolicyViolationException where
 --   the 'rqParams' map)
 --
 -- * because form input is read into memory, the maximum size of a form input
---   read in this manner
+--   read in this manner, and the maximum number of form inputs
 --
 -- * the minimum upload rate a client must maintain before we kill the
 --   connection; if very low-bitrate uploads were allowed then a Snap server
@@ -198,19 +385,33 @@ instance Show PolicyViolationException where
 -- * the amount of time we should wait before timing out the connection
 --   whenever we receive input from the client.
 data UploadPolicy = UploadPolicy {
-      processFormInputs    :: Bool
-    , maximumFormInputSize :: Int
-    , minimumUploadRate    :: Double
-    , minimumUploadSeconds :: Int
-    , uploadTimeout        :: Int
+      processFormInputs         :: Bool
+    , maximumFormInputSize      :: Int
+    , maximumNumberOfFormInputs :: Int
+    , minimumUploadRate         :: Double
+    , minimumUploadSeconds      :: Int
+    , uploadTimeout             :: Int
 } deriving (Show, Eq)
 
 
 ------------------------------------------------------------------------------
+-- | A reasonable set of defaults for upload policy. The default policy is:
+--
+--   [@maximum form input size@]                128kB
+--
+--   [@maximum number of form inputs@]          10
+--
+--   [@minimum upload rate@]                    1kB/s
+--
+--   [@seconds before rate limiting kicks in@]  10
+--
+--   [@inactivity timeout@]                     20 seconds
+--
 defaultUploadPolicy :: UploadPolicy
-defaultUploadPolicy = UploadPolicy True maxSize minRate minSeconds tout
+defaultUploadPolicy = UploadPolicy True maxSize maxNum minRate minSeconds tout
   where
-    maxSize    = 2^(18::Int)
+    maxSize    = 2^(17::Int)
+    maxNum     = 10
     minRate    = 1000
     minSeconds = 10
     tout       = 20
@@ -310,137 +511,8 @@ allowWithMaximumSize = PartUploadPolicy . Just
 
 
 ------------------------------------------------------------------------------
-handleFileUploads ::
-       (MonadSnap m) =>
-       FilePath                       -- ^ temporary directory
-    -> UploadPolicy                   -- ^ general upload policy
-    -> (PartInfo -> PartUploadPolicy) -- ^ chooses policy given information
-                                      -- about a file to be uploaded
-    -> ([(PartInfo, Either PolicyViolationException FilePath)] -> m a)
-    -> m a
-handleFileUploads tmpdir uploadPolicy partPolicy handler = do
-    uploadedFiles <- newUploadedFiles
-
-    (do
-        xs <- handleMultipart uploadPolicy (iter uploadedFiles)
-        handler xs
-        ) `finally` (cleanupUploadedFiles uploadedFiles)
-
-  where
-    iter uploadedFiles partInfo = maybe disallowed takeIt mbFs
-      where
-        ctText = partContentType partInfo
-        fnText = fromMaybe "" $ partFileName partInfo
-
-        ct = TE.decodeUtf8 ctText
-        fn = TE.decodeUtf8 fnText
-
-        (PartUploadPolicy mbFs) = partPolicy partInfo
-
-        retVal (_,x) = (partInfo, Right x)
-
-        takeIt maxSize = do
-            let it = fmap retVal $
-                     joinI' $
-                     takeNoMoreThan maxSize $$
-                     fileReader uploadedFiles tmpdir partInfo
-
-            it `catches` [ Handler $ \(_ :: TooManyBytesReadException) ->
-                                     (skipToEof >> tooMany maxSize)
-                         , Handler $ \(e :: SomeException) -> throw e
-                         ]
-
-        tooMany maxSize =
-            return ( partInfo
-                   , Left $ PolicyViolationException
-                          $ T.concat [ "File \""
-                                     , fn
-                                     , "\" exceeded maximum allowable size "
-                                     , T.pack $ show maxSize ] )
-
-        disallowed =
-            return ( partInfo
-                   , Left $ PolicyViolationException
-                          $ T.concat [ "Policy disallowed upload of file \""
-                                     , fn
-                                     , "\" with content-type \""
-                                     , ct
-                                     , "\"" ] )
-
-
+-- private exports follow. FIXME: organize
 ------------------------------------------------------------------------------
--- | Given an upload policy and a function to consume uploaded \"parts\",
--- consume a request body uploaded with @Content-type: multipart/form-data@.
--- Normally most users will want to use 'handleFileUploads' (which writes
--- uploaded files to a temporary directory and passes their names to a given
--- handler) rather than this function; the lower-level 'handleMultipart'
--- function should be used if you want to stream uploaded files to your own
--- iteratee function.
---
--- If the request's @Content-type@ was not \"@multipart/formdata@\", this
--- function skips processing using 'pass'.
---
--- If the client's upload rate passes below the configured minimum, this
--- function throws a 'RateTooSlowException'.
---
--- If the given 'UploadPolicy' stipulates that you wish form inputs to be
--- placed in the 'rqParams' parameter map, and a form input exceeds the maximum
--- allowable size, this function will throw a 'PolicyViolationException'.
---
--- If an uploaded part contains MIME headers longer than a fixed internal
--- threshold (currently 32KB), this function will throw a 'BadPartException'.
---
-handleMultipart ::
-       (MonadSnap m) =>
-       UploadPolicy
-    -> (PartInfo -> Iteratee ByteString IO a)   -- ^ part processor
-    -> m [a]
-handleMultipart uploadPolicy origPartHandler = do
-    hdrs <- liftM headers getRequest
-    let (ct, mbBoundary) = getContentType hdrs
-
-    tickleTimeout <- getTimeoutAction
-    let bumpTimeout = tickleTimeout $ uploadTimeout uploadPolicy
-
-    let partHandler = if doProcessFormInputs uploadPolicy
-                        then captureVariableOrReadFile
-                                 (getMaximumFormInputSize uploadPolicy)
-                                 origPartHandler
-                        else (\p -> fmap File (origPartHandler p))
-
-    -- not well-formed multipart? bomb out.
-    when (ct /= "multipart/form-data") $ do
-        debug $ "handleMultipart called with content-type=" ++ S.unpack ct
-                  ++ ", passing"
-        pass
-
-    when (isNothing mbBoundary) $
-         throw $ BadPartException $
-         "got multipart/form-data without boundary"
-
-    let boundary = fromJust mbBoundary
-    captures <- runRequestBody (iter bumpTimeout boundary partHandler `catch`
-                                errHandler)
-
-    procCaptures [] captures
-
-  where
-    iter bump boundary ph = killIfTooSlow
-                              bump
-                              (minimumUploadRate uploadPolicy)
-                              (minimumUploadSeconds uploadPolicy)
-                              (internalHandleMultipart boundary ph)
-
-    errHandler (e :: SomeException) = skipToEof >> (lift $ throw e)
-
-    ins k v = Map.insertWith' (\a b -> Prelude.head a : b) k [v]
-
-    procCaptures l [] = return $ reverse l
-    procCaptures l ((File x):xs) = procCaptures (x:l) xs
-    procCaptures l ((Capture k v):xs) = do
-        modifyRequest $ rqModifyParams (ins k v)
-        procCaptures l xs
-
 
 ------------------------------------------------------------------------------
 captureVariableOrReadFile ::
@@ -478,11 +550,6 @@ captureVariableOrReadFile maxSize fileHandler partInfo =
 data Capture a = Capture ByteString ByteString
                | File a
   deriving (Show)
-
-
-------------------------------------------------------------------------------
--- private exports follow. FIXME: organize
-------------------------------------------------------------------------------
 
 
 ------------------------------------------------------------------------------
