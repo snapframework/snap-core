@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes        #-}
 
-module Snap.Internal.Iteratee.KnuthMorrisPratt 
+module Snap.Internal.Iteratee.KnuthMorrisPratt
   ( kmpEnumeratee
   , MatchInfo(..) )
   where
@@ -34,12 +34,11 @@ kmpEnumeratee needle = checkDone (iter "" 0)
 
     --------------------------------------------------------------------------
     iter :: (Monad m) =>
-            ByteString                                    -- ^ num bytes left
-                                                          -- over from previous
-                                                          -- match
-         -> Int                                           -- ^ needle index
-         -> (Stream MatchInfo -> Iteratee MatchInfo m a)  -- ^ iteratee
-                                                          -- continuation
+            ByteString
+         -- ^ num bytes left over from previous match
+         -> Int  -- ^ needle index
+         -> (Stream MatchInfo -> Iteratee MatchInfo m a)
+         -- ^ iteratee continuation
          -> Iteratee ByteString m (Step MatchInfo m a)
     iter !leftOver !needleIndex !k = do
         EL.head >>= maybe (finish leftOver k)
@@ -86,13 +85,13 @@ kmpEnumeratee needle = checkDone (iter "" 0)
             i' = max 0 ti
 
         ----------------------------------------------------------------------
-        -- here we've reached the end of the input chunk. A couple of things we
-        -- know:
+        -- here we've reached the end of the input chunk. A couple of things
+        -- we know:
         --
-        -- * the input from [0..m) doesn't match the needle and we should yield
-        --   it to the inner iteratee. However if m == 0 then the whole input
-        --   string was a match and we need to feed our previous leftovers
-        --   forward plus our entire input string.
+        -- * the input from [0..m) doesn't match the needle and we should
+        --   yield it to the inner iteratee. However if m == 0 then the whole
+        --   input string was a match and we need to feed our previous
+        --   leftovers forward plus our entire input string.
         --
         -- * the input from [m..ilen) is a partial match that we need to feed
         --   forward
@@ -127,7 +126,7 @@ kmpEnumeratee needle = checkDone (iter "" 0)
             notmatching = S.append leftOver nomatch
             rest0       = S.drop (m+needleLen-leftOverLen) input
             rest        = S.drop (m+needleLen) input
-            
+
 
 ------------------------------------------------------------------------------
 buildKmpTable :: ByteString -> Vector Int

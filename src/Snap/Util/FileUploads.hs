@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
+------------------------------------------------------------------------------
 -- | This module contains primitives and helper functions for handling
 -- requests with @Content-type: multipart/form-data@, i.e. HTML forms and file
 -- uploads.
@@ -22,7 +23,8 @@
 -- allowed to upload?\" and \"should we read form inputs into the parameters
 -- mapping?\". Policy is specified on a \"global\" basis (using
 -- 'UploadPolicy'), and on a per-file basis (using 'PartUploadPolicy', which
--- allows you to reject or limit the size of certain uploaded @Content-type@s).
+-- allows you to reject or limit the size of certain uploaded
+-- @Content-type@s).
 module Snap.Util.FileUploads
   ( -- * Functions
     handleFileUploads
@@ -99,26 +101,26 @@ import           Snap.Types
 
 
 ------------------------------------------------------------------------------
--- | Read uploaded files into a temporary directory and calls a user handler to
--- process them.
+-- | Reads uploaded files into a temporary directory and calls a user handler
+-- to process them.
 --
--- Given a temporary directory, global and file-specific upload policies, and a
--- user handler, this function consumes a request body uploaded with
+-- Given a temporary directory, global and file-specific upload policies, and
+-- a user handler, this function consumes a request body uploaded with
 -- @Content-type: multipart/form-data@. Each file is read into the temporary
 -- directory, and then a list of the uploaded files is passed to the user
 -- handler. After the user handler runs (but before the 'Response' body
--- 'Enumerator' is streamed to the client), the files are deleted from disk; so
--- if you want to retain or use the uploaded files in the generated response,
--- you would need to move or otherwise process them.
+-- 'Enumerator' is streamed to the client), the files are deleted from disk;
+-- so if you want to retain or use the uploaded files in the generated
+-- response, you would need to move or otherwise process them.
 --
 -- The argument passed to the user handler is a list of:
 --
 -- > (PartInfo, Either PolicyViolationException FilePath)
 --
--- The first half of this tuple is a 'PartInfo', which contains the information
--- the client browser sent about the given upload part (like filename,
--- content-type, etc). The second half of this tuple is an 'Either' stipulating
--- that either:
+-- The first half of this tuple is a 'PartInfo', which contains the
+-- information the client browser sent about the given upload part (like
+-- filename, content-type, etc). The second half of this tuple is an 'Either'
+-- stipulating that either:
 --
 -- 1. the file was rejected on a policy basis because of the provided
 --    'PartUploadPolicy' handler
@@ -134,8 +136,8 @@ import           Snap.Types
 -- against slowloris-style denial of service attacks.
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
--- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and a
--- form input exceeds the maximum allowable size, this function will throw a
+-- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and
+-- a form input exceeds the maximum allowable size, this function will throw a
 -- 'PolicyViolationException'.
 --
 -- If an uploaded part contains MIME headers longer than a fixed internal
@@ -218,8 +220,8 @@ handleFileUploads tmpdir uploadPolicy partPolicy handler = do
 -- against slowloris-style denial of service attacks.
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
--- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and a
--- form input exceeds the maximum allowable size, this function will throw a
+-- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and
+-- a form input exceeds the maximum allowable size, this function will throw a
 -- 'PolicyViolationException'.
 --
 -- If an uploaded part contains MIME headers longer than a fixed internal
@@ -328,7 +330,8 @@ fileUploadExceptionReason (WrappedFileUploadException _ r) = r
 
 ------------------------------------------------------------------------------
 uploadExceptionToException :: Exception e => e -> Text -> SomeException
-uploadExceptionToException e r = SomeException $ WrappedFileUploadException e r
+uploadExceptionToException e r =
+    SomeException $ WrappedFileUploadException e r
 
 
 ------------------------------------------------------------------------------
@@ -356,7 +359,8 @@ data PolicyViolationException = PolicyViolationException {
     } deriving (Typeable)
 
 instance Exception PolicyViolationException where
-    toException e@(PolicyViolationException r) = uploadExceptionToException e r
+    toException e@(PolicyViolationException r) =
+        uploadExceptionToException e r
     fromException = uploadExceptionFromException
 
 instance Show PolicyViolationException where
@@ -725,9 +729,9 @@ processPart = checkDone go
 
 ------------------------------------------------------------------------------
 -- | Assuming we've already identified the boundary value and run
--- 'kmpEnumeratee' to split the input up into parts which match and parts which
--- don't, run the given 'ByteString' iteratee over each part and grab a list of
--- the resulting values.
+-- 'kmpEnumeratee' to split the input up into parts which match and parts
+-- which don't, run the given 'ByteString' iteratee over each part and grab a
+-- list of the resulting values.
 processParts :: Iteratee ByteString IO a
              -> Iteratee MatchInfo IO [a]
 processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
@@ -747,7 +751,8 @@ processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
       if b
         then return $ D.toList soFar
         else do
-           -- processPart $$ iter :: Iteratee MatchInfo m (Step ByteString m a)
+           -- processPart $$ iter
+           --   :: Iteratee MatchInfo m (Step ByteString m a)
            innerStep <- processPart $$ iter
 
            -- output :: Maybe a
@@ -757,7 +762,8 @@ processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
              Just x  -> go (D.append soFar $ D.singleton x)
              Nothing -> return $ D.toList soFar
 
-    bParser = iterateeDebugWrapper "boundary debugger" $ iterParser $ pBoundaryEnd
+    bParser = iterateeDebugWrapper "boundary debugger" $
+                  iterParser $ pBoundaryEnd
 
     pBoundaryEnd = (eol *> pure False) <|> (string "--" *> pure True)
 
@@ -787,12 +793,12 @@ mAX_HDRS_SIZE = 32768
 
 ------------------------------------------------------------------------------
 -- We need some code to keep track of the files we have already successfully
--- created in case an exception is thrown by the request body enumerator or one
--- of the client iteratees.
+-- created in case an exception is thrown by the request body enumerator or
+-- one of the client iteratees.
 data UploadedFilesState = UploadedFilesState {
-      -- | This is the file which is currently being written to. If the calling
-      -- function gets an exception here, it is responsible for closing and
-      -- deleting this file.
+      -- | This is the file which is currently being written to. If the
+      -- calling function gets an exception here, it is responsible for
+      -- closing and deleting this file.
       _currentFile :: Maybe (FilePath, Handle)
 
       -- | .. and these files have already been successfully read and closed.
@@ -841,8 +847,8 @@ openFileForUpload :: (MonadIO m) =>
 openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
     state <- readIORef stateRef
 
-    -- It should be an error to open a new file with this interface if there is
-    -- already a file handle active.
+    -- It should be an error to open a new file with this interface if there
+    -- is already a file handle active.
     when (isJust $ _currentFile state) $ do
         cleanupUploadedFiles ufs
         throw $ GenericFileUploadException alreadyOpenMsg

@@ -713,10 +713,11 @@ runSnap (Snap m) logerr timeoutAction req = do
     return (_snapRequest ss', resp)
 
   where
-    fourohfour = setContentLength 3 $
-                 setResponseStatus 404 "Not Found" $
-                 modifyResponseBody (>==> enumBuilder (fromByteString "404")) $
-                 emptyResponse
+    fourohfour =
+        setContentLength 3 $
+        setResponseStatus 404 "Not Found" $
+        modifyResponseBody (>==> enumBuilder (fromByteString "404")) $
+        emptyResponse
 
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
 
@@ -764,10 +765,10 @@ getParam k = do
 
 
 ------------------------------------------------------------------------------
--- | See 'rqParams'. Convenience function to return 'Params' from the 'Request'
--- inside of a 'MonadSnap' instance.
+-- | See 'rqParams'. Convenience function to return 'Params' from the
+-- 'Request' inside of a 'MonadSnap' instance.
 getParams :: MonadSnap m => m Params
-getParams = getRequest >>= return . rqParams 
+getParams = getRequest >>= return . rqParams
 
 
 ------------------------------------------------------------------------------

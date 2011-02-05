@@ -194,7 +194,8 @@ pValueWithParameters = do
     pParam = pSpaces *> char ';' *> pSpaces *> pParameter
 
 ------------------------------------------------------------------------------
-pContentTypeWithParameters :: Parser (ByteString, [(CIByteString, ByteString)])
+pContentTypeWithParameters ::
+    Parser (ByteString, [(CIByteString, ByteString)])
 pContentTypeWithParameters = do
     value  <- liftM trim (pSpaces *> takeWhile (not . isSep))
     params <- many (pSpaces *> satisfy isSep *> pSpaces *> pParameter)

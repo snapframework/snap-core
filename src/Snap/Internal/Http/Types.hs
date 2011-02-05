@@ -301,7 +301,8 @@ instance Show Request where
                              , ":"
                              , show $ rqServerPort r
                              ]
-      beginheaders  = "Headers:\n      ========================================"
+      beginheaders  =
+          "Headers:\n      ========================================"
       endheaders    = "  ========================================"
       hdrs' (a,b)   = (B.unpack $ unCI a) ++ ": " ++ (show (map B.unpack b))
       hdrs          = "      " ++ (concat $ intersperse "\n " $
@@ -317,11 +318,12 @@ instance Show Request where
                              ]
       cookies'      = "      " ++ (concat $ intersperse "\n " $
                                    map show $ rqCookies r)
-      cookies       = concat [ "cookies:\n"
-                             , "      ========================================\n"
-                             , cookies'
-                             , "\n      ========================================"
-                             ]
+      cookies       = concat
+          [ "cookies:\n"
+          , "      ========================================\n"
+          , cookies'
+          , "\n      ========================================"
+          ]
       pathinfo      = concat [ "pathinfo: ", toStr $ rqPathInfo r ]
       contextpath   = concat [ "contextpath: ", toStr $ rqContextPath r ]
       snapletpath   = concat [ "snapletpath: ", toStr $ rqSnapletPath r ]
@@ -330,11 +332,12 @@ instance Show Request where
                       (concat $ intersperse "\n " $
                        map (\ (a,b) -> B.unpack a ++ ": " ++ show b) $
                        Map.toAscList $ rqParams r)
-      params        = concat [ "params:\n"
-                             , "      ========================================\n"
-                             , params'
-                             , "\n      ========================================"
-                             ]
+      params        = concat
+          [ "params:\n"
+          , "      ========================================\n"
+          , params'
+          , "\n      ========================================"
+          ]
 
 
 ------------------------------------------------------------------------------
@@ -471,7 +474,7 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 -- | An empty 'Response'.
 emptyResponse :: Response
 emptyResponse = Response Map.empty Map.empty (1,1) Nothing
-                         (Enum (I.enumBuilder mempty)) 
+                         (Enum (I.enumBuilder mempty))
                          200 "OK" False
 
 
@@ -528,7 +531,7 @@ setContentType = setHeader "Content-Type"
 ------------------------------------------------------------------------------
 -- | addCookie has been deprecated and will be removed in 0.4. Please use
 -- 'addResponseCookie' instead.
-addCookie :: Cookie                   -- ^ cookie value 
+addCookie :: Cookie                   -- ^ cookie value
           -> Response                 -- ^ response to modify
           -> Response
 addCookie = addResponseCookie
@@ -557,13 +560,13 @@ getResponseCookie cn r = Map.lookup cn $ rspCookies r
 -- | Returns a list of 'Cookie's present in 'Response'
 getResponseCookies :: Response              -- ^ response to query
                    -> [Cookie]
-getResponseCookies = Map.elems . rspCookies 
+getResponseCookies = Map.elems . rspCookies
 {-# INLINE getResponseCookies #-}
 
 
 ------------------------------------------------------------------------------
 -- | Deletes an HTTP 'Cookie' from the 'Response' headers.
-deleteResponseCookie :: ByteString        -- ^ cookie name 
+deleteResponseCookie :: ByteString        -- ^ cookie name
                      -> Response          -- ^ response to modify
                      -> Response
 deleteResponseCookie cn r = r { rspCookies = cks' }
