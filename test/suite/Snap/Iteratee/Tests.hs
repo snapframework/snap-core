@@ -12,6 +12,7 @@ import           Control.Exception hiding (try, assert)
 import           Control.Monad
 import           Control.Monad.Identity
 import           Control.Monad.Trans
+import qualified Data.ByteString.Base16 as B16
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -22,12 +23,14 @@ import           System.Timeout
 import           Test.Framework
 import           Test.Framework.Providers.QuickCheck2
 import           Test.QuickCheck
+import           Test.QuickCheck.Gen
 import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic hiding (run)
 import           Test.Framework.Providers.HUnit
 import qualified Test.HUnit as H
 
 import           Snap.Iteratee
+import           Snap.Internal.Iteratee.KnuthMorrisPratt
 import           Snap.Test.Common ()
 
 import Snap.Internal.Iteratee.Debug
@@ -74,6 +77,7 @@ tests = [ testEnumBS
         , testCountBytes2
         , testKillIfTooSlow1
         , testKillIfTooSlow2
+        , testKMP
         ]
 
 testEnumBS :: Test
@@ -400,6 +404,7 @@ testCountBytes = testProperty "iteratee/countBytes" $
        n = L.length s
 
 
+------------------------------------------------------------------------------
 testCountBytes2 :: Test
 testCountBytes2 = testProperty "iteratee/countBytes2" $
                   monadicIO $ forAllM arbitrary prop
@@ -421,6 +426,65 @@ testCountBytes2 = testProperty "iteratee/countBytes2" $
            x <- liftM L.fromChunks consume
            return (m,x)
 
+
+------------------------------------------------------------------------------
+testKMP :: Test
+testKMP = testProperty "iteratee/KnuthMorrisPratt" $
+          monadicIO $ forAllM arbitrary prop
+  where
+    prop :: (ByteString, [ByteString]) -> PropertyM IO ()
+    prop (needle', haystack') = do
+        let needle = B16.encode needle'
+        let haystack = Prelude.map B16.encode haystack'
+
+        let lneedle = L.fromChunks [needle]
+        let lhaystack = L.fromChunks haystack
+
+        pre ((not $ S.null needle) &&
+             (not $ L.null lhaystack) &&
+             (not $ S.isInfixOf needle (S.concat haystack)))
+
+        -- put the needle at the beginning, at the end, and somewhere in the
+        -- middle
+
+        lhay <- insertNeedle lneedle lhaystack
+        let stream = L.concat [lneedle, lhay]
+
+        -- there should be exactly three Matches
+        let iter = enumLBS stream $$ joinI (kmpEnumeratee needle $$ consume)
+        outp <- QC.run $ run_ iter
+
+        let nMatches = length $ filter isMatch outp
+
+        when (nMatches /= 3) $ QC.run $ do
+            putStrLn "got wrong number of matches!!"
+            putStrLn "needle:\n"
+            putStrLn $ show lneedle
+            putStrLn "\nhaystack:\n"
+            mapM_ (putStrLn . show) (L.toChunks stream)
+            putStrLn "\noutput stream:"
+            mapM_ (putStrLn . show) outp
+            putStrLn ""
+
+        assert $ nMatches == 3
+
+
+    isMatch (Match _) = True
+    isMatch _         = False
+
+    insertNeedle lneedle lhaystack = do
+        idxL  <- pick $ choose (0, lenL-1)
+        idxN  <- pick $ choose (0, lenN-1)
+        idxN2 <- pick $ choose (0, lenN-1)
+        let (l1, l2) = L.splitAt (toEnum idxL) lhaystack
+        let (n1, n2) = L.splitAt (toEnum idxN) lneedle
+        let (n3, n4) = L.splitAt (toEnum idxN2) lneedle
+
+        return $ L.concat [ l1, n1, n2, l2, n3, n4 ]
+
+      where
+        lenN = fromEnum $ L.length lneedle
+        lenL = fromEnum $ L.length lhaystack
 
 ------------------------------------------------------------------------------
 testKillIfTooSlow1 :: Test

@@ -10,6 +10,7 @@ module Snap.Internal.Iteratee.KnuthMorrisPratt
 import           Control.Monad.Trans
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
+import           Data.ByteString.Unsafe as S
 import           Data.Enumerator hiding (head)
 import qualified Data.Enumerator.List as EL
 import qualified Data.Vector           as V
@@ -17,14 +18,14 @@ import           Data.Vector           (Vector)
 import qualified Data.Vector.Mutable   as MV
 import           Prelude               hiding (head)
 
-
 ------------------------------------------------------------------------------
 data MatchInfo = Match !ByteString
                | NoMatch !ByteString
   deriving (Show)
 
 ------------------------------------------------------------------------------
-kmpEnumeratee :: (Monad m) =>
+-- FIXME: s/MonadIO/Monad/
+kmpEnumeratee :: (MonadIO m) =>
                  ByteString                         -- ^ needle
               -> Enumeratee ByteString MatchInfo m a
 kmpEnumeratee needle = checkDone (iter "" 0)
@@ -33,7 +34,7 @@ kmpEnumeratee needle = checkDone (iter "" 0)
     table     = buildKmpTable needle
 
     --------------------------------------------------------------------------
-    iter :: (Monad m) =>
+    iter :: (MonadIO m) =>
             ByteString
          -- ^ num bytes left over from previous match
          -> Int  -- ^ needle index
@@ -45,7 +46,7 @@ kmpEnumeratee needle = checkDone (iter "" 0)
                           (processChunk leftOver needleIndex k)
 
     --------------------------------------------------------------------------
-    finish :: (Monad m) =>
+    finish :: (MonadIO m) =>
               ByteString
            -> (Stream MatchInfo -> Iteratee MatchInfo m a)
            -> Iteratee ByteString m (Step MatchInfo m a)
@@ -56,34 +57,36 @@ kmpEnumeratee needle = checkDone (iter "" 0)
             checkDone (\k' -> lift $ runIteratee $ k' EOF) step
 
     --------------------------------------------------------------------------
-    processChunk :: (Monad m) =>
+    processChunk :: (MonadIO m) =>
                     ByteString
                  -> Int
                  -> (Stream MatchInfo -> Iteratee MatchInfo m a)
                  -> ByteString
                  -> Iteratee ByteString m (Step MatchInfo m a)
-    processChunk !leftOver !needleIndex !k !input =
-        go 0 needleIndex
-      where
-        leftOverLen = S.length leftOver
-        ilen = S.length input
+    processChunk !leftOver !needleIndex !k !input = go 0 needleIndex
 
-        ----------------------------------------------------------------------
+      where
+        !inputLen    = S.length input
+        !leftOverLen = S.length leftOver
+        !totalLen    = inputLen + leftOverLen
+
+        -- m = start of match in leftOver + index
+        -- i = needle index
         go !m !i
-           | (mi >= ilen)                           = finalize m i
-           | (S.index needle i == S.index input ii) =
-               if i == needleLen-1
-                 then yieldMatch m
-                 else go m (i+1)
+           | (m+i >= totalLen) = finalize m i
+           | (S.unsafeIndex needle i == S.unsafeIndex input ii) =
+                 if i == needleLen - 1
+                   then yieldMatch m
+                   else go m (i+1)
            | otherwise = go m' i'
 
           where
+            ii = i + m - leftOverLen
             ti = V.unsafeIndex table i
-            mi = m+i+leftOverLen
-            ii = m+i-leftOverLen
             m' = m + i - ti
             i' = max 0 ti
 
+           
         ----------------------------------------------------------------------
         -- here we've reached the end of the input chunk. A couple of things
         -- we know:
@@ -96,36 +99,55 @@ kmpEnumeratee needle = checkDone (iter "" 0)
         -- * the input from [m..ilen) is a partial match that we need to feed
         --   forward
         finalize m i
-            | m == 0    = iter (S.append leftOver input) i k
-            | otherwise = if (S.null notmatching)
-                            then iter rest i k
-                            else do
-                              step <- lift $ runIteratee $ k chunk
-                              checkDone (iter rest i) step
-          where
-            (nomatch,rest) = S.splitAt m input
-            notmatching    = S.append leftOver nomatch
-            chunk          = Chunks [NoMatch notmatching]
+            | m == 0 = iter (S.append leftOver input) i k
+
+            | m < leftOverLen = do
+                -- here part of the leftover is the no match and we carry the
+                -- rest forward along with the input
+                let (nomatch, restLeftOver) = S.splitAt m leftOver
+                let rest = S.append restLeftOver input
+                let chunk = Chunks [NoMatch nomatch]
+                step <- lift $ runIteratee $ k chunk
+                checkDone (iter rest i) step
+
+            | otherwise = do
+                -- the whole leftOver part was garbage.
+                let m' = m - leftOverLen
+                let (nomatchInput, rest) = S.splitAt m' input
+                let nomatch = S.append leftOver nomatchInput
+                let chunk = Chunks [NoMatch nomatch]
+                step <- lift $ runIteratee $ k chunk
+                checkDone (iter rest i) step
+            
 
         ----------------------------------------------------------------------
         -- we got a match! We need to yield [0..m) to the inner iteratee as a
         -- nomatch, then yield the needle, then go back to processing the rest
         -- of the input from scratch. Same caveats re: m==0 apply here.
-        yieldMatch m
-            | m == 0    = do
-                step <- lift $ runIteratee $ k $ Chunks [Match needle]
-                checkDone (\k' -> processChunk "" 0 k' rest0) step
-            | otherwise = do
-                step <- lift $ runIteratee $ k $ Chunks [NoMatch notmatching]
-                flip checkDone step $ \k' -> do
-                    step' <- lift $ runIteratee $ k' $ Chunks [Match needle]
-                    flip checkDone step' $ \k'' -> processChunk "" 0 k'' rest
+        yieldMatch m 
+            | m == 0 = do
+                 -- we have no garbage and just advance by the size of the needle
+                 step <- lift $ runIteratee $ k $ Chunks [Match needle]
+                 -- we also can be sure here that the needle crosses the
+                 -- leftOver..input boundary (otherwise we would have yielded
+                 -- it earlier)
+                 let m' = needleLen - leftOverLen
+                 let rest = S.drop m' input
+                 checkDone (\k' -> processChunk "" 0 k' rest) step
 
-          where
-            nomatch     = S.take m input
-            notmatching = S.append leftOver nomatch
-            rest0       = S.drop (m+needleLen-leftOverLen) input
-            rest        = S.drop (m+needleLen) input
+            | otherwise = do
+                 let (garbage,rest) =
+                         if m < leftOverLen
+                           then let (a,b) = S.splitAt m leftOver
+                                in (a, S.drop needleLen $ S.append b input)
+                           else let m'    = m - leftOverLen
+                                    (a,b) = S.splitAt m' input
+                                in (S.append leftOver a, S.drop needleLen b)
+                 
+                 step <- lift $ runIteratee $ k $ Chunks [NoMatch garbage]
+                 flip checkDone step $ \k' -> do
+                     step' <- lift $ runIteratee $ k' $ Chunks [Match needle]
+                     flip checkDone step' $ \k'' -> processChunk "" 0 k'' rest
 
 
 ------------------------------------------------------------------------------
@@ -144,8 +166,8 @@ buildKmpTable needle = V.create $ do
         if pos >= needleLen
           then return t
           else do
-            let wPos1 = S.index needle (pos-1)
-            let wCnd  = S.index needle cnd
+            let wPos1 = S.unsafeIndex needle (pos-1)
+            let wCnd  = S.unsafeIndex needle cnd
 
             if wPos1 == wCnd
               then do
