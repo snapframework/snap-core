@@ -529,7 +529,7 @@ setContentType = setHeader "Content-Type"
 
 
 ------------------------------------------------------------------------------
--- | addCookie has been deprecated and will be removed in 0.4. Please use
+-- | addCookie has been deprecated and will be removed in 0.5. Please use
 -- 'addResponseCookie' instead.
 addCookie :: Cookie                   -- ^ cookie value
           -> Response                 -- ^ response to modify
