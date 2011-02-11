@@ -138,17 +138,28 @@ instance (Functor m, MonadCatchIO m) =>
         ee <- try $ runIteratee (m `catchError` h)
         case ee of
           (Left e)  -> runIteratee (handler e)
-          (Right v) -> return v
+          (Right v) -> step v
       where
+        step (Continue k)  = return $ Continue (\s -> k s `catch` handler)
+        -- don't worry about Error here because the error had to come from the
+        -- handler (because of 'catchError' above)
+        step y             = return y
+
         -- we can only catch iteratee errors if "e" matches "SomeException"
         h e = maybe (throwError e)
                     (handler)
                     (fromException e)
 
     --block :: m a -> m a
-    block m = Iteratee $ block $ runIteratee m
-    unblock m = Iteratee $ unblock $ runIteratee m
+    block m = Iteratee $ block $ (runIteratee m >>= step)
+      where
+        step (Continue k) = return $ Continue (\s -> block (k s))
+        step y            = return y
 
+    unblock m = Iteratee $ unblock $ (runIteratee m >>= step)
+      where
+        step (Continue k) = return $ Continue (\s -> unblock (k s))
+        step y            = return y
 
 
 ------------------------------------------------------------------------------
