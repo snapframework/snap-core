@@ -8,8 +8,9 @@ module Snap.Iteratee.Tests
 
 import           Control.Concurrent (threadDelay)
 import qualified Control.Exception as E
-import           Control.Exception hiding (try, assert)
+import           Control.Exception hiding (try, assert, throw, catch)
 import           Control.Monad
+import           Control.Monad.CatchIO
 import           Control.Monad.Identity
 import           Control.Monad.Trans
 import qualified Data.ByteString.Base16 as B16
@@ -18,7 +19,7 @@ import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Int
 import           Data.Maybe
-import           Prelude hiding (head, drop, take)
+import           Prelude hiding (catch, head, drop, take)
 import           System.Timeout
 import           Test.Framework
 import           Test.Framework.Providers.QuickCheck2
@@ -78,6 +79,7 @@ tests = [ testEnumBS
         , testKillIfTooSlow1
         , testKillIfTooSlow2
         , testKMP
+        , testCatchIO
         ]
 
 testEnumBS :: Test
@@ -504,6 +506,24 @@ testKillIfTooSlow2 = testCase "iteratee/killIfTooSlow2" $ do
     m <- liftM S.concat $ run_ $ tooSlowEnum 3 $$ iter
     H.assertEqual "testKillIfTooSlow2" (S.replicate 300 'f') m
 
+
+
+------------------------------------------------------------------------------
+testCatchIO :: Test
+testCatchIO = testCase "iteratee/monadCatchIO" $ do
+    e <- run_ $ enumList 1 ["1", "2", "3", "4", "5"] $$ iter 0
+    H.assertBool "handled exception" $ isJust e
+
+  where
+    iter !i = (continue $ k (i::Int)) `catch` h
+
+    k _ EOF = return Nothing
+    k i _   = if i >= 2
+                then throw $ ErrorCall "should not escape!"
+                else iter (i+1)
+
+    h :: SomeException -> Iteratee ByteString IO (Maybe String)
+    h e = return $ Just $ show e
 
 ------------------------------------------------------------------------------
 tooSlowEnum :: Int -> Enumerator ByteString IO a
