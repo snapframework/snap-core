@@ -137,7 +137,11 @@ instance (Functor m, MonadCatchIO m) =>
     catch m handler = Iteratee $ do
         ee <- try $ runIteratee (m `catchError` h)
         case ee of
-          (Left e)  -> runIteratee (handler e)
+          -- if we got an async exception here then the iteratee workflow is
+          -- all messed up, we have no reasonable choice but to send EOF to the
+          -- handler, because the unparsed input got lost. If the enumerator
+          -- sends more chunks we can possibly recover later.
+          (Left e)  -> runIteratee (enumEOF $$ handler e)
           (Right v) -> step v
       where
         step (Continue k)  = return $ Continue (\s -> k s `catch` handler)
