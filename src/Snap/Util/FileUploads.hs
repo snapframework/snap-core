@@ -95,7 +95,7 @@ import           Snap.Iteratee hiding (map)
 import qualified Snap.Iteratee as I
 import           Snap.Internal.Debug
 import           Snap.Internal.Iteratee.Debug
-import           Snap.Internal.Iteratee.KnuthMorrisPratt
+import           Snap.Internal.Iteratee.BoyerMooreHorspool
 import           Snap.Internal.Parsing
 import           Snap.Types
 
@@ -598,8 +598,8 @@ internalHandleMultipart boundary clientHandler = go `catch` errorHandler
     go = do
         -- swallow the first boundary
         _ <- iterParser $ parseFirstBoundary boundary
-        step <- iterateeDebugWrapper "kmp" $
-                (kmpEnumeratee (fullBoundary boundary) $$ processParts iter)
+        step <- iterateeDebugWrapper "boyer-moore" $
+                (bmhEnumeratee (fullBoundary boundary) $$ processParts iter)
         liftM concat $ lift $ run_ $ returnI step
 
     --------------------------------------------------------------------------
@@ -653,8 +653,8 @@ internalHandleMultipart boundary clientHandler = go `catch` errorHandler
     processMixed fieldName mixedBoundary = do
         -- swallow the first boundary
         _ <- iterParser $ parseFirstBoundary mixedBoundary
-        step <- iterateeDebugWrapper "kmp" $
-                (kmpEnumeratee (fullBoundary mixedBoundary) $$
+        step <- iterateeDebugWrapper "boyer-moore" $
+                (bmhEnumeratee (fullBoundary mixedBoundary) $$
                  processParts (mixedIter fieldName))
         lift $ run_ $ returnI step
 
@@ -711,38 +711,45 @@ findParam p = fmap snd . find ((== p) . fst)
 -- up until the next boundary and send all of the chunks into the wrapped
 -- iteratee
 processPart :: (Monad m) => Enumeratee MatchInfo ByteString m a
-processPart = checkDone go
+processPart _st = {-# SCC "pPart/outer" #-} cDone go _st
   where
+    cDone !f (Continue !k) = {-# SCC "cDone/cont" #-} f k
+    cDone _ step           = {-# SCC "cDone/yield" #-}
+                             yield step (Chunks [])
+
     go :: (Monad m) => (Stream ByteString -> Iteratee ByteString m a)
                     -> Iteratee MatchInfo m (Step ByteString m a)
-    go k = I.head >>= maybe (finish k) (process k)
+    go !k = {-# SCC "pPart/go" #-}
+            I.head >>= maybe (finish k) (process k)
 
     -- called when outer stream is EOF
     finish :: (Monad m) => (Stream ByteString -> Iteratee ByteString m a)
                         -> Iteratee MatchInfo m (Step ByteString m a)
-    finish k = lift $ runIteratee $ k EOF
+    finish !k = {-# SCC "pPart/finish" #-}
+                lift $ runIteratee $ k EOF
 
     -- no match ==> pass the stream chunk along
     process :: (Monad m) => (Stream ByteString -> Iteratee ByteString m a)
                          -> MatchInfo
                          -> Iteratee MatchInfo m (Step ByteString m a)
-    process k (NoMatch s) = do
+    process !k (NoMatch !s) = {-# SCC "pPart/noMatch" #-} do
       step <- lift $ runIteratee $ k $ Chunks [s]
-      checkDone go step
+      cDone go step
 
-    process k (Match _) = lift $ runIteratee $ k EOF
+    process !k (Match _) = {-# SCC "pPart/match" #-}
+                           lift $ runIteratee $ k EOF
 
 
 ------------------------------------------------------------------------------
 -- | Assuming we've already identified the boundary value and run
--- 'kmpEnumeratee' to split the input up into parts which match and parts
+-- 'bmhEnumeratee' to split the input up into parts which match and parts
 -- which don't, run the given 'ByteString' iteratee over each part and grab a
 -- list of the resulting values.
 processParts :: Iteratee ByteString IO a
              -> Iteratee MatchInfo IO [a]
 processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
   where
-    iter = do
+    iter = {-# SCC "processParts/iter" #-} do
         isLast <- bParser
         if isLast
           then return Nothing
@@ -751,7 +758,7 @@ processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
             skipToEof
             return $ Just x
 
-    go soFar = do
+    go soFar = {-# SCC "processParts/go" #-} do
       b <- isEOF
 
       if b

@@ -31,7 +31,7 @@ import           Test.Framework.Providers.HUnit
 import qualified Test.HUnit as H
 
 import           Snap.Iteratee
-import           Snap.Internal.Iteratee.KnuthMorrisPratt
+import           Snap.Internal.Iteratee.BoyerMooreHorspool
 import           Snap.Test.Common ()
 
 import Snap.Internal.Iteratee.Debug
@@ -78,7 +78,7 @@ tests = [ testEnumBS
         , testCountBytes2
         , testKillIfTooSlow1
         , testKillIfTooSlow2
-        , testKMP
+        , testBMH
         , testCatchIO
         ]
 
@@ -430,8 +430,8 @@ testCountBytes2 = testProperty "iteratee/countBytes2" $
 
 
 ------------------------------------------------------------------------------
-testKMP :: Test
-testKMP = testProperty "iteratee/KnuthMorrisPratt" $
+testBMH :: Test
+testBMH = testProperty "iteratee/BoyerMooreHorspool" $
           monadicIO $ forAllM arbitrary prop
   where
     prop :: (ByteString, [ByteString]) -> PropertyM IO ()
@@ -453,7 +453,7 @@ testKMP = testProperty "iteratee/KnuthMorrisPratt" $
         let stream = L.concat [lneedle, lhay]
 
         -- there should be exactly three Matches
-        let iter = enumLBS stream $$ joinI (kmpEnumeratee needle $$ consume)
+        let iter = enumLBS stream $$ joinI (bmhEnumeratee needle $$ consume)
         outp <- QC.run $ run_ iter
 
         let nMatches = length $ filter isMatch outp

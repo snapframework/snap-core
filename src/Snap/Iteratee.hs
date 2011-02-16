@@ -134,17 +134,20 @@ import           System.PosixCompat.Types
 instance (Functor m, MonadCatchIO m) =>
          MonadCatchIO (Iteratee s m) where
     --catch  :: Exception  e => m a -> (e -> m a) -> m a
-    catch m handler = Iteratee $ do
-        ee <- try $ runIteratee (m `catchError` h)
-        case ee of
-          -- if we got an async exception here then the iteratee workflow is
-          -- all messed up, we have no reasonable choice but to send EOF to the
-          -- handler, because the unparsed input got lost. If the enumerator
-          -- sends more chunks we can possibly recover later.
-          (Left e)  -> runIteratee (enumEOF $$ handler e)
-          (Right v) -> step v
+    catch m handler = insideCatch (m `catchError` h)
       where
-        step (Continue k)  = return $ Continue (\s -> k s `catch` handler)
+        insideCatch !mm = Iteratee $ do
+            ee <- try $ runIteratee mm
+            case ee of 
+                -- if we got an async exception here then the iteratee workflow is
+                -- all messed up, we have no reasonable choice but to send EOF to the
+                -- handler, because the unparsed input got lost. If the enumerator
+                -- sends more chunks we can possibly recover later.
+                (Left e)  -> runIteratee (enumEOF $$ handler e)
+                (Right v) -> step v
+
+        step (Continue !k)  = do
+            return $ Continue (\s -> insideCatch $ k s)
         -- don't worry about Error here because the error had to come from the
         -- handler (because of 'catchError' above)
         step y             = return y
