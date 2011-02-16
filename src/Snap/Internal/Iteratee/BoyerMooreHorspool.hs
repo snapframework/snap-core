@@ -91,20 +91,25 @@ bmhEnumeratee :: (MonadIO m) =>
               -> Iteratee ByteString m (Step MatchInfo m a)
 bmhEnumeratee needle _step = do
     debug $ "boyermoore: needle=" ++ show needle
-    checkDone iter _step
+    cDone _step iter
   where
+    {-# INLINE cDone #-}
+    cDone (Continue k) f = f k
+    cDone step _ = yield step (Chunks [])
+
+
     iter !k = {-# SCC "bmh/iter" #-} do
         lookahead nlen >>= either (finishAndEOF k . (:[]))
                                   (startSearch k)
 
-    finishAndEOF k xs = do
+    finishAndEOF k xs = {-# SCC "finishAndEOF" #-} do
         debug $ "finishAndEOF, returning NoMatch for " ++ show xs
         step <- lift $ runIteratee $ k $
                 Chunks (map NoMatch $ filter (not . S.null) xs)
-        checkDone (\k' -> lift $ runIteratee $ k' EOF) step
+        cDone step (\k' -> lift $ runIteratee $ k' EOF)
 
 
-    startSearch !k !haystack = do
+    startSearch !k !haystack = {-# SCC "startSearch" #-} do
         debug $ "startsearch: " ++ show haystack
         if S.null haystack
            then lookahead nlen >>=
@@ -116,12 +121,12 @@ bmhEnumeratee needle _step = do
 
         go !hidx
           | hend >= hlen = crossBound hidx
-          | otherwise = do
+          | otherwise = {-# SCC "go" #-} do
               let match = matches needle 0 last haystack hidx hend
               debug $ "go " ++ show hidx ++ ", hend=" ++ show hend
                         ++ ", match was " ++ show match
               if match
-                then do
+                then {-# SCC "go/match" #-} do
                   let !nomatch = S.take hidx haystack
                   let !aftermatch = S.drop (hend+1) haystack
 
@@ -129,10 +134,10 @@ bmhEnumeratee needle _step = do
                             then lift $ runIteratee $ k $ Chunks [NoMatch nomatch]
                             else return $ Continue k
 
-                  flip checkDone step $ \k' -> do
+                  cDone step $ \k' -> do
                       step' <- lift $ runIteratee $ k' $ Chunks [Match needle]
-                      flip checkDone step' $ \k'' -> startSearch k'' aftermatch
-                else do
+                      cDone step' $ \k'' -> startSearch k'' aftermatch
+                else {-# SCC "go/nomatch" #-} do
                   -- skip ahead
                   let c = S.index haystack hend
                   let !skip = V.unsafeIndex table $ fromEnum c
@@ -140,7 +145,7 @@ bmhEnumeratee needle _step = do
           where
             !hend = hidx + nlen - 1
                                         
-        crossBound !hidx = do
+        crossBound !hidx = {-# SCC "crossBound" #-} do
             let !leftLen = hlen - hidx
             let !needMore = nlen - leftLen
             debug $ "crossbound " ++ show hidx ++ ", leftlen=" ++ show leftLen
@@ -158,7 +163,7 @@ bmhEnumeratee needle _step = do
                              ++ " match2=" ++ show match2
 
                    if match1 && match2
-                     then do
+                     then {-# SCC "crossBound/match" #-} do
                        let !nomatch = S.take hidx haystack
                        let !aftermatch = S.drop needMore nextHaystack
 
@@ -169,13 +174,13 @@ bmhEnumeratee needle _step = do
                                  else return $ Continue k
 
                        debug $ "matching"
-                       flip checkDone step $ \k' -> do
+                       cDone step $ \k' -> do
                            step' <- lift $ runIteratee $ k' $
                                     Chunks [Match needle]
-                           flip checkDone step' $ \k'' ->
+                           cDone step' $ \k'' ->
                                startSearch k'' aftermatch
 
-                     else do
+                     else {-# SCC "crossBound/nomatch" #-} do
                        let c = S.index nextHaystack $ needMore-1
                        let p = V.unsafeIndex table (fromEnum c)
 
@@ -189,7 +194,7 @@ bmhEnumeratee needle _step = do
                                    Chunks $ map NoMatch $
                                    filter (not . S.null) [nomatch]
 
-                           flip checkDone step $ flip startSearch rest
+                           cDone step $ flip startSearch rest
 
                          else do
                            let sidx = p - leftLen
@@ -198,7 +203,7 @@ bmhEnumeratee needle _step = do
                                    Chunks $ map NoMatch $
                                    filter (not . S.null) [haystack, crumb]
 
-                           flip checkDone step $ flip startSearch rest
+                           cDone step $ flip startSearch rest
               )
 
 

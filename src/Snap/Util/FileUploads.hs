@@ -711,33 +711,29 @@ findParam p = fmap snd . find ((== p) . fst)
 -- up until the next boundary and send all of the chunks into the wrapped
 -- iteratee
 processPart :: (Monad m) => Enumeratee MatchInfo ByteString m a
-processPart _st = {-# SCC "pPart/outer" #-} cDone go _st
+processPart st = {-# SCC "pPart/outer" #-}
+                   case st of
+                     (Continue k) -> go k
+                     _            -> yield st (Chunks [])
   where
-    cDone !f (Continue !k) = {-# SCC "cDone/cont" #-} f k
-    cDone _ step           = {-# SCC "cDone/yield" #-}
-                             yield step (Chunks [])
-
     go :: (Monad m) => (Stream ByteString -> Iteratee ByteString m a)
                     -> Iteratee MatchInfo m (Step ByteString m a)
     go !k = {-# SCC "pPart/go" #-}
-            I.head >>= maybe (finish k) (process k)
+            I.head >>= maybe finish process
+      where
+        -- called when outer stream is EOF
+        finish = {-# SCC "pPart/finish" #-}
+                 lift $ runIteratee $ k EOF
 
-    -- called when outer stream is EOF
-    finish :: (Monad m) => (Stream ByteString -> Iteratee ByteString m a)
-                        -> Iteratee MatchInfo m (Step ByteString m a)
-    finish !k = {-# SCC "pPart/finish" #-}
-                lift $ runIteratee $ k EOF
+        -- no match ==> pass the stream chunk along
+        process (NoMatch !s) = {-# SCC "pPart/noMatch" #-} do
+          !step <- lift $ runIteratee $ k $ Chunks [s]
+          case step of
+            (Continue k') -> go k'
+            _             -> yield step (Chunks [])
 
-    -- no match ==> pass the stream chunk along
-    process :: (Monad m) => (Stream ByteString -> Iteratee ByteString m a)
-                         -> MatchInfo
-                         -> Iteratee MatchInfo m (Step ByteString m a)
-    process !k (NoMatch !s) = {-# SCC "pPart/noMatch" #-} do
-      step <- lift $ runIteratee $ k $ Chunks [s]
-      cDone go step
-
-    process !k (Match _) = {-# SCC "pPart/match" #-}
-                           lift $ runIteratee $ k EOF
+        process (Match _) = {-# SCC "pPart/match" #-}
+                            lift $ runIteratee $ k EOF
 
 
 ------------------------------------------------------------------------------
@@ -866,7 +862,8 @@ openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
         cleanupUploadedFiles ufs
         throw $ GenericFileUploadException alreadyOpenMsg
 
-    fph <- openTempFile tmpdir "snap-"
+    fph@(_,h) <- openBinaryTempFile tmpdir "snap-"
+    hSetBuffering h NoBuffering
 
     writeIORef stateRef $ state { _currentFile = Just fph }
     return fph

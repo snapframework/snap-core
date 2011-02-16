@@ -484,7 +484,7 @@ takeExactly 0   s = do
 
 takeExactly !n  y@(Yield _ _ ) = drop' n >> return y
 takeExactly _     (Error e   ) = throwError e
-takeExactly !n st@(Continue k) = do
+takeExactly !n st@(Continue !k) = do
     if n == 0
       then lift $ runIteratee $ k EOF
       else do
@@ -494,22 +494,22 @@ takeExactly !n st@(Continue k) = do
               mbX
 
   where
-    check x | S.null x   = takeExactly n st
-            | strlen < n = do
-                  newStep <- lift $ runIteratee $ k $ Chunks [x]
-                  takeExactly (n-strlen) newStep
-            | otherwise = do
-                  step1 <- lift $ runIteratee $ k $ Chunks [s1]
-                  step2 <- lift $ runIteratee $ enumEOF step1
+    check !x | S.null x   = takeExactly n st
+             | strlen < n = do
+                   newStep <- lift $ runIteratee $ k $ Chunks [x]
+                   takeExactly (n-strlen) newStep
+             | otherwise = do
+                   let (s1,s2) = S.splitAt (fromEnum n) x
+                   !step1 <- lift $ runIteratee $ k $ Chunks [s1]
+                   !step2 <- lift $ runIteratee $ enumEOF step1
 
-                  case step2 of
-                    (Continue _) -> error "divergent iteratee"
-                    (Error e)    -> throwError e
-                    (Yield v _)  -> yield (Yield v EOF) (Chunks [s2])
+                   case step2 of
+                     (Continue _) -> error "divergent iteratee"
+                     (Error e)    -> throwError e
+                     (Yield v _)  -> yield (Yield v EOF) (Chunks [s2])
 
       where
-        strlen  = toEnum $ S.length x
-        (s1,s2) = S.splitAt (fromEnum n) x
+        !strlen  = toEnum $ S.length x
 
 
 ------------------------------------------------------------------------------
@@ -704,7 +704,7 @@ killIfTooSlow :: (MonadIO m) =>
                                           -- the iteratee run for
               -> Iteratee ByteString m a  -- ^ iteratee consumer to wrap
               -> Iteratee ByteString m a
-killIfTooSlow bump minRate minSeconds' inputIter = do
+killIfTooSlow !bump !minRate !minSeconds' !inputIter = do
     !_ <- lift bump
     startTime <- liftIO getTime
     step <- lift $ runIteratee inputIter
@@ -712,24 +712,25 @@ killIfTooSlow bump minRate minSeconds' inputIter = do
 
   where
     minSeconds = fromIntegral minSeconds'
-    wrap startTime nBytesRead = step
-      where
-        step (Continue k) = continue $ cont k
-        step z            = returnI z
 
-        cont k EOF = k EOF
-        cont k stream = do
-            let slen = toEnum $ streamLength stream
+    wrap !startTime = proc
+      where
+        proc !nb (Continue !k) = continue $ cont nb k
+        proc _ !z              = returnI z
+
+        cont !nBytesRead !k EOF = k EOF
+        cont !nBytesRead !k !stream = do
+            let !slen = toEnum $ streamLength stream
             now <- liftIO getTime
-            let delta = now - startTime
-            let newBytes = nBytesRead + slen
+            let !delta = now - startTime
+            let !newBytes = nBytesRead + slen
             when (delta > minSeconds+1 &&
                   fromIntegral newBytes / (delta-minSeconds) < minRate) $
               throw RateTooSlowException
 
             -- otherwise bump the timeout and continue running the iteratee
             !_ <- lift bump
-            lift (runIteratee $ k stream) >>= wrap startTime newBytes
+            lift (runIteratee $! k stream) >>= proc newBytes
 
 
 ------------------------------------------------------------------------------
