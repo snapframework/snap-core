@@ -73,8 +73,8 @@ matches !needle !nstart !nend' !haystack !hstart !hend' =
     go !nend !hend =
         if nend < nstart || hend < hstart
           then True
-          else let !nc = S.index needle nend -- FIXME: use unsafeIndex
-                   !hc = S.index haystack hend
+          else let !nc = S.unsafeIndex needle nend
+                   !hc = S.unsafeIndex haystack hend
                in if nc /= hc
                     then False
                     else go (nend-1) (hend-1)
@@ -135,7 +135,7 @@ bmhEnumeratee needle _step = do
                       cDone step' $ \k'' -> startSearch k'' aftermatch
                 else {-# SCC "go/nomatch" #-} do
                   -- skip ahead
-                  let c = S.index haystack hend
+                  let c = S.unsafeIndex haystack hend
                   let !skip = V.unsafeIndex table $ fromEnum c
                   go (hidx + skip)
           where
@@ -177,7 +177,7 @@ bmhEnumeratee needle _step = do
                                startSearch k'' aftermatch
 
                      else {-# SCC "crossBound/nomatch" #-} do
-                       let c = S.index nextHaystack $ needMore-1
+                       let c = S.unsafeIndex nextHaystack $ needMore-1
                        let p = V.unsafeIndex table (fromEnum c)
 
                        debug $ "p was " ++ show p ++ ", ll=" ++ show leftLen
