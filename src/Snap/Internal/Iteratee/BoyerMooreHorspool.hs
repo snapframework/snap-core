@@ -8,19 +8,15 @@ module Snap.Internal.Iteratee.BoyerMooreHorspool
   where
 
 import           Control.Monad.State
-import           Control.Monad.Trans
 import qualified Data.ByteString as S
 import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Unsafe as S
-import           Data.Enumerator hiding (head, filter, map)
+import           Data.Enumerator hiding (head, filter, last, map)
 import qualified Data.Enumerator.List as EL
 import           Data.Int
 import qualified Data.Vector.Unboxed as V
-import           Data.Vector.Unboxed (Vector)
 import qualified Data.Vector.Unboxed.Mutable  as MV
 import           Prelude               hiding (head, last)
-import           Snap.Iteratee hiding (map)
 
 
 {-# INLINE debug #-}
@@ -225,7 +221,7 @@ bmhEnumeratee needle _step = do
                 MV.unsafeWrite t c (last - i)
                 go' $! i+1
 
-
+{-
 testIt :: ByteString -> [ByteString] -> IO [MatchInfo]
 testIt needle haystack = do
     consumeStep <- runIteratee EL.consume
@@ -237,3 +233,4 @@ testIt needle haystack = do
 
   where
     etee = bmhEnumeratee needle
+-}
