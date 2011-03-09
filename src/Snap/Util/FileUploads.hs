@@ -72,10 +72,10 @@ import           Control.Monad.Trans
 import qualified Data.Attoparsec.Char8 as Atto
 import           Data.Attoparsec.Char8 hiding (many, Result(..))
 import           Data.Attoparsec.Enumerator
-import           Data.CIByteString
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Internal (c2w)
+import qualified Data.CaseInsensitive as CI
 import qualified Data.DList as D
 import           Data.Enumerator.Binary (iterHandle)
 import           Data.IORef
@@ -791,7 +791,7 @@ pHeadersWithSeparator = pHeaders <* crlf
 toHeaders :: [(ByteString,ByteString)] -> Headers
 toHeaders kvps = foldl' f Map.empty kvps'
   where
-    kvps'     = map (first toCI . second (:[])) kvps
+    kvps'     = map (first CI.mk . second (:[])) kvps
     f m (k,v) = Map.insertWith' (flip (++)) k v m
 
 

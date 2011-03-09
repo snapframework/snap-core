@@ -19,7 +19,7 @@ import           Control.Monad.State
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.CIByteString as CIB
+import           Data.CaseInsensitive (CI) 
 import           Data.Int
 import           Data.IORef
 import           Data.Maybe
@@ -634,7 +634,7 @@ ipHeaderFilter = ipHeaderFilter' "x-forwarded-for"
 -- address can get it in a uniform manner. It has specifically limited
 -- functionality to ensure that its transformation can be trusted,
 -- when used correctly.
-ipHeaderFilter' :: MonadSnap m => CIB.CIByteString -> m ()
+ipHeaderFilter' :: MonadSnap m => CI ByteString -> m ()
 ipHeaderFilter' header = do
     headerContents <- getHeader header <$> getRequest
 
