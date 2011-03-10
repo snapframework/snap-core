@@ -5,6 +5,7 @@ module Snap.Internal.Test.RequestBuilder where
 
   import           Data.ByteString (ByteString)
   import qualified Data.ByteString.Char8 as S
+  import           Data.CIByteString (CIByteString)
   import           Control.Arrow (second)
   import           Control.Monad (liftM)
   import           Control.Monad.State (MonadState, StateT, get, put, execStateT)
@@ -24,11 +25,16 @@ module Snap.Internal.Test.RequestBuilder where
 
   data RequestProduct =
     RequestProduct {
-      rqpMethod :: Method
-    , rqpParams :: Params
-    , rqpBody   :: Maybe ByteString
+      rqpMethod  :: Method
+    , rqpParams  :: Params
+    , rqpBody    :: Maybe ByteString
+    , rqpHeaders :: Headers
     }
     deriving (Show)
+
+  instance HasHeaders RequestProduct where
+    headers = rqpHeaders
+    updateHeaders f rqp = rqp { rqpHeaders = f (rqpHeaders rqp) }
 
   newtype RequestBuilder m a
     = RequestBuilder (StateT RequestProduct m a)
@@ -36,7 +42,7 @@ module Snap.Internal.Test.RequestBuilder where
 
   buildRequest :: (MonadIO m) => RequestBuilder m () -> m Request
   buildRequest (RequestBuilder m) = do 
-    finalRqProduct <- execStateT m (RequestProduct GET Map.empty Nothing)
+    finalRqProduct <- execStateT m (RequestProduct GET Map.empty Nothing Map.empty)
     requestBody    <- liftIO . newIORef $ SomeEnumerator (maybe returnI enumBS (rqpBody finalRqProduct))
     return $ Request {
       rqServerName    = "localhost"
@@ -47,7 +53,7 @@ module Snap.Internal.Test.RequestBuilder where
     , rqLocalPort     = 80
     , rqLocalHostname = "localhost"
     , rqIsSecure      = False
-    , rqHeaders       = Map.empty
+    , rqHeaders       = (rqpHeaders finalRqProduct)
     , rqBody          = requestBody
     , rqContentLength = Nothing
     , rqMethod        = (rqpMethod finalRqProduct)
@@ -79,4 +85,7 @@ module Snap.Internal.Test.RequestBuilder where
 
   httpBody :: (Monad m) => ByteString -> RequestBuilder m ()
   httpBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
+
+  httpHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
+  httpHeader name body = alterRequestProduct (setHeader name body)
 
