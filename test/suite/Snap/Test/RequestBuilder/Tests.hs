@@ -15,14 +15,14 @@ import           Snap.Internal.Test.RequestBuilder
 
 tests :: [Test]
 tests = [
-          testHttpMethodModifier
+          testHttpMethod
         , testSetParam
         , testSetParams
         ]
 
   
-testHttpMethodModifier :: Test
-testHttpMethodModifier = testCase "test/requestBuilder/httpMethod" $ do
+testHttpMethod :: Test
+testHttpMethod = testCase "test/requestBuilder/httpMethod" $ do
   request <- buildRequest $ do
                httpMethod PUT
   assertEqual "RequestBuilder httpMethod not working" PUT (rqMethod request)
