@@ -4,6 +4,7 @@
 module Snap.Internal.Test.RequestBuilder where
 
   import           Data.ByteString (ByteString)
+  import           Control.Arrow (second)
   import           Control.Monad.State (MonadState, StateT, get, put, execStateT)
   import           Control.Monad.Trans (MonadIO(..))
   import           Data.Enumerator (returnI)
@@ -61,4 +62,9 @@ module Snap.Internal.Test.RequestBuilder where
   setParam name value = alterRequestProduct helper
     where
       helper rqp = rqp { rqpParams = Map.alter (return . maybe [value] (value:)) name (rqpParams rqp) }
-    
+
+  setParams :: (Monad m) => [(ByteString, ByteString)] -> RequestBuilder m ()
+  setParams params = alterRequestProduct $ \rqp -> rqp { rqpParams = params' }
+    where
+      params' = Map.fromList . map (second (:[])) $ params
+

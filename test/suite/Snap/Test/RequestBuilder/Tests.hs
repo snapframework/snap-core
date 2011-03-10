@@ -17,6 +17,7 @@ tests :: [Test]
 tests = [
           testHttpMethodModifier
         , testSetParam
+        , testSetParams
         ]
 
   
@@ -32,6 +33,14 @@ testSetParam = testCase "test/requestBuilder/setParam" $ do
                setParam "name" "John"
                setParam "age"  "26"
   assertEqual "RequestBuilder setParam not working" 
+              (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
+              (rqParams request)
+
+testSetParams :: Test
+testSetParams = testCase "test/requestBuilder/setParams" $ do
+  request <- buildRequest $ do
+              setParams [("name", "John"), ("age", "26")]
+  assertEqual "RequestBuilder setParams not working" 
               (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
               (rqParams request)
 
