@@ -19,6 +19,7 @@ tests = [
         , testSetParam
         , testSetParams
         , testHttpBody
+        , testHttpHeader
         ]
 
   
@@ -54,4 +55,11 @@ testHttpBody = testCase "test/requestBuilder/httpBody" $ do
               "Hello World"
               body
 
+testHttpHeader :: Test
+testHttpHeader = testCase "test/requestBuilder/httpHeader" $ do
+  request <- buildRequest $ do
+               httpHeader "Accepts" "application/json"
+  assertEqual "RequestBuilder httpHeader not working" 
+              (Just ["application/json"])
+              (Map.lookup "Accepts" (rqHeaders request))
 
