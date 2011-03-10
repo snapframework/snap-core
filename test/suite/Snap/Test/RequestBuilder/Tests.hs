@@ -18,6 +18,7 @@ tests = [
           testHttpMethod
         , testSetParam
         , testSetParams
+        , testHttpBody
         ]
 
   
@@ -43,4 +44,14 @@ testSetParams = testCase "test/requestBuilder/setParams" $ do
   assertEqual "RequestBuilder setParams not working" 
               (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
               (rqParams request)
+
+testHttpBody :: Test
+testHttpBody = testCase "test/requestBuilder/httpBody" $ do
+  request <- buildRequest $ do
+               httpBody "Hello World"
+  body <- getBody request
+  assertEqual "RequestBuilder httpBody not working" 
+              "Hello World"
+              body
+
 
