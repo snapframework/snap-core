@@ -4,19 +4,29 @@
 module Snap.Internal.Test.RequestBuilder where
 
   import           Data.ByteString (ByteString)
+  import qualified Data.ByteString.Char8 as S
   import           Control.Arrow (second)
+  import           Control.Monad (liftM)
   import           Control.Monad.State (MonadState, StateT, get, put, execStateT)
   import           Control.Monad.Trans (MonadIO(..))
-  import           Data.Enumerator (returnI)
-  import           Data.IORef (newIORef)
+  import           Data.Enumerator (runIteratee, run_, returnI)
+  import           Data.Enumerator.List (consume)
+  import           Data.IORef (newIORef, readIORef)
   import qualified Data.Map as Map
 
   import           Snap.Internal.Http.Types 
+  import           Snap.Iteratee (enumBS)
+
+  getBody :: Request -> IO ByteString
+  getBody request = do
+    (SomeEnumerator enum) <- readIORef $ rqBody request
+    S.concat `liftM` (runIteratee consume >>= run_ . enum)
 
   data RequestProduct =
     RequestProduct {
       rqpMethod :: Method
     , rqpParams :: Params
+    , rqpBody   :: Maybe ByteString
     }
     deriving (Show)
 
@@ -26,8 +36,8 @@ module Snap.Internal.Test.RequestBuilder where
 
   buildRequest :: (MonadIO m) => RequestBuilder m () -> m Request
   buildRequest (RequestBuilder m) = do 
-    finalRqProduct <- execStateT m (RequestProduct GET Map.empty)
-    emptyBody      <- liftIO . newIORef $ SomeEnumerator (returnI)
+    finalRqProduct <- execStateT m (RequestProduct GET Map.empty Nothing)
+    requestBody    <- liftIO . newIORef $ SomeEnumerator (maybe returnI enumBS (rqpBody finalRqProduct))
     return $ Request {
       rqServerName    = "localhost"
     , rqServerPort    = 80
@@ -38,7 +48,7 @@ module Snap.Internal.Test.RequestBuilder where
     , rqLocalHostname = "localhost"
     , rqIsSecure      = False
     , rqHeaders       = Map.empty
-    , rqBody          = emptyBody
+    , rqBody          = requestBody
     , rqContentLength = Nothing
     , rqMethod        = (rqpMethod finalRqProduct)
     , rqVersion       = (1,1)
@@ -50,7 +60,6 @@ module Snap.Internal.Test.RequestBuilder where
     , rqQueryString   = ""
     , rqParams        = (rqpParams finalRqProduct)
     }
-
 
   alterRequestProduct :: (Monad m) => (RequestProduct -> RequestProduct) -> RequestBuilder m ()
   alterRequestProduct fn = RequestBuilder $ get >>= put . fn
@@ -67,4 +76,7 @@ module Snap.Internal.Test.RequestBuilder where
   setParams params = alterRequestProduct $ \rqp -> rqp { rqpParams = params' }
     where
       params' = Map.fromList . map (second (:[])) $ params
+
+  httpBody :: (Monad m) => ByteString -> RequestBuilder m ()
+  httpBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
 
