@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Snap.Internal.Test.RequestBuilder where
 
+  import           Data.ByteString (ByteString)
   import           Control.Monad.State (MonadState, StateT, get, put, execStateT)
   import           Control.Monad.Trans (MonadIO(..))
   import           Data.Enumerator (returnI)
@@ -14,6 +15,7 @@ module Snap.Internal.Test.RequestBuilder where
   data RequestProduct =
     RequestProduct {
       rqpMethod :: Method
+    , rqpParams :: Params
     }
     deriving (Show)
 
@@ -23,7 +25,7 @@ module Snap.Internal.Test.RequestBuilder where
 
   buildRequest :: (MonadIO m) => RequestBuilder m () -> m Request
   buildRequest (RequestBuilder m) = do 
-    finalRqProduct <- execStateT m (RequestProduct GET)
+    finalRqProduct <- execStateT m (RequestProduct GET Map.empty)
     emptyBody      <- liftIO . newIORef $ SomeEnumerator (returnI)
     return $ Request {
       rqServerName    = "localhost"
@@ -45,7 +47,7 @@ module Snap.Internal.Test.RequestBuilder where
     , rqContextPath   = ""
     , rqURI           = ""
     , rqQueryString   = ""
-    , rqParams        = Map.empty
+    , rqParams        = (rqpParams finalRqProduct)
     }
 
 
@@ -54,4 +56,9 @@ module Snap.Internal.Test.RequestBuilder where
 
   httpMethod :: (Monad m) => Method -> RequestBuilder m ()
   httpMethod method = alterRequestProduct $ \rqp -> rqp { rqpMethod = method }
+
+  setParam :: (Monad m) => ByteString -> ByteString -> RequestBuilder m ()
+  setParam name value = alterRequestProduct helper
+    where
+      helper rqp = rqp { rqpParams = Map.alter (return . maybe [value] (value:)) name (rqpParams rqp) }
     
