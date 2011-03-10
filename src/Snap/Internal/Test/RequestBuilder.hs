@@ -15,7 +15,8 @@ module Snap.Internal.Test.RequestBuilder where
   import           Data.IORef (newIORef, readIORef)
   import qualified Data.Map as Map
 
-  import           Snap.Internal.Http.Types 
+  import           Snap.Internal.Http.Types hiding (setHeader)
+  import qualified Snap.Internal.Http.Types as H
   import           Snap.Iteratee (enumBS)
 
   getBody :: Request -> IO ByteString
@@ -70,8 +71,8 @@ module Snap.Internal.Test.RequestBuilder where
   alterRequestProduct :: (Monad m) => (RequestProduct -> RequestProduct) -> RequestBuilder m ()
   alterRequestProduct fn = RequestBuilder $ get >>= put . fn
 
-  httpMethod :: (Monad m) => Method -> RequestBuilder m ()
-  httpMethod method = alterRequestProduct $ \rqp -> rqp { rqpMethod = method }
+  setMethod :: (Monad m) => Method -> RequestBuilder m ()
+  setMethod method = alterRequestProduct $ \rqp -> rqp { rqpMethod = method }
 
   setParam :: (Monad m) => ByteString -> ByteString -> RequestBuilder m ()
   setParam name value = alterRequestProduct helper
@@ -83,9 +84,9 @@ module Snap.Internal.Test.RequestBuilder where
     where
       params' = Map.fromList . map (second (:[])) $ params
 
-  httpBody :: (Monad m) => ByteString -> RequestBuilder m ()
-  httpBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
+  setBody :: (Monad m) => ByteString -> RequestBuilder m ()
+  setBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
 
-  httpHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
-  httpHeader name body = alterRequestProduct (setHeader name body)
+  setHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
+  setHeader name body = alterRequestProduct (H.setHeader name body)
 
