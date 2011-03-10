@@ -15,19 +15,19 @@ import           Snap.Internal.Test.RequestBuilder
 
 tests :: [Test]
 tests = [
-          testHttpMethod
+          testSetMethod
         , testSetParam
         , testSetParams
-        , testHttpBody
-        , testHttpHeader
+        , testSetBody
+        , testSetHeader
         ]
 
   
-testHttpMethod :: Test
-testHttpMethod = testCase "test/requestBuilder/httpMethod" $ do
+testSetMethod :: Test
+testSetMethod = testCase "test/requestBuilder/setMethod" $ do
   request <- buildRequest $ do
-               httpMethod PUT
-  assertEqual "RequestBuilder httpMethod not working" PUT (rqMethod request)
+               setMethod PUT
+  assertEqual "RequestBuilder setMethod not working" PUT (rqMethod request)
 
 testSetParam :: Test
 testSetParam = testCase "test/requestBuilder/setParam" $ do
@@ -46,20 +46,20 @@ testSetParams = testCase "test/requestBuilder/setParams" $ do
               (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
               (rqParams request)
 
-testHttpBody :: Test
-testHttpBody = testCase "test/requestBuilder/httpBody" $ do
+testSetBody :: Test
+testSetBody = testCase "test/requestBuilder/setBody" $ do
   request <- buildRequest $ do
-               httpBody "Hello World"
+               setBody "Hello World"
   body <- getBody request
-  assertEqual "RequestBuilder httpBody not working" 
+  assertEqual "RequestBuilder setBody not working" 
               "Hello World"
               body
 
-testHttpHeader :: Test
-testHttpHeader = testCase "test/requestBuilder/httpHeader" $ do
+testSetHeader :: Test
+testSetHeader = testCase "test/requestBuilder/setHeader" $ do
   request <- buildRequest $ do
-               httpHeader "Accepts" "application/json"
-  assertEqual "RequestBuilder httpHeader not working" 
+               setHeader "Accepts" "application/json"
+  assertEqual "RequestBuilder setHeader not working" 
               (Just ["application/json"])
               (Map.lookup "Accepts" (rqHeaders request))
 
