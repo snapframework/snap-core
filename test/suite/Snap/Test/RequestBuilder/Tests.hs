@@ -27,6 +27,7 @@ tests = [
         , testFormUrlEncoded
         , testBuildMultipartString 
         , testMultipartEncoded 
+        , testUseHttps
         ]
 
 testSetMethod :: Test
@@ -190,4 +191,10 @@ testMultipartEncoded = testCase "test/requestBuilder/multipartEncoded" $ do
               (buildMultipartString boundary "" (rqParams request) Map.empty)
               body
             
+
+testUseHttps :: Test
+testUseHttps = testCase "test/requestBuilder/useHttps" $ do
+  request <- buildRequest $ do
+               useHttps
+  assertBool "useHttps not working" (rqIsSecure request)
 

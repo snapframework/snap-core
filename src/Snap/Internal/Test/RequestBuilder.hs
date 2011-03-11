@@ -40,6 +40,7 @@ data RequestProduct =
   , rqpBody        :: Maybe ByteString
   , rqpHeaders     :: Headers
   , rqpContentType :: ByteString
+  , rqpIsSecure    :: !Bool
   }
   deriving (Show)
 
@@ -222,7 +223,8 @@ buildRequest (RequestBuilder m) = do
                                       Map.empty
                                       Nothing 
                                       Map.empty
-                                      "x-www-form-urlencoded")
+                                      "x-www-form-urlencoded"
+                                      False)
   (requestBody, contentLength, boundary)  <- processRequestBody finalRqProduct
   let requestHeaders = processRequestHeaders boundary finalRqProduct
   return $ Request {
@@ -233,7 +235,7 @@ buildRequest (RequestBuilder m) = do
   , rqLocalAddr     = "127.0.0.1"
   , rqLocalPort     = 80
   , rqLocalHostname = "localhost"
-  , rqIsSecure      = False
+  , rqIsSecure      = (rqpIsSecure finalRqProduct)
   , rqHeaders       = requestHeaders
   , rqBody          = requestBody
   , rqContentLength = contentLength
@@ -283,4 +285,6 @@ multipartEncoded = do
     setHeader "Content-Type" contentType
     alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
 
+useHttps :: (Monad m) => RequestBuilder m ()
+useHttps = alterRequestProduct $ \rqp -> rqp { rqpIsSecure = True }
 
