@@ -200,7 +200,6 @@ testMultipartEncoded = testCase "test/requestBuilder/multipartEncoded" $ do
               (buildMultipartString boundary "" (rqParams request) Map.empty)
               body
             
-
 testUseHttps :: Test
 testUseHttps = testCase "test/requestBuilder/useHttps" $ do
   request <- buildRequest $ do

@@ -228,28 +228,28 @@ buildRequest (RequestBuilder m) = do
   (requestBody, contentLength, boundary)  <- processRequestBody finalRqProduct
   let requestHeaders = processRequestHeaders boundary finalRqProduct
   return $ Request {
-    rqServerName    = "localhost"
-  , rqServerPort    = 80
-  , rqRemoteAddr    = "127.0.0.1"
-  , rqRemotePort    = 80
-  , rqLocalAddr     = "127.0.0.1"
-  , rqLocalPort     = 80
-  , rqLocalHostname = "localhost"
-  , rqIsSecure      = (rqpIsSecure finalRqProduct)
-  , rqHeaders       = requestHeaders
-  , rqBody          = requestBody
-  , rqContentLength = contentLength
-  , rqMethod        = (rqpMethod finalRqProduct)
-  , rqVersion       = (1,1)
-  , rqCookies       = []
-  , rqSnapletPath   = ""
-  , rqPathInfo      = ""
-  , rqContextPath   = ""
-  , rqURI           = ""
-  , rqQueryString   = processQueryString (rqpMethod finalRqProduct) 
-                                         (rqpParams finalRqProduct)
-  , rqParams        = (rqpParams finalRqProduct)
-  }
+        rqServerName    = "localhost"
+      , rqServerPort    = 80
+      , rqRemoteAddr    = "127.0.0.1"
+      , rqRemotePort    = 80
+      , rqLocalAddr     = "127.0.0.1"
+      , rqLocalPort     = 80
+      , rqLocalHostname = "localhost"
+      , rqIsSecure      = (rqpIsSecure finalRqProduct)
+      , rqHeaders       = requestHeaders
+      , rqBody          = requestBody
+      , rqContentLength = contentLength
+      , rqMethod        = (rqpMethod finalRqProduct)
+      , rqVersion       = (1,1)
+      , rqCookies       = []
+      , rqSnapletPath   = ""
+      , rqPathInfo      = ""
+      , rqContextPath   = ""
+      , rqURI           = ""
+      , rqQueryString   = processQueryString (rqpMethod finalRqProduct) 
+                                             (rqpParams finalRqProduct)
+      , rqParams        = (rqpParams finalRqProduct)
+      }
 
 alterRequestProduct :: (Monad m) => (RequestProduct -> RequestProduct) -> RequestBuilder m ()
 alterRequestProduct fn = RequestBuilder $ get >>= put . fn
