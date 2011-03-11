@@ -19,7 +19,7 @@ import           Snap.Internal.Test.RequestBuilder
 tests :: [Test]
 tests = [
           testSetMethod
-        , testSetParam
+        , testAddParam
         , testSetParams
         , testSetRequestBody
         , testSetHeader
@@ -38,12 +38,12 @@ testSetMethod = testCase "test/requestBuilder/setMethod" $ do
                setMethod PUT
   assertEqual "RequestBuilder setMethod not working" PUT (rqMethod request)
 
-testSetParam :: Test
-testSetParam = testCase "test/requestBuilder/setParam" $ do
+testAddParam :: Test
+testAddParam = testCase "test/requestBuilder/addParam" $ do
   request <- buildRequest $ do
-               setParam "name" "John"
-               setParam "age"  "26"
-  assertEqual "RequestBuilder setParam not working" 
+               addParam "name" "John"
+               addParam "age"  "26"
+  assertEqual "RequestBuilder addParam not working" 
               (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
               (rqParams request)
 
@@ -220,8 +220,8 @@ testSetURI = testCase "test/requestBuilder/setURI" $ do
   request2 <- buildRequest $ do
                 setMethod GET
                 setURI "/users"
-                setParam "name" "John"
-                setParam "age"  "25"
+                addParam "name" "John"
+                addParam "age"  "25"
 
   assertEqual "RequestBuilder setURI is not working with a Query String"
               "/users?age=25&name=John"

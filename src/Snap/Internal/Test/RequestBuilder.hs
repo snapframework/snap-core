@@ -271,8 +271,8 @@ alterRequestProduct fn = RequestBuilder $ get >>= put . fn
 setMethod :: (Monad m) => Method -> RequestBuilder m ()
 setMethod method = alterRequestProduct $ \rqp -> rqp { rqpMethod = method }
 
-setParam :: (Monad m) => ByteString -> ByteString -> RequestBuilder m ()
-setParam name value = alterRequestProduct helper
+addParam :: (Monad m) => ByteString -> ByteString -> RequestBuilder m ()
+addParam name value = alterRequestProduct helper
   where
     helper rqp = rqp { rqpParams = Map.alter (return . maybe [value] (value:)) name (rqpParams rqp) }
 
