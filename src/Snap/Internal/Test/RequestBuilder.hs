@@ -12,7 +12,7 @@ module Snap.Internal.Test.RequestBuilder where
   import           Control.Monad.Trans (MonadIO(..))
   import           Data.Enumerator (runIteratee, run_, returnI)
   import           Data.Enumerator.List (consume)
-  import           Data.IORef (newIORef, readIORef)
+  import           Data.IORef (IORef, newIORef, readIORef)
   import qualified Data.Map as Map
 
   import           Snap.Internal.Http.Types hiding (setHeader)
@@ -26,10 +26,11 @@ module Snap.Internal.Test.RequestBuilder where
 
   data RequestProduct =
     RequestProduct {
-      rqpMethod  :: Method
-    , rqpParams  :: Params
-    , rqpBody    :: Maybe ByteString
-    , rqpHeaders :: Headers
+      rqpMethod      :: Method
+    , rqpParams      :: Params
+    , rqpBody        :: Maybe ByteString
+    , rqpHeaders     :: Headers
+    , rqpContentType :: ByteString
     }
     deriving (Show)
 
@@ -41,10 +42,46 @@ module Snap.Internal.Test.RequestBuilder where
     = RequestBuilder (StateT RequestProduct m a)
     deriving (Monad, MonadIO)
 
+  buildQueryString :: Params -> ByteString
+  buildQueryString = S.intercalate "&" . Map.foldWithKey helper []
+    where 
+      helper k vs acc = 
+          (map (\v -> S.concat [urlEncode k, "=", urlEncode v]) vs) ++
+          acc
+
+  processQueryString :: Method -> Params -> ByteString
+  processQueryString GET ps = buildQueryString ps
+  processQueryString _   _  = ""
+
+  emptyRequestBody :: (MonadIO m) => m (IORef SomeEnumerator)
+  emptyRequestBody = liftIO . newIORef . SomeEnumerator $ returnI
+
+  buildRequestBody :: (MonadIO m) => ByteString -> m (IORef SomeEnumerator)
+  buildRequestBody content = 
+      liftIO . newIORef . SomeEnumerator $ enumBS content
+
+  processRequestBody :: (MonadIO m) => RequestProduct -> m (IORef SomeEnumerator)
+  processRequestBody rqp
+    | (rqpMethod rqp) == POST && 
+      (rqpContentType rqp) == "x-www-form-urlencoded"
+      = buildRequestBody . 
+        buildQueryString . 
+        rqpParams $ rqp
+
+    | (rqpMethod rqp) == PUT
+      = maybe emptyRequestBody buildRequestBody $ rqpBody rqp
+
+    | otherwise = emptyRequestBody
+
   buildRequest :: (MonadIO m) => RequestBuilder m () -> m Request
   buildRequest (RequestBuilder m) = do 
-    finalRqProduct <- execStateT m (RequestProduct GET Map.empty Nothing Map.empty)
-    requestBody    <- liftIO . newIORef $ SomeEnumerator (maybe returnI enumBS (rqpBody finalRqProduct))
+    finalRqProduct <- execStateT m 
+                        (RequestProduct GET 
+                                        Map.empty 
+                                        Nothing 
+                                        Map.empty
+                                        "x-www-form-urlencoded")
+    requestBody    <- processRequestBody finalRqProduct
     return $ Request {
       rqServerName    = "localhost"
     , rqServerPort    = 80
@@ -64,7 +101,8 @@ module Snap.Internal.Test.RequestBuilder where
     , rqPathInfo      = ""
     , rqContextPath   = ""
     , rqURI           = ""
-    , rqQueryString   = ""
+    , rqQueryString   = processQueryString (rqpMethod finalRqProduct) 
+                                           (rqpParams finalRqProduct)
     , rqParams        = (rqpParams finalRqProduct)
     }
 
@@ -89,4 +127,10 @@ module Snap.Internal.Test.RequestBuilder where
 
   setHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
   setHeader name body = alterRequestProduct (H.setHeader name body)
+
+  formUrlEncoded :: (Monad m) => RequestBuilder m ()
+  formUrlEncoded = do
+      let contentType = "x-www-form-urlencoded"
+      setHeader "Content-Type"  contentType 
+      alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
 
