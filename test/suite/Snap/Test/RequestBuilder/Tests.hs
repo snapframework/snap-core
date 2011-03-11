@@ -29,6 +29,7 @@ tests = [
         , testBuildMultipartString 
         , testMultipartEncoded 
         , testUseHttps
+        , testSetURI
         ]
 
 testSetMethod :: Test
@@ -204,5 +205,28 @@ testUseHttps :: Test
 testUseHttps = testCase "test/requestBuilder/useHttps" $ do
   request <- buildRequest $ do
                useHttps
-  assertBool "useHttps not working" (rqIsSecure request)
+  assertBool "RequestBuilder useHttps not working" (rqIsSecure request)
+
+
+testSetURI :: Test
+testSetURI = testCase "test/requestBuilder/setURI" $ do
+  request1 <- buildRequest $ do
+               setURI "/users"
+
+  assertEqual "RequestBuilder setURI is not working" 
+              "/users" 
+              (rqURI request1)
+
+  request2 <- buildRequest $ do
+                setMethod GET
+                setURI "/users"
+                setParam "name" "John"
+                setParam "age"  "25"
+
+  assertEqual "RequestBuilder setURI is not working with a Query String"
+              "/users?age=25&name=John"
+              (rqURI request2)
+
+
+
 

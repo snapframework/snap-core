@@ -41,6 +41,7 @@ data RequestProduct =
   , rqpHeaders     :: Headers
   , rqpContentType :: ByteString
   , rqpIsSecure    :: !Bool
+  , rqpURI         :: ByteString
   }
   deriving (Show)
 
@@ -162,6 +163,17 @@ processQueryString :: Method -> Params -> ByteString
 processQueryString GET ps = buildQueryString ps
 processQueryString _   _  = ""
 
+processRequestURI :: RequestProduct -> ByteString
+processRequestURI rqp = 
+    case (rqpMethod rqp) of
+      GET 
+        | (Map.null (rqpParams rqp)) -> (rqpURI rqp)
+        | otherwise -> S.concat [ (rqpURI rqp)
+                                , "?"
+                                , buildQueryString (rqpParams rqp)
+                                ]
+      _   -> rqpURI rqp
+
 processRequestHeaders :: Maybe Boundary -> RequestProduct -> Headers
 processRequestHeaders Nothing rqp = (rqpHeaders rqp)
 processRequestHeaders (Just boundary) rqp 
@@ -224,8 +236,10 @@ buildRequest (RequestBuilder m) = do
                                       Nothing 
                                       Map.empty
                                       "x-www-form-urlencoded"
-                                      False)
+                                      False
+                                      "")
   (requestBody, contentLength, boundary)  <- processRequestBody finalRqProduct
+  let requestURI     = processRequestURI finalRqProduct
   let requestHeaders = processRequestHeaders boundary finalRqProduct
   return $ Request {
         rqServerName    = "localhost"
@@ -245,7 +259,7 @@ buildRequest (RequestBuilder m) = do
       , rqSnapletPath   = ""
       , rqPathInfo      = ""
       , rqContextPath   = ""
-      , rqURI           = ""
+      , rqURI           = requestURI
       , rqQueryString   = processQueryString (rqpMethod finalRqProduct) 
                                              (rqpParams finalRqProduct)
       , rqParams        = (rqpParams finalRqProduct)
@@ -290,4 +304,7 @@ multipartEncoded = do
 
 useHttps :: (Monad m) => RequestBuilder m ()
 useHttps = alterRequestProduct $ \rqp -> rqp { rqpIsSecure = True }
+
+setURI :: (Monad m) => ByteString -> RequestBuilder m ()
+setURI uri = alterRequestProduct $ \rqp -> rqp { rqpURI = uri }
 
