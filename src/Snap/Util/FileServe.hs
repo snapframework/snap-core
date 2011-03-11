@@ -16,6 +16,7 @@ module Snap.Util.FileServe
 , fancyDirectoryConfig
 , defaultIndexGenerator
 , defaultMimeTypes
+, fileType
   -- * File servers
 , serveDirectory
 , serveDirectoryWith

@@ -4,13 +4,16 @@ module Snap.Test.RequestBuilder.Tests
   tests
   ) where
 
+import qualified Data.ByteString.Char8 as S
 import qualified Data.Map as Map
+import           Data.Maybe (fromJust)
 
 import           Test.Framework (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit (assertEqual, assertBool)
 
 import           Snap.Internal.Http.Types (Request(..), Method(..))
+import qualified Snap.Internal.Http.Types as T
 import           Snap.Internal.Test.RequestBuilder
 
 tests :: [Test]
@@ -22,6 +25,8 @@ tests = [
         , testSetHeader
         , testBuildQueryString
         , testFormUrlEncoded
+        , testBuildMultipartString 
+        , testMultipartEncoded 
         ]
 
 testSetMethod :: Test
@@ -107,5 +112,82 @@ testFormUrlEncoded = testCase "test/requestBuilder/formUrlEncoded" $ do
               "age=21&name=John"
               body3
 
+testBuildMultipartString :: Test
+testBuildMultipartString = testCase "test/requestBuilder/buildMultipartString" $ do
+  let params = Map.fromList [
+                 ("name", ["John"])
+               , ("age" , ["25"])
+               ]
+
+  let fParams1 = Map.fromList [
+                   ("photo", [ ("photo1.jpg", "Image Content")
+                             , ("photo2.png", "Some Content")
+                             ]
+                   )
+                 , ("document", [("document.pdf", "Some Content")])
+                 ]
+
+  let result1 = buildMultipartString 
+                  "Boundary" 
+                  ""  
+                  params
+                  Map.empty
+  assertEqual "buildMultipartString not working with simple params"
+              "--Boundary\r\n\
+              \Content-Disposition: form-data; name=\"age\"\r\n\
+              \\r\n\
+              \25\r\n\
+              \--Boundary\r\n\
+              \Content-Disposition: form-data; name=\"name\"\r\n\
+              \\r\n\
+              \John\r\n\
+              \--Boundary--"
+              result1
+
+  let result2 = buildMultipartString
+                  "Boundary"
+                  "FileBoundary"
+                  Map.empty
+                  fParams1
+    
+  assertEqual "buildMultipartString not working with files"
+              "--Boundary\r\n\
+              \Content-Disposition: form-data; name=\"document\"; filename=\"document.pdf\"\r\n\
+              \Content-Type: application/pdf\r\n\
+              \\r\n\
+              \Some Content\r\n\
+              \--Boundary\r\n\
+              \Content-Disposition: form-data; name=\"photo\"\r\n\
+              \Content-Type: multipart/mixed; boundary=FileBoundary\r\n\
+              \\r\n\
+              \--FileBoundary\r\n\
+              \Content-Disposition: photo; filename=\"photo1.jpg\"\r\n\
+              \Content-Type: image/jpeg\r\n\
+              \\r\n\
+              \Image Content\r\n\
+              \--FileBoundary\r\n\
+              \Content-Disposition: photo; filename=\"photo2.png\"\r\n\
+              \Content-Type: image/png\r\n\
+              \\r\n\
+              \Some Content\r\n\
+              \--FileBoundary--\r\n\
+              \--Boundary--"
+              result2
+
+
+testMultipartEncoded :: Test
+testMultipartEncoded = testCase "test/requestBuilder/multipartEncoded" $ do
+  request <- buildRequest $ do
+               setMethod POST
+               multipartEncoded 
+               setParams [("name", "John"), ("age", "21")]
+
+  let contentType = fromJust $ T.getHeader "Content-Type" request
+      boundary    = S.tail $ S.dropWhile (/= '=') contentType 
+
+  body    <- getBody request
+  assertEqual "RequestBuilder multipartEncoded not working"
+              (buildMultipartString boundary "" (rqParams request) Map.empty)
+              body
             
 

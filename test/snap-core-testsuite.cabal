@@ -42,6 +42,7 @@ Executable testsuite
     old-time,
     parallel >= 2.2 && <2.3,
     pureMD5 == 2.1.*,
+    random <= 1.0.0.2,
     regex-posix >= 0.94.4 && <0.95,
     test-framework >= 0.3.1 && <0.4,
     test-framework-hunit >= 0.2.5 && < 0.3,
