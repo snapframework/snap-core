@@ -23,6 +23,7 @@ tests = [
         , testSetParams
         , testSetRequestBody
         , testSetHeader
+        , testAddHeader
         , testBuildQueryString
         , testFormUrlEncoded
         , testBuildMultipartString 
@@ -71,6 +72,14 @@ testSetHeader = testCase "test/requestBuilder/setHeader" $ do
               (Just ["application/json"])
               (Map.lookup "Accepts" (rqHeaders request))
 
+testAddHeader :: Test
+testAddHeader = testCase "test/requestBuilder/addHeader" $ do
+  request <- buildRequest $ do
+               addHeader "X-Forwaded-For" "127.0.0.1"
+               addHeader "X-Forwaded-For" "192.168.1.0"
+  assertEqual "RequestBuilder addHeader not working"
+              (Just ["192.168.1.0", "127.0.0.1"])
+              (Map.lookup "X-Forwaded-For" (rqHeaders request))
 
 testBuildQueryString :: Test
 testBuildQueryString = testCase "test/requestBuilder/buildQueryString" $ do

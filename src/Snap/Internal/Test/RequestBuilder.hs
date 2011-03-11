@@ -273,6 +273,9 @@ setRequestBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
 setHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
 setHeader name body = alterRequestProduct (H.setHeader name body)
 
+addHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
+addHeader name body = alterRequestProduct (H.addHeader name body)
+
 formUrlEncoded :: (Monad m) => RequestBuilder m ()
 formUrlEncoded = do
     let contentType = "x-www-form-urlencoded"
