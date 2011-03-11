@@ -10,7 +10,8 @@ import qualified Data.ByteString.Base16 as B16
 import           Data.CIByteString (CIByteString)
 import           Control.Arrow (second)
 import           Control.Monad (liftM)
-import           Control.Monad.State (MonadState, StateT, get, put, execStateT)
+import           Control.Monad.State (MonadState, StateT, put, execStateT)
+import qualified Control.Monad.State as State
 import           Control.Monad.Trans (MonadIO(..))
 import           Data.Enumerator (runIteratee, run_, returnI)
 import           Data.Enumerator.List (consume)
@@ -266,7 +267,7 @@ buildRequest (RequestBuilder m) = do
       }
 
 alterRequestProduct :: (Monad m) => (RequestProduct -> RequestProduct) -> RequestBuilder m ()
-alterRequestProduct fn = RequestBuilder $ get >>= put . fn
+alterRequestProduct fn = RequestBuilder $ State.get >>= put . fn
 
 setMethod :: (Monad m) => Method -> RequestBuilder m ()
 setMethod method = alterRequestProduct $ \rqp -> rqp { rqpMethod = method }
@@ -280,6 +281,11 @@ setParams :: (Monad m) => [(ByteString, ByteString)] -> RequestBuilder m ()
 setParams params = alterRequestProduct $ \rqp -> rqp { rqpParams = params' }
   where
     params' = Map.fromList . map (second (:[])) $ params
+
+setFileParams :: (Monad m) => [(ByteString, (ByteString, ByteString))] -> RequestBuilder m ()
+setFileParams fparams = alterRequestProduct $ \rqp -> rqp { rqpFileParams = fparams' }
+  where
+    fparams' = Map.fromList . map (second (:[])) $ fparams
 
 setRequestBody :: (Monad m) => ByteString -> RequestBuilder m ()
 setRequestBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
@@ -307,4 +313,33 @@ useHttps = alterRequestProduct $ \rqp -> rqp { rqpIsSecure = True }
 
 setURI :: (Monad m) => ByteString -> RequestBuilder m ()
 setURI uri = alterRequestProduct $ \rqp -> rqp { rqpURI = uri }
+
+get :: (Monad m) => ByteString -> 
+                    [(ByteString, ByteString)] -> 
+                    RequestBuilder m ()
+get uri params = do
+  formUrlEncoded
+  setMethod GET
+  setURI uri
+  setParams params
+
+postUrlEncoded :: (Monad m) => ByteString -> 
+                               [(ByteString, ByteString)] -> 
+                               RequestBuilder m ()
+postUrlEncoded uri params = do
+  formUrlEncoded
+  setMethod POST
+  setURI uri
+  setParams params
+
+postMultipart :: (Monad m) => ByteString -> 
+                              [(ByteString, ByteString)] -> 
+                              [(ByteString, (ByteString, ByteString))] -> 
+                              RequestBuilder m ()
+postMultipart uri params fileParams = do
+  multipartEncoded
+  setMethod POST
+  setURI uri
+  setParams params
+  setFileParams fileParams
 
