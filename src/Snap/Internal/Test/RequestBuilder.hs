@@ -265,8 +265,8 @@ setParams params = alterRequestProduct $ \rqp -> rqp { rqpParams = params' }
   where
     params' = Map.fromList . map (second (:[])) $ params
 
-setBody :: (Monad m) => ByteString -> RequestBuilder m ()
-setBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
+setRequestBody :: (Monad m) => ByteString -> RequestBuilder m ()
+setRequestBody body = alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
 
 setHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
 setHeader name body = alterRequestProduct (H.setHeader name body)
@@ -282,6 +282,5 @@ multipartEncoded = do
     let contentType = "multipart/form-data"
     setHeader "Content-Type" contentType
     alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
-
 
 

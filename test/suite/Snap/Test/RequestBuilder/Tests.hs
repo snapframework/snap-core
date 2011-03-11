@@ -21,7 +21,7 @@ tests = [
           testSetMethod
         , testSetParam
         , testSetParams
-        , testSetBody
+        , testSetRequestBody
         , testSetHeader
         , testBuildQueryString
         , testFormUrlEncoded
@@ -52,11 +52,11 @@ testSetParams = testCase "test/requestBuilder/setParams" $ do
               (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
               (rqParams request)
 
-testSetBody :: Test
-testSetBody = testCase "test/requestBuilder/setBody" $ do
+testSetRequestBody :: Test
+testSetRequestBody = testCase "test/requestBuilder/setBody" $ do
   request <- buildRequest $ do
                setMethod PUT
-               setBody "Hello World"
+               setRequestBody "Hello World"
   body <- getBody request
   assertEqual "RequestBuilder setBody not working with PUT method" 
               "Hello World"
