@@ -3,8 +3,10 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Snap.Internal.Test.RequestBuilder where
 
+  import           Data.Bits ((.&.))
   import           Data.ByteString (ByteString)
   import qualified Data.ByteString.Char8 as S
+  import qualified Data.ByteString.Base16 as B16
   import           Data.CIByteString (CIByteString)
   import           Control.Arrow (second)
   import           Control.Monad (liftM)
@@ -14,20 +16,27 @@ module Snap.Internal.Test.RequestBuilder where
   import           Data.Enumerator.List (consume)
   import           Data.IORef (IORef, newIORef, readIORef)
   import qualified Data.Map as Map
+  import           System.Random (randoms, newStdGen)
 
   import           Snap.Internal.Http.Types hiding (setHeader)
   import qualified Snap.Internal.Http.Types as H
   import           Snap.Iteratee (enumBS)
+  import           Snap.Util.FileServe (defaultMimeTypes, fileType)
 
   getBody :: Request -> IO ByteString
   getBody request = do
     (SomeEnumerator enum) <- readIORef $ rqBody request
     S.concat `liftM` (runIteratee consume >>= run_ . enum)
 
+  type ContentLength = Maybe Int
+  type Boundary      = ByteString
+  type FileParams    = Map.Map ByteString [(ByteString, ByteString)]
+
   data RequestProduct =
     RequestProduct {
       rqpMethod      :: Method
     , rqpParams      :: Params
+    , rqpFileParams  :: FileParams
     , rqpBody        :: Maybe ByteString
     , rqpHeaders     :: Headers
     , rqpContentType :: ByteString
@@ -49,9 +58,87 @@ module Snap.Internal.Test.RequestBuilder where
           (map (\v -> S.concat [urlEncode k, "=", urlEncode v]) vs) ++
           acc
 
-  processQueryString :: Method -> Params -> ByteString
-  processQueryString GET ps = buildQueryString ps
-  processQueryString _   _  = ""
+  buildMultipartString :: Boundary -> Boundary -> Params -> FileParams -> ByteString
+  buildMultipartString boundary fileBoundary params fileParams = 
+      S.concat [ simpleParamsString
+               , fileParamsString
+               , S.concat ["--", boundary, "--"]]
+    where
+      crlf = "\r\n"
+      contentTypeFor = fileType defaultMimeTypes . S.unpack
+
+      simpleParamsString = S.concat $ Map.foldWithKey spHelper [] params
+      spHelper k vs acc  = (S.concat $ map (spPair k) vs) : acc
+      spPair k v = 
+          S.concat [ "--"
+                   , boundary
+                   , crlf
+                   , "Content-Disposition: "
+                   , "form-data; "
+                   , "name=\""
+                   , k
+                   , "\""
+                   , crlf
+                   , crlf
+                   , v
+                   , crlf
+                   ]
+
+      fileParamsString = S.concat $ Map.foldWithKey fpHelper [] fileParams
+      fpHelper k [(fname, fcontent)] acc = 
+          (:acc) $ S.concat [
+                     "--"
+                   , boundary
+                   , crlf
+                   , "Content-Disposition: form-data; "
+                   , "name=\""
+                   , k
+                   , "\"; filename=\""
+                   , fname
+                   , "\""
+                   , crlf
+                   , "Content-Type: "
+                   , contentTypeFor fname
+                   , crlf
+                   , crlf
+                   , fcontent
+                   , crlf
+                   ]
+      fpHelper k vs acc = 
+          (:acc) $ S.concat [
+                     "--"
+                   , boundary
+                   , crlf
+                   , "Content-Disposition: form-data; name=\""
+                   , k
+                   , "\""
+                   , crlf
+                   , "Content-Type: multipart/mixed; boundary="
+                   , fileBoundary
+                   , crlf
+                   , crlf
+                   ] `S.append`
+                   S.concat (map (fpPair k) vs) `S.append`
+                   S.concat ["--", fileBoundary, "--", crlf]
+                    
+      fpPair k (fname, fcontent) = 
+          S.concat [
+            "--"
+          , fileBoundary
+          , crlf
+          , "Content-Disposition: "
+          , k
+          , "; filename=\""
+          , fname
+          , "\""
+          , crlf
+          , "Content-Type: "
+          , contentTypeFor fname
+          , crlf
+          , crlf
+          , fcontent
+          , crlf
+          ]
 
   emptyRequestBody :: (MonadIO m) => m (IORef SomeEnumerator)
   emptyRequestBody = liftIO . newIORef . SomeEnumerator $ returnI
@@ -60,28 +147,84 @@ module Snap.Internal.Test.RequestBuilder where
   buildRequestBody content = 
       liftIO . newIORef . SomeEnumerator $ enumBS content
 
-  processRequestBody :: (MonadIO m) => RequestProduct -> m (IORef SomeEnumerator)
+  buildBoundary :: (MonadIO m) => m Boundary
+  buildBoundary = 
+    liftM (S.append "snap-boundary-" . 
+           B16.encode . 
+           S.pack . 
+           Prelude.map (toEnum . (.&. 255)) . 
+           take 10 . 
+           randoms) 
+           (liftIO newStdGen)
+
+  processQueryString :: Method -> Params -> ByteString
+  processQueryString GET ps = buildQueryString ps
+  processQueryString _   _  = ""
+
+  processRequestHeaders :: Maybe Boundary -> RequestProduct -> Headers
+  processRequestHeaders Nothing rqp = (rqpHeaders rqp)
+  processRequestHeaders (Just boundary) rqp 
+    | (rqpContentType rqp) == "multipart/form-data"
+      = H.setHeader 
+          "Content-Type" 
+          ("multipart/form-data; boundary=" `S.append` boundary)
+          (rqpHeaders rqp)
+    | otherwise = (rqpHeaders rqp)
+
+  processRequestBody :: (MonadIO m) => RequestProduct -> m ( IORef SomeEnumerator 
+                                                           , ContentLength
+                                                           , Maybe Boundary
+                                                           )
   processRequestBody rqp
     | (rqpMethod rqp) == POST && 
       (rqpContentType rqp) == "x-www-form-urlencoded"
-      = buildRequestBody . 
-        buildQueryString . 
-        rqpParams $ rqp
+      = do
+        let qs = buildQueryString (rqpParams rqp)
+        requestBody <- buildRequestBody qs
+        return ( requestBody
+               , Just $ S.length qs
+               , Nothing
+               )
+
+    | (rqpMethod rqp) == POST &&
+      (rqpContentType rqp) == "multipart/form-data"
+      = do
+        boundary     <- buildBoundary
+        fileBoundary <- buildBoundary
+        let multipartBody = buildMultipartString 
+                              boundary
+                              fileBoundary
+                              (rqpParams rqp)
+                              (rqpFileParams rqp)
+        requestBody <- buildRequestBody multipartBody
+        return ( requestBody
+               , Just $ S.length multipartBody
+               , Just $ boundary
+               )
 
     | (rqpMethod rqp) == PUT
-      = maybe emptyRequestBody buildRequestBody $ rqpBody rqp
+      = do 
+        requestBody <- maybe emptyRequestBody buildRequestBody (rqpBody rqp)
+        return ( requestBody
+               , S.length `liftM` (rqpBody rqp)
+               , Nothing
+               )
 
-    | otherwise = emptyRequestBody
+    | otherwise = do 
+      requestBody <- emptyRequestBody
+      return (requestBody, Nothing, Nothing)
 
   buildRequest :: (MonadIO m) => RequestBuilder m () -> m Request
   buildRequest (RequestBuilder m) = do 
     finalRqProduct <- execStateT m 
                         (RequestProduct GET 
                                         Map.empty 
+                                        Map.empty
                                         Nothing 
                                         Map.empty
                                         "x-www-form-urlencoded")
-    requestBody    <- processRequestBody finalRqProduct
+    (requestBody, contentLength, boundary)  <- processRequestBody finalRqProduct
+    let requestHeaders = processRequestHeaders boundary finalRqProduct
     return $ Request {
       rqServerName    = "localhost"
     , rqServerPort    = 80
@@ -91,9 +234,9 @@ module Snap.Internal.Test.RequestBuilder where
     , rqLocalPort     = 80
     , rqLocalHostname = "localhost"
     , rqIsSecure      = False
-    , rqHeaders       = (rqpHeaders finalRqProduct)
+    , rqHeaders       = requestHeaders
     , rqBody          = requestBody
-    , rqContentLength = Nothing
+    , rqContentLength = contentLength
     , rqMethod        = (rqpMethod finalRqProduct)
     , rqVersion       = (1,1)
     , rqCookies       = []
@@ -133,4 +276,12 @@ module Snap.Internal.Test.RequestBuilder where
       let contentType = "x-www-form-urlencoded"
       setHeader "Content-Type"  contentType 
       alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
+  
+  multipartEncoded :: (Monad m) => RequestBuilder m ()
+  multipartEncoded = do
+      let contentType = "multipart/form-data"
+      setHeader "Content-Type" contentType
+      alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
+
+
 
