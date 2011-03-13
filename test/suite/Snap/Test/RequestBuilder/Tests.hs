@@ -7,13 +7,15 @@ module Snap.Test.RequestBuilder.Tests
 import qualified Data.ByteString.Char8 as S
 import qualified Data.Map as Map
 import           Data.Maybe (fromJust)
+import           Control.Monad.Trans (liftIO)
 
 import           Test.Framework (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit (assertEqual, assertBool)
 
-import           Snap.Internal.Http.Types (Request(..), Method(..))
+import           Snap.Internal.Http.Types (Request(..))
 import qualified Snap.Internal.Http.Types as T
+import           Snap.Types hiding (setHeader, addHeader)
 import           Snap.Internal.Test.RequestBuilder
 
 tests :: [Test]
@@ -30,6 +32,7 @@ tests = [
         , testMultipartEncoded 
         , testUseHttps
         , testSetURI
+        , testRunHandler
         ]
 
 testSetMethod :: Test
@@ -227,6 +230,18 @@ testSetURI = testCase "test/requestBuilder/setURI" $ do
               "/users?age=25&name=John"
               (rqURI request2)
 
+testRunHandler :: Test
+testRunHandler = testCase "test/requestBuilder/runHandler" $ do
+  let handler = method POST $ path "/my-handler" $ do
+                  name <- getParam "name"
+                  liftIO $ assertEqual "runHandler not working"
+                                       (Just "John")
+                                       name
+                  modifyResponse (setResponseCode 200)
+  
+  response <- runHandler handler $ do
+                postUrlEncoded "/my-handler"
+                               [("name", "John")]
 
-
+  assertEqual "runHandler not working" 200 (rspStatus response)
 
