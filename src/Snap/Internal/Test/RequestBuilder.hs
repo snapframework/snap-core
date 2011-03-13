@@ -13,11 +13,12 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Base16 as B16
 import           Data.CIByteString (CIByteString)
+import           Data.Monoid (mconcat)
 import           Control.Arrow (second)
 import           Control.Monad (liftM)
 import           Control.Monad.State (MonadState, StateT, put, execStateT)
 import qualified Control.Monad.State as State
-import           Control.Monad.Trans (MonadIO(..))
+import           Control.Monad.Trans (MonadIO(..), liftIO)
 import           Data.Enumerator (runIteratee, run_, returnI)
 import           Data.Enumerator.List (consume)
 import           Data.IORef (IORef, newIORef, readIORef)
@@ -26,8 +27,13 @@ import           System.Random (randoms, newStdGen)
 
 --------------------------------------------------------------------------------
 
+import qualified Blaze.ByteString.Builder as Blaze
+
+--------------------------------------------------------------------------------
+
 import           Snap.Internal.Http.Types hiding (setHeader)
 import qualified Snap.Internal.Http.Types as H
+import           Snap.Types (Snap, runSnap) 
 import           Snap.Iteratee (enumBS)
 import           Snap.Util.FileServe (defaultMimeTypes, fileType)
 
@@ -71,11 +77,18 @@ instance HasHeaders RequestProduct where
 --------------------------------------------------------------------------------
 -- | Utility function that will help get the ByteString Request Body out of the 
 -- the Request data type, that hold this internally as an @IORef SomeEnumerator@.
-getBody :: Request -> IO ByteString
-getBody request = do
-  (SomeEnumerator enum) <- readIORef $ rqBody request
-  S.concat `liftM` (runIteratee consume >>= run_ . enum)
+class HasBody r where
+  getBody :: r -> IO ByteString
 
+instance HasBody Request where
+  getBody request = do
+    (SomeEnumerator enum) <- readIORef $ rqBody request
+    S.concat `liftM` (runIteratee consume >>= run_ . enum)
+
+instance HasBody Response where
+  getBody response = do
+      let benum = rspBodyToEnum $ rspBody response
+      liftM (Blaze.toByteString . mconcat) (runIteratee consume >>= run_ . benum)
 
 --------------------------------------------------------------------------------
 -- Request Body Content Builders
@@ -342,7 +355,7 @@ buildRequest (RequestBuilder m) = do
       , rqVersion       = (1,1)
       , rqCookies       = []
       , rqSnapletPath   = ""
-      , rqPathInfo      = ""
+      , rqPathInfo      = (rqpURI finalRqProduct)
       , rqContextPath   = ""
       , rqURI           = requestURI
       , rqQueryString   = processQueryString (rqpMethod finalRqProduct) 
@@ -385,6 +398,9 @@ setParams params = alterRequestProduct $ \rqp -> rqp { rqpParams = params' }
 -- Allows you to set a List of key-value pairs, this will be later used by the
 -- Request as the files given by the utility functions in the
 -- @Snap.Util.FileUpload@ module.
+setFileParams :: (Monad m) => 
+  [(ByteString, (ByteString, ByteString))] -> 
+  RequestBuilder m ()
 setFileParams fparams = alterRequestProduct $ \rqp -> rqp { rqpFileParams = fparams' }
   where
     fparams' = Map.fromList . map (second (:[])) $ fparams
@@ -505,4 +521,17 @@ postMultipart uri params fileParams = do
   setURI uri
   setParams params
   setFileParams fileParams
+
+--------------------------------------------------------------------------------
+-- Request Runner
+--------------------------------------------------------------------------------
+
+runHandler :: (MonadIO m) => Snap a -> RequestBuilder m () -> m Response
+runHandler handler requestSpec = do
+  request       <- buildRequest requestSpec
+  (_, response) <- liftIO $ run_ $ runSnap handler 
+                                    (const $ return ())
+                                    (const $ return ())
+                                    request
+  return response
 
