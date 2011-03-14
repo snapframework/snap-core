@@ -10,6 +10,7 @@ import qualified Snap.Util.FileServe.Tests
 import qualified Snap.Util.FileUploads.Tests
 import qualified Snap.Util.GZip.Tests
 import qualified Snap.Test.RequestBuilder.Tests
+import qualified Snap.Test.Assertions.Tests
 
 
 main :: IO ()
@@ -31,4 +32,6 @@ main = defaultMain tests
                             Snap.Util.FileUploads.Tests.tests
                 , testGroup "Snap.Test.RequestBuilder.Tests"
                             Snap.Test.RequestBuilder.Tests.tests
+                , testGroup "Snap.Test.Assertions.Tests"
+                            Snap.Test.Assertions.Tests.tests
                 ]
