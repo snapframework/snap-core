@@ -106,7 +106,8 @@ Library
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
-    build-depends: bytestring-mmap >= 0.2.1 && <0.3
+    build-depends: bytestring-mmap >= 0.2.1 && <0.3,
+                   regex-posix <= 0.94.4
 
   exposed-modules:
     Data.CIByteString,
@@ -118,19 +119,24 @@ Library
     Snap.Internal.Parsing,
     Snap.Util.FileServe,
     Snap.Util.FileUploads,
-    Snap.Util.GZip
+    Snap.Util.GZip,
+    Snap.Test
 
   other-modules:
     Snap.Internal.Instances,
     Snap.Internal.Iteratee.BoyerMooreHorspool,
     Snap.Internal.Routing,
-    Snap.Internal.Types
+    Snap.Internal.Types,
+    Snap.Internal.Test.RequestBuilder,
+    Snap.Internal.Test.Assertions
 
 
   build-depends:
+    QuickCheck >= 2.3.0.2,
     attoparsec >= 0.8.0.2 && < 0.9,
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
+    base16-bytestring <= 0.1.1.1,
     blaze-builder >= 0.2.1.4 && <0.3,
     bytestring,
     bytestring-nums,
@@ -140,10 +146,15 @@ Library
     dlist >= 0.5 && < 0.6,
     enumerator >= 0.4.7 && < 0.5,
     filepath,
+    HUnit >= 1.2 && < 2,
     MonadCatchIO-transformers >= 0.2.1 && < 0.3,
     mtl == 2.0.*,
     old-locale,
     old-time,
+    random <= 1.0.0.2,
+    test-framework >= 0.3.1 && <0.4,
+    test-framework-hunit >= 0.2.5 && < 0.3,
+    test-framework-quickcheck2 >= 0.2.6 && < 0.3,
     text >= 0.11 && <0.12,
     time,
     transformers == 0.2.*,
