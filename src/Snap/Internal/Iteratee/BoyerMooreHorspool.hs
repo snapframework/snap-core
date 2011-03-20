@@ -19,10 +19,10 @@ import qualified Data.Vector.Unboxed.Mutable  as MV
 import           Prelude               hiding (head, last)
 
 
-{-# INLINE debug #-}
-debug :: MonadIO m => String -> m ()
+--{-# INLINE debug #-}
+--debug :: MonadIO m => String -> m ()
 --debug s = liftIO $ putStrLn s
-debug _ = return ()
+--debug _ = return ()
 
 ------------------------------------------------------------------------------
 data MatchInfo = Match !ByteString
@@ -41,8 +41,8 @@ lookahead n = go id n
         EL.head >>= maybe
                         (do
                             let !ls = S.concat $ dlist []
-                            debug $ "lookahead " ++ show n
-                             ++ " failing, returning " ++ show ls
+                            -- debug $ "lookahead " ++ show n
+                            --  ++ " failing, returning " ++ show ls
 
                             return $ Left ls)
                         (\x -> do
@@ -53,9 +53,9 @@ lookahead n = go id n
                              if r <= 0
                                then do
                                    let !ls = S.concat $ d' []
-                                   debug $ "lookahead " ++ show n
-                                    ++ " successfully returning "
-                                    ++ show ls
+                                   -- debug $ "lookahead " ++ show n
+                                   --  ++ " successfully returning "
+                                   --  ++ show ls
                                    return $ Right $ ls
                                else go d' r)
 {-# INLINE lookahead #-}
@@ -73,8 +73,8 @@ matches !needle !nstart !nend' !haystack !hstart !hend' =
     go !nend !hend =
         if nend < nstart || hend < hstart
           then True
-          else let !nc = S.index needle nend -- FIXME: use unsafeIndex
-                   !hc = S.index haystack hend
+          else let !nc = S.unsafeIndex needle nend
+                   !hc = S.unsafeIndex haystack hend
                in if nc /= hc
                     then False
                     else go (nend-1) (hend-1)
@@ -86,7 +86,7 @@ bmhEnumeratee :: (MonadIO m) =>
               -> Step MatchInfo m a
               -> Iteratee ByteString m (Step MatchInfo m a)
 bmhEnumeratee needle _step = do
-    debug $ "boyermoore: needle=" ++ show needle
+    -- debug $ "boyermoore: needle=" ++ show needle
     cDone _step iter
   where
     {-# INLINE cDone #-}
@@ -99,14 +99,14 @@ bmhEnumeratee needle _step = do
                                   (startSearch k)
 
     finishAndEOF k xs = {-# SCC "finishAndEOF" #-} do
-        debug $ "finishAndEOF, returning NoMatch for " ++ show xs
+        -- debug $ "finishAndEOF, returning NoMatch for " ++ show xs
         step <- lift $ runIteratee $ k $
                 Chunks (map NoMatch $ filter (not . S.null) xs)
         cDone step (\k' -> lift $ runIteratee $ k' EOF)
 
 
     startSearch !k !haystack = {-# SCC "startSearch" #-} do
-        debug $ "startsearch: " ++ show haystack
+        -- debug $ "startsearch: " ++ show haystack
         if S.null haystack
            then lookahead nlen >>=
                 either (\s -> finishAndEOF k [s])
@@ -119,8 +119,8 @@ bmhEnumeratee needle _step = do
           | hend >= hlen = crossBound hidx
           | otherwise = {-# SCC "go" #-} do
               let match = matches needle 0 last haystack hidx hend
-              debug $ "go " ++ show hidx ++ ", hend=" ++ show hend
-                        ++ ", match was " ++ show match
+              -- debug $ "go " ++ show hidx ++ ", hend=" ++ show hend
+              --           ++ ", match was " ++ show match
               if match
                 then {-# SCC "go/match" #-} do
                   let !nomatch = S.take hidx haystack
@@ -135,73 +135,78 @@ bmhEnumeratee needle _step = do
                       cDone step' $ \k'' -> startSearch k'' aftermatch
                 else {-# SCC "go/nomatch" #-} do
                   -- skip ahead
-                  let c = S.index haystack hend
+                  let c = S.unsafeIndex haystack hend
                   let !skip = V.unsafeIndex table $ fromEnum c
                   go (hidx + skip)
           where
             !hend = hidx + nlen - 1
+
+        mkCoeff hidx = let !ll = hlen - hidx
+                           !nm = nlen - ll
+                       in (ll,nm)
                                         
-        crossBound !hidx = {-# SCC "crossBound" #-} do
-            let !leftLen = hlen - hidx
-            let !needMore = nlen - leftLen
-            debug $ "crossbound " ++ show hidx ++ ", leftlen=" ++ show leftLen
-                      ++ ", needmore=" ++ show needMore                            
+        crossBound !hidx0 = {-# SCC "crossBound" #-} do
+            let (!leftLen, needMore) = mkCoeff hidx0
+
             lookahead needMore >>=
-             either
-              (\s -> finishAndEOF k [haystack, s])
-              (\nextHaystack -> do
-                   let match1 = matches needle leftLen last
-                                        nextHaystack 0 (needMore-1)
-                   let match2 = matches needle 0 (leftLen-1)
-                                        haystack hidx (hlen-1)
+             either (\s -> finishAndEOF k [haystack, s])
+                    (runNext hidx0 leftLen needMore)
+          where
+            runNext !hidx !leftLen !needMore !nextHaystack = do
+               let match1 = matches needle leftLen last
+                                    nextHaystack 0 (needMore-1)
+               let match2 = matches needle 0 (leftLen-1)
+                                    haystack hidx (hlen-1)
 
-                   debug $ "crossbound match1=" ++ show match1
-                             ++ " match2=" ++ show match2
+               -- debug $ "crossbound match1=" ++ show match1
+               --           ++ " match2=" ++ show match2
 
-                   if match1 && match2
-                     then {-# SCC "crossBound/match" #-} do
-                       let !nomatch = S.take hidx haystack
-                       let !aftermatch = S.drop needMore nextHaystack
+               if match1 && match2
+                 then {-# SCC "crossBound/match" #-} do
+                   let !nomatch = S.take hidx haystack
+                   let !aftermatch = S.drop needMore nextHaystack
 
-                       -- FIXME: merge this code w/ above
-                       step <- if not $ S.null nomatch
-                                 then lift $ runIteratee $ k $
-                                      Chunks [NoMatch nomatch]
-                                 else return $ Continue k
+                   -- FIXME: merge this code w/ above
+                   step <- if not $ S.null nomatch
+                             then lift $ runIteratee $ k $
+                                  Chunks [NoMatch nomatch]
+                             else return $ Continue k
 
-                       debug $ "matching"
-                       cDone step $ \k' -> do
-                           step' <- lift $ runIteratee $ k' $
-                                    Chunks [Match needle]
-                           cDone step' $ \k'' ->
-                               startSearch k'' aftermatch
+                   -- debug $ "matching"
+                   cDone step $ \k' -> do
+                       step' <- lift $ runIteratee $ k' $
+                                Chunks [Match needle]
+                       cDone step' $ \k'' ->
+                           startSearch k'' aftermatch
 
-                     else {-# SCC "crossBound/nomatch" #-} do
-                       let c = S.index nextHaystack $ needMore-1
-                       let p = V.unsafeIndex table (fromEnum c)
+                 else {-# SCC "crossBound/nomatch" #-} do
+                   let c = S.unsafeIndex nextHaystack $ needMore-1
+                   let p = V.unsafeIndex table (fromEnum c)
 
-                       debug $ "p was " ++ show p ++ ", ll=" ++ show leftLen
-                       if p < leftLen
+                   -- debug $ "p was " ++ show p ++ ", ll=" ++ show leftLen
+                   if p < leftLen
+                     then do
+                       let !hidx' = hidx+p
+                       let (!leftLen', needMore') = mkCoeff hidx'
+                       let !nextlen = S.length nextHaystack
+                       if (nextlen < needMore')
                          then do
-                           let (!nomatch, !crumb) = S.splitAt (hidx + p)
-                                                              haystack
-                           let !rest = S.append crumb nextHaystack
-                           step <- lift $ runIteratee $ k $
-                                   Chunks $ map NoMatch $
-                                   filter (not . S.null) [nomatch]
+                           -- this should be impossibly rare
+                           lookahead (needMore' - nextlen) >>=
+                             either (\s -> finishAndEOF k [ haystack
+                                                          , nextHaystack
+                                                          , s ])
+                                    (\s -> runNext hidx' leftLen' needMore' $
+                                           S.append nextHaystack s)
+                         else runNext hidx' leftLen' needMore' nextHaystack
+                     else do
+                       let sidx = p - leftLen
+                       let (!crumb, !rest) = S.splitAt sidx nextHaystack
+                       step <- lift $ runIteratee $ k $
+                               Chunks $ map NoMatch $
+                               filter (not . S.null) [haystack, crumb]
 
-                           cDone step $ flip startSearch rest
-
-                         else do
-                           let sidx = p - leftLen
-                           let (!crumb, !rest) = S.splitAt sidx nextHaystack
-                           step <- lift $ runIteratee $ k $
-                                   Chunks $ map NoMatch $
-                                   filter (not . S.null) [haystack, crumb]
-
-                           cDone step $ flip startSearch rest
-              )
-
+                       cDone step $ flip startSearch rest
 
 
     !nlen = S.length needle

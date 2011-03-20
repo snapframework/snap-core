@@ -591,7 +591,7 @@ enumFilePartial :: FilePath
 
 enumFile = _enumFile
 enumFilePartial fp rng@(start,end) iter = do
-    when (end < start) $ throw InvalidRangeException
+    when (end < start) $ throwError InvalidRangeException
     _enumFilePartial fp rng iter
 
 #else
@@ -718,7 +718,7 @@ killIfTooSlow !bump !minRate !minSeconds' !inputIter = do
         proc !nb (Continue !k) = continue $ cont nb k
         proc _ !z              = returnI z
 
-        cont !nBytesRead !k EOF = k EOF
+        cont _ !k EOF = k EOF
         cont !nBytesRead !k !stream = do
             let !slen = toEnum $ streamLength stream
             now <- liftIO getTime
@@ -726,7 +726,7 @@ killIfTooSlow !bump !minRate !minSeconds' !inputIter = do
             let !newBytes = nBytesRead + slen
             when (delta > minSeconds+1 &&
                   fromIntegral newBytes / (delta-minSeconds) < minRate) $
-              throw RateTooSlowException
+              throwError RateTooSlowException
 
             -- otherwise bump the timeout and continue running the iteratee
             !_ <- lift bump
