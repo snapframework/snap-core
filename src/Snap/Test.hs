@@ -1,20 +1,39 @@
+-- | The Snap.Test module contains primitives and combinators for testing Snap
+-- applications.
 module Snap.Test 
-  (
-    module Snap.Internal.Test.Assertions 
+  ( -- * Combinators and types for creating test Requests
+
+    -- ** Types
+    HasBody(..)
+  , RequestBuilder
+
+    -- ** Building Requests and testing handlers
+  , buildRequest
   , runHandler
-  , setMethod
-  , addParam
-  , setParams
-  , setFileParams
-  , setRequestBody
-  , setHeader
+
+    -- ** Precise control over building Requests
   , addHeader
+  , addParam
   , formUrlEncoded
-  , multipartEncoded
-  , useHttps
   , get
-  , postUrlEncoded 
+  , multipartEncoded
   , postMultipart
+  , postUrlEncoded 
+  , setFileParams
+  , setHeader
+  , setMethod
+  , setParams
+  , setRequestBody
+  , setURI
+  , useHttps
+
+   -- * HUnit Assertions
+  , assertSuccess
+  , assert404
+  , assertRedirectTo
+  , assertRedirect
+  , assertBodyContains
+
   )
   where
 

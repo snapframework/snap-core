@@ -7,7 +7,7 @@
 module Snap.Internal.Test.RequestBuilder where
 
 --------------------------------------------------------------------------------
-
+import qualified Blaze.ByteString.Builder as Blaze
 import           Data.Bits ((.&.))
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -24,13 +24,7 @@ import           Data.Enumerator.List (consume)
 import           Data.IORef (IORef, newIORef, readIORef)
 import qualified Data.Map as Map
 import           System.Random (randoms, newStdGen)
-
 --------------------------------------------------------------------------------
-
-import qualified Blaze.ByteString.Builder as Blaze
-
---------------------------------------------------------------------------------
-
 import           Snap.Internal.Http.Types hiding (setHeader)
 import qualified Snap.Internal.Http.Types as H
 import           Snap.Types (Snap, runSnap) 
@@ -311,6 +305,7 @@ processRequestBody rqp
   | otherwise = do 
     requestBody <- emptyRequestBody
     return (requestBody, Nothing, Nothing)
+
 
 --------------------------------------------------------------------------------
 -- | RequestBuilder is the Monad that will hold all the different combinators
