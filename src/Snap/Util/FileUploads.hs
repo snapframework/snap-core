@@ -256,19 +256,17 @@ handleMultipart uploadPolicy origPartHandler = do
          "got multipart/form-data without boundary"
 
     let boundary = fromJust mbBoundary
-    captures <- runRequestBody (iter bumpTimeout boundary partHandler `catch`
-                                errHandler)
+    captures <- runRequestBody (iter bumpTimeout boundary partHandler)
 
     procCaptures [] captures
 
   where
-    iter bump boundary ph = killIfTooSlow
+    iter bump boundary ph = iterateeDebugWrapper "killIfTooSlow" $
+                            killIfTooSlow
                               bump
                               (minimumUploadRate uploadPolicy)
                               (minimumUploadSeconds uploadPolicy)
                               (internalHandleMultipart boundary ph)
-
-    errHandler (e :: SomeException) = skipToEof >> (lift $ throw e)
 
     ins k v = Map.insertWith' (\a b -> Prelude.head a : b) k [v]
 

@@ -27,6 +27,8 @@ import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Debug
+import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Types
 import           Snap.Util.FileUploads
 import           Snap.Iteratee hiding (map)
@@ -354,7 +356,7 @@ goSlowEnumerator :: Snap a -> ByteString -> IO Response
 goSlowEnumerator m s = do
     rq <- mkRequest s
     writeIORef (rqBody rq) $ SomeEnumerator slowEnum
-    mx <- timeout (6*seconds) (liftM snd (run_ $ runIt m rq))
+    mx <- timeout (20*seconds) (liftM snd (run_ $ runIt m rq))
     maybe (error "timeout") return mx
 
   where
@@ -364,9 +366,11 @@ goSlowEnumerator m s = do
 
     goo (Continue k) []     = k EOF
     goo (Continue k) (x:xs) = do
+        debug $ "goSlowEnumerator: sending " ++ show x
         step <- lift $ runIteratee $ k $ Chunks [ S.pack (x:[]) ]
         liftIO waitabit
         goo step xs
+    goo (Error e) _ = throwError e
     goo _ _ = error "impossible"
 
 
@@ -381,7 +385,7 @@ seconds = (10::Int) ^ (6::Int)
 
 ------------------------------------------------------------------------------
 runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
-runIt m rq = runSnap m d d rq
+runIt m rq = iterateeDebugWrapper "test" $ runSnap m d d rq
   where
     d :: forall a . Show a => a -> IO ()
     d = \x -> show x `deepseq` return ()
