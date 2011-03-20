@@ -31,7 +31,6 @@ rm -Rf $DIR
 mkdir -p $DIR
 
 EXCLUDES='Main
-Data.CIByteString
 Snap.Internal.Debug
 Snap.Internal.Iteratee.Debug
 Snap.Iteratee.Tests

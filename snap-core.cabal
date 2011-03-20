@@ -109,7 +109,6 @@ Library
     build-depends: bytestring-mmap >= 0.2.1 && <0.3
 
   exposed-modules:
-    Data.CIByteString,
     Snap.Types,
     Snap.Iteratee,
     Snap.Internal.Debug,
@@ -134,6 +133,7 @@ Library
     blaze-builder >= 0.2.1.4 && <0.3,
     bytestring,
     bytestring-nums,
+    case-insensitive >= 0.2 && < 0.3,
     containers,
     deepseq >= 1.1 && <1.2,
     directory,

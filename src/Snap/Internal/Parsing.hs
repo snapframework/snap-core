@@ -6,7 +6,8 @@ import           Control.Arrow (first)
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
-import           Data.CIByteString
+import qualified Data.CaseInsensitive as CI
+import           Data.CaseInsensitive (CI)
 import           Data.Char (isAlpha, isAscii, isControl)
 import           Control.Applicative
 import           Control.Monad
@@ -185,21 +186,21 @@ trim = snd . S.span isSpace . fst . S.spanEnd isSpace
 
 
 ------------------------------------------------------------------------------
-pValueWithParameters :: Parser (ByteString, [(CIByteString, ByteString)])
+pValueWithParameters :: Parser (ByteString, [(CI ByteString, ByteString)])
 pValueWithParameters = do
     value  <- liftM trim (pSpaces *> takeWhile (/= ';'))
     params <- many pParam
-    return (value, map (first toCI) params)
+    return (value, map (first CI.mk) params)
   where
     pParam = pSpaces *> char ';' *> pSpaces *> pParameter
 
 ------------------------------------------------------------------------------
 pContentTypeWithParameters ::
-    Parser (ByteString, [(CIByteString, ByteString)])
+    Parser (ByteString, [(CI ByteString, ByteString)])
 pContentTypeWithParameters = do
     value  <- liftM trim (pSpaces *> takeWhile (not . isSep))
     params <- many (pSpaces *> satisfy isSep *> pSpaces *> pParameter)
-    return (value, map (first toCI) params)
+    return (value, map (first CI.mk) params)
   where
     isSep c = c == ';' || c == ','
 
