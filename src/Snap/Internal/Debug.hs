@@ -16,18 +16,7 @@
 module Snap.Internal.Debug where
 
 ------------------------------------------------------------------------------
-import             Control.Concurrent
-import             Control.DeepSeq
-import             Control.Exception
 import             Control.Monad.Trans
-import             Data.Char
-import             Data.List
-import             Data.Maybe
-import             Foreign.C.Error
-import             System.Environment
-import             System.IO
-import             System.IO.Unsafe
-import             Text.Printf
 ------------------------------------------------------------------------------
 
 debug, debugErrno :: forall m . (MonadIO m => String -> m ())
