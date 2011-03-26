@@ -35,10 +35,10 @@ assertRedirectTo :: ByteString     -- ^ The Response should redirect to this
                  -> Assertion
 assertRedirectTo uri rsp = do
     assertRedirect rsp
-    let rspUri = fromJust $ getHeader "Location" rsp
     assertEqual message uri rspUri
 
   where
+    rspUri = fromJust $ getHeader "Location" rsp
     message = "Expected redirect to " ++ show uri
               ++ " but got redirected to "
               ++ show rspUri ++ " instead"
