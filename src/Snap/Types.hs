@@ -20,6 +20,7 @@ module Snap.Types
 
     -- ** Routing
   , method
+  , methods
   , path
   , dir
   , ifTop

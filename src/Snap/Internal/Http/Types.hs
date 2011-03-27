@@ -205,8 +205,7 @@ data Request = Request
       -- | Returns the HTTP server's idea of its local hostname.
     , rqLocalHostname  :: !ByteString
 
-      -- | Returns @True@ if this is an @HTTPS@ session (currently always
-      -- @False@).
+      -- | Returns @True@ if this is an @HTTPS@ session.
     , rqIsSecure       :: !Bool
     , rqHeaders        :: Headers
     , rqBody           :: IORef SomeEnumerator
