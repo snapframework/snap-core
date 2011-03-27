@@ -3,7 +3,7 @@
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
--- | Contains the combinators for the easy creation of Snap Requests 
+-- | Contains the combinators for the easy creation of Snap Requests
 module Snap.Internal.Test.RequestBuilder where
 
 -------------------------------------------------------------------------------
@@ -44,9 +44,9 @@ type Boundary      = ByteString
 -- a Multipart Request.
 type FileParams    = Map.Map ByteString [(ByteString, ByteString)]
 
-data RequestType 
+data RequestType
     = GetRequest
-    | PutRequest ByteString
+    | RequestWithRawBody Method ByteString
     | MultipartPostRequest FileParams
     | UrlEncodedPostRequest
     | DeleteRequest
@@ -75,8 +75,8 @@ instance HasHeaders RequestProduct where
   updateHeaders f rqp = rqp { rqpHeaders = f (rqpHeaders rqp) }
 
 -------------------------------------------------------------------------------
--- | Utility function that will help get the ByteString Request Body out of 
--- the the Request data type, that hold this internally as an 
+-- | Utility function that will help get the ByteString Request Body out of
+-- the the Request data type, that hold this internally as an
 -- @IORef SomeEnumerator@.
 class HasBody r where
   getBody :: r -> IO ByteString
@@ -101,8 +101,8 @@ instance HasBody Response where
 buildQueryString :: Params -- ^ Parameters that will be turn into a QS
                  -> ByteString
 buildQueryString = S.intercalate "&" . Map.foldWithKey helper []
-  where 
-    helper k vs acc = 
+  where
+    helper k vs acc =
         (map (\v -> S.concat [urlEncode k, "=", urlEncode v]) vs) ++
         acc
 
@@ -114,7 +114,7 @@ buildMultipartString :: Boundary     -- ^ Params Boundary
                      ->   Params     -- ^ Params map
                      ->   FileParams -- ^ FileParams map
                      ->   ByteString
-buildMultipartString boundary fileBoundary params fileParams = 
+buildMultipartString boundary fileBoundary params fileParams =
     S.concat [ simpleParamsString
              , fileParamsString
              , S.concat ["--", boundary, "--"]]
@@ -122,11 +122,11 @@ buildMultipartString boundary fileBoundary params fileParams =
     crlf = "\r\n"
     contentTypeFor = fileType defaultMimeTypes . S.unpack
 
-    --------------------------------------------------------------------------- 
+    ---------------------------------------------------------------------------
     -- Builds a Multipart Body for @Params@
     simpleParamsString = S.concat $ Map.foldWithKey spHelper [] params
     spHelper k vs acc  = (S.concat $ map (spPair k) vs) : acc
-    spPair k v = 
+    spPair k v =
         S.concat [ "--"
                  , boundary
                  , crlf
@@ -140,11 +140,11 @@ buildMultipartString boundary fileBoundary params fileParams =
                  , v
                  , crlf
                  ]
-    
-    --------------------------------------------------------------------------- 
+
+    ---------------------------------------------------------------------------
     -- Build a Multipart Body for @FileParams@
     fileParamsString = S.concat $ Map.foldWithKey fpHelper [] fileParams
-    fpHelper k [(fname, fcontent)] acc = 
+    fpHelper k [(fname, fcontent)] acc =
         (:acc) $ S.concat [
                    "--"
                  , boundary
@@ -163,7 +163,7 @@ buildMultipartString boundary fileBoundary params fileParams =
                  , fcontent
                  , crlf
                  ]
-    fpHelper k vs acc = 
+    fpHelper k vs acc =
         (:acc) $ S.concat [
                    "--"
                  , boundary
@@ -179,7 +179,7 @@ buildMultipartString boundary fileBoundary params fileParams =
                  ] `S.append`
                  S.concat (map (fpPair k) vs) `S.append`
                  S.concat ["--", fileBoundary, "--", crlf]
-    fpPair k (fname, fcontent) = 
+    fpPair k (fname, fcontent) =
         S.concat [
           "--"
         , fileBoundary
@@ -207,22 +207,22 @@ emptyRequestBody = liftIO . newIORef . SomeEnumerator $ returnI
 
 -------------------------------------------------------------------------------
 -- Builds a Request Body enumerator containing the given @ByteString@ content.
-buildRequestBody :: (MonadIO m) 
-                 => ByteString 
+buildRequestBody :: (MonadIO m)
+                 => ByteString
                  -> m (IORef SomeEnumerator)
-buildRequestBody content = 
+buildRequestBody content =
     liftIO . newIORef . SomeEnumerator $ enumBS content
 
 -------------------------------------------------------------------------------
 -- Builds a Random boundary that will be used for multipart Requests.
 buildBoundary :: (MonadIO m) => m Boundary
-buildBoundary = 
-    liftM (S.append "snap-boundary-" . 
-           B16.encode . 
-           S.pack . 
-           Prelude.map (toEnum . (.&. 255)) . 
-           take 10 . 
-           randoms) 
+buildBoundary =
+    liftM (S.append "snap-boundary-" .
+           B16.encode .
+           S.pack .
+           Prelude.map (toEnum . (.&. 255)) .
+           take 10 .
+           randoms)
            (liftIO newStdGen)
 
 -------------------------------------------------------------------------------
@@ -232,8 +232,8 @@ buildBoundary =
 
 -------------------------------------------------------------------------------
 -- Builds a Query String from the @RequestPart@.
-processQueryString :: Method 
-                   -> Params 
+processQueryString :: Method
+                   -> Params
                    -> ByteString
 processQueryString GET ps = buildQueryString ps
 processQueryString _   _  = ""
@@ -242,9 +242,9 @@ processQueryString _   _  = ""
 -------------------------------------------------------------------------------
 -- Builds a Request URI from a @RequestPart@, this function handles
 -- adding a Query String to the URI if method is @GET@.
-processRequestURI :: RequestProduct 
+processRequestURI :: RequestProduct
                   -> ByteString
-processRequestURI rqp = 
+processRequestURI rqp =
     case (rqpRequestType rqp) of
       GetRequest
         | (Map.null (rqpParams rqp)) -> (rqpURI rqp)
@@ -255,31 +255,31 @@ processRequestURI rqp =
       _   -> rqpURI rqp
 
 -------------------------------------------------------------------------------
--- Builds the Request Headers from a @RequestPart@, the sole purpose of 
+-- Builds the Request Headers from a @RequestPart@, the sole purpose of
 -- this function is to alter the Content-Type header to add a Boundary
 -- if it is a multipart/form-data.
-processRequestHeaders :: Maybe Boundary 
-                      -> RequestProduct 
+processRequestHeaders :: Maybe Boundary
+                      -> RequestProduct
                       -> Headers
 processRequestHeaders Nothing rqp = (rqpHeaders rqp)
-processRequestHeaders (Just boundary) rqp 
+processRequestHeaders (Just boundary) rqp
   | (rqpContentType rqp) == "multipart/form-data"
-    = H.setHeader 
-        "Content-Type" 
+    = H.setHeader
+        "Content-Type"
         ("multipart/form-data; boundary=" `S.append` boundary)
         (rqpHeaders rqp)
   | otherwise = (rqpHeaders rqp)
 
 -------------------------------------------------------------------------------
--- Given a @RequestProduct@, it gets all the info it can out of it to build 
--- a Request Body Enumerator, using the body content builder functions and the 
+-- Given a @RequestProduct@, it gets all the info it can out of it to build
+-- a Request Body Enumerator, using the body content builder functions and the
 -- body enumerator builder functions. It takes into consideration the method
 -- and the Content-Type of the Request to build the appropiate Request Body.
--- This function will return the Body enumerator, the Content Length and the 
+-- This function will return the Body enumerator, the Content Length and the
 -- Boundary used in case this is a Multipart Request.
-processRequestBody :: (MonadIO m) 
-                   => RequestProduct 
-                   -> m ( IORef SomeEnumerator 
+processRequestBody :: (MonadIO m)
+                   => RequestProduct
+                   -> m ( IORef SomeEnumerator
                         , ContentLength
                         , Maybe Boundary
                         )
@@ -297,7 +297,7 @@ processRequestBody rqp =
     (MultipartPostRequest fileParams) -> do
       boundary     <- buildBoundary
       fileBoundary <- buildBoundary
-      let multipartBody = buildMultipartString 
+      let multipartBody = buildMultipartString
                             boundary
                             fileBoundary
                             (rqpParams rqp)
@@ -308,8 +308,8 @@ processRequestBody rqp =
              , Just $ boundary
              )
 
-    PutRequest putBody -> do
-      requestBody <- buildRequestBody putBody
+    (RequestWithRawBody _ body) -> do
+      requestBody <- buildRequestBody body
       return ( requestBody
              , S.length `liftM` (rqpBody rqp)
              , Nothing
@@ -325,11 +325,11 @@ processRequestMethod :: RequestProduct -> Method
 processRequestMethod rqp =
     case (rqpRequestType rqp) of
       GetRequest             -> GET
-      PutRequest _           -> PUT
+      RequestWithRawBody m _ -> m
       MultipartPostRequest _ -> POST
       UrlEncodedPostRequest  -> POST
       DeleteRequest          -> DELETE
-        
+
 
 -------------------------------------------------------------------------------
 -- | RequestBuilder is the Monad that will hold all the different combinators
@@ -340,15 +340,15 @@ newtype RequestBuilder m a
   deriving (Monad, MonadIO)
 
 -------------------------------------------------------------------------------
--- | This function will be the responsable of building Snap Request from the 
+-- | This function will be the responsable of building Snap Request from the
 -- RequestBuilder combinators, this Request is the one that will be used to
 -- perform Snap handlers.
 buildRequest :: (MonadIO m) => RequestBuilder m () -> m Request
-buildRequest (RequestBuilder m) = do 
-    finalRqProduct <- execStateT m 
-                        (RequestProduct GetRequest 
-                                        Map.empty 
-                                        Nothing 
+buildRequest (RequestBuilder m) = do
+    finalRqProduct <- execStateT m
+                        (RequestProduct GetRequest
+                                        Map.empty
+                                        Nothing
                                         Map.empty
                                         "x-www-form-urlencoded"
                                         False
@@ -385,17 +385,17 @@ buildRequest (RequestBuilder m) = do
 
 
 -------------------------------------------------------------------------------
-alterRequestProduct :: (Monad m) 
-                    => (RequestProduct -> RequestProduct) 
+alterRequestProduct :: (Monad m)
+                    => (RequestProduct -> RequestProduct)
                     -> RequestBuilder m ()
 alterRequestProduct fn = RequestBuilder $ State.get >>= put . fn
 
 
 -------------------------------------------------------------------------------
-setRequestType :: (Monad m) 
+setRequestType :: (Monad m)
                => RequestType
                -> RequestBuilder m ()
-setRequestType requestType = 
+setRequestType requestType =
     alterRequestProduct $ \rqp -> rqp { rqpRequestType = requestType }
 
 -------------------------------------------------------------------------------
@@ -404,11 +404,11 @@ setRequestType requestType =
 addParam :: (Monad m) => ByteString -> ByteString -> RequestBuilder m ()
 addParam name value = alterRequestProduct helper
   where
-    helper rqp 
-        = rqp { 
-          rqpParams = Map.alter (return . maybe [value] (value:)) 
-                                name 
-                                (rqpParams rqp) 
+    helper rqp
+        = rqp {
+          rqpParams = Map.alter (return . maybe [value] (value:))
+                                name
+                                (rqpParams rqp)
         }
 
 
@@ -421,11 +421,11 @@ setParams params = alterRequestProduct $ \rqp -> rqp { rqpParams = params' }
     params' = Map.fromList . map (second (:[])) $ params
 
 -------------------------------------------------------------------------------
--- Allows to set a body to the Request, this will only work as long as you use
--- the @PUT@ method. For @POST@ method the body will be created for you by the
--- API.
-setRequestBody :: (Monad m) => ByteString -> RequestBuilder m ()
-setRequestBody body = setRequestType (PutRequest body) 
+-- Changes the 'Method' of the 'Request' to the given type, and sets the
+-- contents request body to the string you supply. This probably only makes
+-- sense for 'PUT' requests.
+setRequestBody :: (Monad m) => Method -> ByteString -> RequestBuilder m ()
+setRequestBody m body = setRequestType (RequestWithRawBody m body)
 
 -------------------------------------------------------------------------------
 -- Allows to set a HTTP Header into the Snap Request.
@@ -435,7 +435,7 @@ setRequestBody body = setRequestType (PutRequest body)
 --     > response <- runHandler myHandler $ do
 --     >               setHeader "Accepts" "application/json"
 --     >               setHeader "X-Forwaded-For" "127.0.0.1"
---    
+--
 setHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
 setHeader name body = alterRequestProduct (H.setHeader name body)
 
@@ -446,13 +446,13 @@ addHeader name body = alterRequestProduct (H.addHeader name body)
 -------------------------------------------------------------------------------
 setContentType :: (Monad m) => ByteString -> RequestBuilder m ()
 setContentType contentType = do
-    alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType } 
+    alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
     setHeader "Content-Type" contentType
 
 -------------------------------------------------------------------------------
 -- Sets the Content-Type to x-www-form-urlencoded, this is the default.
-formUrlEncoded :: (Monad m) 
-               => Method 
+formUrlEncoded :: (Monad m)
+               => Method
                -> RequestBuilder m ()
 formUrlEncoded method
   | method == GET  = do
@@ -461,26 +461,20 @@ formUrlEncoded method
   | method == POST = do
     setContentType contentType
     setRequestType UrlEncodedPostRequest
-  | method == DELETE = do
-    setContentType contentType
-    setRequestType DeleteRequest
-  | method == PUT = do
-    setContentType contentType
-    setRequestType (PutRequest "")
-  | otherwise = 
+  | otherwise =
       error $ "Can't set a UrlEncoded Request with method " ++ (show method)
   where
     contentType = "x-www-form-urlencoded"
-      
+
 
 -------------------------------------------------------------------------------
 -- Sets the Content-Type tp multipart/form-data, useful when submitting Files.
-multipartEncoded :: (Monad m) 
-                 => [(ByteString, (ByteString, ByteString))] 
+multipartEncoded :: (Monad m)
+                 => [(ByteString, (ByteString, ByteString))]
                  -> RequestBuilder m ()
 multipartEncoded fileParams = do
     setContentType "multipart/form-data"
-    let fileParams' = Map.fromList . map (second (:[])) $ fileParams 
+    let fileParams' = Map.fromList . map (second (:[])) $ fileParams
     setRequestType (MultipartPostRequest fileParams')
 
 -------------------------------------------------------------------------------
@@ -495,7 +489,7 @@ setURI uri = alterRequestProduct $ \rqp -> rqp { rqpURI = uri }
 
 -------------------------------------------------------------------------------
 -- Utility function that allows to create a GET request, using the parameters
--- given by the list of key-values. The Content-Type of the Request will be 
+-- given by the list of key-values. The Content-Type of the Request will be
 -- x-www-form-urlencoded.
 --
 -- Usage:
@@ -505,8 +499,8 @@ setURI uri = alterRequestProduct $ \rqp -> rqp { rqpURI = uri }
 --     >               setHeader "Accepts" "application/json"
 --     >
 --
-get :: (Monad m) => ByteString -> 
-                    [(ByteString, ByteString)] -> 
+get :: (Monad m) => ByteString ->
+                    [(ByteString, ByteString)] ->
                     RequestBuilder m ()
 get uri params = do
   formUrlEncoded GET
@@ -515,7 +509,7 @@ get uri params = do
 
 
 -------------------------------------------------------------------------------
--- Allows the creation of POST requests, using the parameters provided by the 
+-- Allows the creation of POST requests, using the parameters provided by the
 -- list of key-values. The Content-Type of the Request will be
 -- x-www-form-urlencoded.
 --
@@ -528,9 +522,9 @@ get uri params = do
 --     >               setHeader "Accepts" "application/json"
 --     >
 --
-postUrlEncoded :: (Monad m) 
-               => ByteString 
-               -> [(ByteString, ByteString)] 
+postUrlEncoded :: (Monad m)
+               => ByteString
+               -> [(ByteString, ByteString)]
                -> RequestBuilder m ()
 postUrlEncoded uri params = do
     formUrlEncoded POST
@@ -538,20 +532,20 @@ postUrlEncoded uri params = do
     setParams params
 
 -------------------------------------------------------------------------------
--- Allows the creation of POST request, that will include normal HTTP 
+-- Allows the creation of POST request, that will include normal HTTP
 -- parameters and File parameters, using the multipart/form-data Content-Type.
 --
 -- Usage:
---  
+--
 --     > photoContent <- ByteString.readFile "photo.jpg"
 --     > response     <- runHandler handler $ do
 --     >                   postMultipart "/picture/upload"
 --     >                                 []
 --     >                                 [("photo", ("photo.jpg", photoContent))]
 --     >
-postMultipart :: (Monad m) => ByteString -> 
-                              [(ByteString, ByteString)] -> 
-                              [(ByteString, (ByteString, ByteString))] -> 
+postMultipart :: (Monad m) => ByteString ->
+                              [(ByteString, ByteString)] ->
+                              [(ByteString, (ByteString, ByteString))] ->
                               RequestBuilder m ()
 postMultipart uri params fileParams = do
   multipartEncoded fileParams
@@ -565,7 +559,7 @@ postMultipart uri params fileParams = do
 runHandler :: (MonadIO m) => Snap a -> RequestBuilder m () -> m Response
 runHandler handler requestSpec = do
   request       <- buildRequest requestSpec
-  (_, response) <- liftIO $ run_ $ runSnap handler 
+  (_, response) <- liftIO $ run_ $ runSnap handler
                                     (const $ return ())
                                     (const $ return ())
                                     request

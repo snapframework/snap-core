@@ -62,7 +62,7 @@ testSetRequestBody :: Test
 testSetRequestBody = testCase "test/requestBuilder/setBody" $ do
   request <- buildRequest $ do
                -- setRequestBody sets the PUT Method on the Request
-               setRequestBody "Hello World"
+               setRequestBody PUT "Hello World"
   body <- getBody request
   assertEqual "RequestBuilder setBody not working with PUT method" 
               "Hello World"
@@ -79,11 +79,11 @@ testSetHeader = testCase "test/requestBuilder/setHeader" $ do
 testAddHeader :: Test
 testAddHeader = testCase "test/requestBuilder/addHeader" $ do
   request <- buildRequest $ do
-               addHeader "X-Forwaded-For" "127.0.0.1"
-               addHeader "X-Forwaded-For" "192.168.1.0"
+               addHeader "X-Forwarded-For" "127.0.0.1"
+               addHeader "X-Forwarded-For" "192.168.1.0"
   assertEqual "RequestBuilder addHeader not working"
               (Just ["192.168.1.0", "127.0.0.1"])
-              (Map.lookup "X-Forwaded-For" (rqHeaders request))
+              (Map.lookup "X-Forwarded-For" (rqHeaders request))
 
 testBuildQueryString :: Test
 testBuildQueryString = testCase "test/requestBuilder/buildQueryString" $ do
