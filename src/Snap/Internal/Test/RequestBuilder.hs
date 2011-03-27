@@ -8,28 +8,28 @@ module Snap.Internal.Test.RequestBuilder where
 
 -------------------------------------------------------------------------------
 import qualified Blaze.ByteString.Builder as Blaze
-import           Data.Bits ((.&.))
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Base16 as B16
-import           Data.CIByteString (CIByteString)
-import           Data.Monoid (mconcat)
-import           Control.Arrow (second)
-import           Control.Monad (liftM)
-import           Control.Monad.State (MonadState, StateT, put, execStateT)
-import qualified Control.Monad.State as State
-import           Control.Monad.Trans (MonadIO(..), liftIO)
-import           Data.Enumerator (runIteratee, run_, returnI)
-import           Data.Enumerator.List (consume)
-import           Data.IORef (IORef, newIORef, readIORef)
-import qualified Data.Map as Map
-import           System.Random (randoms, newStdGen)
+import           Data.Bits                ((.&.))
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString.Char8    as S
+import qualified Data.ByteString.Base16   as B16
+import           Data.CIByteString        (CIByteString)
+import           Data.Monoid              (mconcat)
+import           Control.Arrow            (second)
+import           Control.Monad            (liftM)
+import           Control.Monad.State      (MonadState, StateT, put, execStateT)
+import qualified Control.Monad.State      as State
+import           Control.Monad.Trans      (MonadIO(..), liftIO)
+import           Data.Enumerator          (runIteratee, run_, returnI)
+import           Data.Enumerator.List     (consume)
+import           Data.IORef               (IORef, newIORef, readIORef)
+import qualified Data.Map                 as Map
+import           System.Random            (randoms, newStdGen)
 -------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types hiding (setContentType, setHeader)
 import qualified Snap.Internal.Http.Types as H
-import           Snap.Types (Snap, runSnap) 
-import           Snap.Iteratee (enumBS)
-import           Snap.Util.FileServe (defaultMimeTypes, fileType)
+import           Snap.Types               (Snap, runSnap)
+import           Snap.Iteratee            (enumBS)
+import           Snap.Util.FileServe      (defaultMimeTypes, fileType)
 
 -------------------------------------------------------------------------------
 -- | A type alias for Content-Lengths of Requests Bodies.
