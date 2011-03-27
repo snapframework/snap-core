@@ -319,6 +319,17 @@ method m action = do
 
 
 ------------------------------------------------------------------------------
+-- | Runs a 'Snap' monad action only if the request's HTTP method matches
+-- one of the given methods.
+methods :: MonadSnap m => [Method] -> m a -> m a
+methods ms action = do
+    req <- getRequest
+    unless (rqMethod req `elem` ms) pass
+    action
+{-# INLINE methods #-}
+
+
+------------------------------------------------------------------------------
 -- Appends n bytes of the path info to the context path with a
 -- trailing slash.
 updateContextPath :: Int -> Request -> Request
