@@ -25,7 +25,7 @@ import           Data.IORef (IORef, newIORef, readIORef)
 import qualified Data.Map as Map
 import           System.Random (randoms, newStdGen)
 -------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types hiding (setHeader)
+import           Snap.Internal.Http.Types hiding (setContentType, setHeader)
 import qualified Snap.Internal.Http.Types as H
 import           Snap.Types (Snap, runSnap) 
 import           Snap.Iteratee (enumBS)
@@ -44,6 +44,14 @@ type Boundary      = ByteString
 -- a Multipart Request.
 type FileParams    = Map.Map ByteString [(ByteString, ByteString)]
 
+data RequestType 
+    = GetRequest
+    | PutRequest ByteString
+    | MultipartPostRequest FileParams
+    | UrlEncodedPostRequest
+    | DeleteRequest
+    deriving (Show)
+
 -------------------------------------------------------------------------------
 -- | A Data type that will hold temporal values that later on will be used
 -- to build Snap Request. Is really similar to the Request Data type, the only
@@ -51,9 +59,8 @@ type FileParams    = Map.Map ByteString [(ByteString, ByteString)]
 -- and the File params.
 data RequestProduct =
     RequestProduct {
-      rqpMethod      :: Method
+      rqpRequestType :: RequestType
     , rqpParams      :: Params
-    , rqpFileParams  :: FileParams
     , rqpBody        :: Maybe ByteString
     , rqpHeaders     :: Headers
     , rqpContentType :: ByteString
@@ -238,8 +245,8 @@ processQueryString _   _  = ""
 processRequestURI :: RequestProduct 
                   -> ByteString
 processRequestURI rqp = 
-    case (rqpMethod rqp) of
-      GET 
+    case (rqpRequestType rqp) of
+      GetRequest
         | (Map.null (rqpParams rqp)) -> (rqpURI rqp)
         | otherwise -> S.concat [ (rqpURI rqp)
                                 , "?"
@@ -276,45 +283,53 @@ processRequestBody :: (MonadIO m)
                         , ContentLength
                         , Maybe Boundary
                         )
-processRequestBody rqp
-  | (rqpMethod rqp) == POST && 
-    (rqpContentType rqp) == "x-www-form-urlencoded"
-    = do
-      let qs = buildQueryString (rqpParams rqp)
-      requestBody <- buildRequestBody qs
-      return ( requestBody
-             , Just $ S.length qs
-             , Nothing
-             )
+processRequestBody rqp =
+  case (rqpRequestType rqp) of
 
-  | (rqpMethod rqp) == POST &&
-    (rqpContentType rqp) == "multipart/form-data"
-    = do
+    UrlEncodedPostRequest -> do
+        let qs = buildQueryString (rqpParams rqp)
+        requestBody <- buildRequestBody qs
+        return ( requestBody
+               , Just $ S.length qs
+               , Nothing
+               )
+
+    (MultipartPostRequest fileParams) -> do
       boundary     <- buildBoundary
       fileBoundary <- buildBoundary
       let multipartBody = buildMultipartString 
                             boundary
                             fileBoundary
                             (rqpParams rqp)
-                            (rqpFileParams rqp)
+                            fileParams
       requestBody <- buildRequestBody multipartBody
       return ( requestBody
              , Just $ S.length multipartBody
              , Just $ boundary
              )
 
-  | (rqpMethod rqp) == PUT
-    = do 
-      requestBody <- maybe emptyRequestBody buildRequestBody (rqpBody rqp)
+    PutRequest putBody -> do
+      requestBody <- buildRequestBody putBody
       return ( requestBody
              , S.length `liftM` (rqpBody rqp)
              , Nothing
              )
 
-  | otherwise = do 
-    requestBody <- emptyRequestBody
-    return (requestBody, Nothing, Nothing)
+    _ -> do
+      requestBody <- emptyRequestBody
+      return (requestBody, Nothing, Nothing)
 
+
+-------------------------------------------------------------------------------
+processRequestMethod :: RequestProduct -> Method
+processRequestMethod rqp =
+    case (rqpRequestType rqp) of
+      GetRequest             -> GET
+      PutRequest _           -> PUT
+      MultipartPostRequest _ -> POST
+      UrlEncodedPostRequest  -> POST
+      DeleteRequest          -> DELETE
+        
 
 -------------------------------------------------------------------------------
 -- | RequestBuilder is the Monad that will hold all the different combinators
@@ -324,48 +339,49 @@ newtype RequestBuilder m a
   = RequestBuilder (StateT RequestProduct m a)
   deriving (Monad, MonadIO)
 
-
 -------------------------------------------------------------------------------
 -- | This function will be the responsable of building Snap Request from the 
 -- RequestBuilder combinators, this Request is the one that will be used to
 -- perform Snap handlers.
 buildRequest :: (MonadIO m) => RequestBuilder m () -> m Request
 buildRequest (RequestBuilder m) = do 
-  finalRqProduct <- execStateT m 
-                      (RequestProduct GET 
-                                      Map.empty 
-                                      Map.empty
-                                      Nothing 
-                                      Map.empty
-                                      "x-www-form-urlencoded"
-                                      False
-                                      "")
-  (requestBody, contentLength, boundary)  <- processRequestBody finalRqProduct
-  let requestURI     = processRequestURI finalRqProduct
-  let requestHeaders = processRequestHeaders boundary finalRqProduct
-  return $ Request {
-        rqServerName    = "localhost"
-      , rqServerPort    = 80
-      , rqRemoteAddr    = "127.0.0.1"
-      , rqRemotePort    = 80
-      , rqLocalAddr     = "127.0.0.1"
-      , rqLocalPort     = 80
-      , rqLocalHostname = "localhost"
-      , rqIsSecure      = (rqpIsSecure finalRqProduct)
-      , rqHeaders       = requestHeaders
-      , rqBody          = requestBody
-      , rqContentLength = contentLength
-      , rqMethod        = (rqpMethod finalRqProduct)
-      , rqVersion       = (1,1)
-      , rqCookies       = []
-      , rqSnapletPath   = ""
-      , rqPathInfo      = (rqpURI finalRqProduct)
-      , rqContextPath   = ""
-      , rqURI           = requestURI
-      , rqQueryString   = processQueryString (rqpMethod finalRqProduct) 
-                                             (rqpParams finalRqProduct)
-      , rqParams        = (rqpParams finalRqProduct)
-      }
+    finalRqProduct <- execStateT m 
+                        (RequestProduct GetRequest 
+                                        Map.empty 
+                                        Nothing 
+                                        Map.empty
+                                        "x-www-form-urlencoded"
+                                        False
+                                        "")
+
+    (requestBody, contentLength, boundary) <- processRequestBody finalRqProduct
+    let requestURI     = processRequestURI finalRqProduct
+    let requestHeaders = processRequestHeaders boundary finalRqProduct
+    let requestMethod  = processRequestMethod finalRqProduct
+
+    return $ Request {
+          rqServerName    = "localhost"
+        , rqServerPort    = 80
+        , rqRemoteAddr    = "127.0.0.1"
+        , rqRemotePort    = 80
+        , rqLocalAddr     = "127.0.0.1"
+        , rqLocalPort     = 80
+        , rqLocalHostname = "localhost"
+        , rqIsSecure      = (rqpIsSecure finalRqProduct)
+        , rqHeaders       = requestHeaders
+        , rqBody          = requestBody
+        , rqContentLength = contentLength
+        , rqMethod        = requestMethod
+        , rqVersion       = (1,1)
+        , rqCookies       = []
+        , rqSnapletPath   = ""
+        , rqPathInfo      = (rqpURI finalRqProduct)
+        , rqContextPath   = ""
+        , rqURI           = requestURI
+        , rqQueryString   = processQueryString requestMethod
+                                               (rqpParams finalRqProduct)
+        , rqParams        = (rqpParams finalRqProduct)
+        }
 
 
 -------------------------------------------------------------------------------
@@ -374,11 +390,13 @@ alterRequestProduct :: (Monad m)
                     -> RequestBuilder m ()
 alterRequestProduct fn = RequestBuilder $ State.get >>= put . fn
 
--------------------------------------------------------------------------------
--- Allows you to set the HTTP Method of a Request.
-setMethod :: (Monad m) => Method -> RequestBuilder m ()
-setMethod method = alterRequestProduct $ \rqp -> rqp { rqpMethod = method }
 
+-------------------------------------------------------------------------------
+setRequestType :: (Monad m) 
+               => RequestType
+               -> RequestBuilder m ()
+setRequestType requestType = 
+    alterRequestProduct $ \rqp -> rqp { rqpRequestType = requestType }
 
 -------------------------------------------------------------------------------
 -- Allows you to add a value to an existing parameter. This will not replace
@@ -403,24 +421,11 @@ setParams params = alterRequestProduct $ \rqp -> rqp { rqpParams = params' }
     params' = Map.fromList . map (second (:[])) $ params
 
 -------------------------------------------------------------------------------
--- Allows you to set a List of key-value pairs, this will be later used by the
--- Request as the files given by the utility functions in the
--- @Snap.Util.FileUpload@ module.
-setFileParams :: (Monad m) 
-              => [(ByteString, (ByteString, ByteString))] 
-              -> RequestBuilder m ()
-setFileParams fparams = 
-    alterRequestProduct $ \rqp -> rqp { rqpFileParams = fparams' }
-  where
-    fparams' = Map.fromList . map (second (:[])) $ fparams
-
--------------------------------------------------------------------------------
 -- Allows to set a body to the Request, this will only work as long as you use
 -- the @PUT@ method. For @POST@ method the body will be created for you by the
 -- API.
 setRequestBody :: (Monad m) => ByteString -> RequestBuilder m ()
-setRequestBody body = 
-    alterRequestProduct $ \rqp -> rqp { rqpBody = Just body }
+setRequestBody body = setRequestType (PutRequest body) 
 
 -------------------------------------------------------------------------------
 -- Allows to set a HTTP Header into the Snap Request.
@@ -439,20 +444,44 @@ addHeader :: (Monad m) => CIByteString -> ByteString -> RequestBuilder m ()
 addHeader name body = alterRequestProduct (H.addHeader name body)
 
 -------------------------------------------------------------------------------
+setContentType :: (Monad m) => ByteString -> RequestBuilder m ()
+setContentType contentType = do
+    alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType } 
+    setHeader "Content-Type" contentType
+
+-------------------------------------------------------------------------------
 -- Sets the Content-Type to x-www-form-urlencoded, this is the default.
-formUrlEncoded :: (Monad m) => RequestBuilder m ()
-formUrlEncoded = do
-    let contentType = "x-www-form-urlencoded"
-    setHeader "Content-Type"  contentType 
-    alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
+formUrlEncoded :: (Monad m) 
+               => Method 
+               -> RequestBuilder m ()
+formUrlEncoded method
+  | method == GET  = do
+    setContentType contentType
+    setRequestType GetRequest
+  | method == POST = do
+    setContentType contentType
+    setRequestType UrlEncodedPostRequest
+  | method == DELETE = do
+    setContentType contentType
+    setRequestType DeleteRequest
+  | method == PUT = do
+    setContentType contentType
+    setRequestType (PutRequest "")
+  | otherwise = 
+      error $ "Can't set a UrlEncoded Request with method " ++ (show method)
+  where
+    contentType = "x-www-form-urlencoded"
+      
 
 -------------------------------------------------------------------------------
 -- Sets the Content-Type tp multipart/form-data, useful when submitting Files.
-multipartEncoded :: (Monad m) => RequestBuilder m ()
-multipartEncoded = do
-    let contentType = "multipart/form-data"
-    setHeader "Content-Type" contentType
-    alterRequestProduct $ \rqp -> rqp { rqpContentType = contentType }
+multipartEncoded :: (Monad m) 
+                 => [(ByteString, (ByteString, ByteString))] 
+                 -> RequestBuilder m ()
+multipartEncoded fileParams = do
+    setContentType "multipart/form-data"
+    let fileParams' = Map.fromList . map (second (:[])) $ fileParams 
+    setRequestType (MultipartPostRequest fileParams')
 
 -------------------------------------------------------------------------------
 -- Allows to set the Request as one using the HTTPS protocol.
@@ -480,8 +509,7 @@ get :: (Monad m) => ByteString ->
                     [(ByteString, ByteString)] -> 
                     RequestBuilder m ()
 get uri params = do
-  formUrlEncoded
-  setMethod GET
+  formUrlEncoded GET
   setURI uri
   setParams params
 
@@ -500,14 +528,14 @@ get uri params = do
 --     >               setHeader "Accepts" "application/json"
 --     >
 --
-postUrlEncoded :: (Monad m) => ByteString -> 
-                               [(ByteString, ByteString)] -> 
-                               RequestBuilder m ()
+postUrlEncoded :: (Monad m) 
+               => ByteString 
+               -> [(ByteString, ByteString)] 
+               -> RequestBuilder m ()
 postUrlEncoded uri params = do
-  formUrlEncoded
-  setMethod POST
-  setURI uri
-  setParams params
+    formUrlEncoded POST
+    setURI uri
+    setParams params
 
 -------------------------------------------------------------------------------
 -- Allows the creation of POST request, that will include normal HTTP 
@@ -526,11 +554,9 @@ postMultipart :: (Monad m) => ByteString ->
                               [(ByteString, (ByteString, ByteString))] -> 
                               RequestBuilder m ()
 postMultipart uri params fileParams = do
-  multipartEncoded
-  setMethod POST
+  multipartEncoded fileParams
   setURI uri
   setParams params
-  setFileParams fileParams
 
 -------------------------------------------------------------------------------
 -- Request Runner

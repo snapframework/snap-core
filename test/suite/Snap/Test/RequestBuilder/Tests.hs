@@ -20,7 +20,7 @@ import           Snap.Internal.Test.RequestBuilder
 
 tests :: [Test]
 tests = [
-          testSetMethod
+          testSetRequestType
         , testAddParam
         , testSetParams
         , testSetRequestBody
@@ -35,11 +35,11 @@ tests = [
         , testRunHandler
         ]
 
-testSetMethod :: Test
-testSetMethod = testCase "test/requestBuilder/setMethod" $ do
-  request <- buildRequest $ do
-               setMethod PUT
-  assertEqual "RequestBuilder setMethod not working" PUT (rqMethod request)
+testSetRequestType :: Test
+testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do 
+    request <- buildRequest $ do
+                 setRequestType GetRequest
+    assertEqual "RequestBuilder setRequestType not working" GET (rqMethod request)
 
 testAddParam :: Test
 testAddParam = testCase "test/requestBuilder/addParam" $ do
@@ -61,7 +61,7 @@ testSetParams = testCase "test/requestBuilder/setParams" $ do
 testSetRequestBody :: Test
 testSetRequestBody = testCase "test/requestBuilder/setBody" $ do
   request <- buildRequest $ do
-               setMethod PUT
+               -- setRequestBody sets the PUT Method on the Request
                setRequestBody "Hello World"
   body <- getBody request
   assertEqual "RequestBuilder setBody not working with PUT method" 
@@ -104,22 +104,20 @@ testBuildQueryString = testCase "test/requestBuilder/buildQueryString" $ do
 testFormUrlEncoded :: Test
 testFormUrlEncoded = testCase "test/requestBuilder/formUrlEncoded" $ do
   request1 <- buildRequest $ do
-                formUrlEncoded
+                formUrlEncoded GET
   assertEqual "RequestBuilder formUrlEncoded not working"
               (Just ["x-www-form-urlencoded"])
               (Map.lookup "Content-Type" (rqHeaders request1))
 
   request2 <- buildRequest $ do
-                setMethod GET
-                formUrlEncoded
+                formUrlEncoded GET
                 setParams [("name", "John"), ("age", "21")]
   assertEqual "RequestBuilder formUrlEncoded invalid query string" 
               "age=21&name=John"
               (rqQueryString request2)
 
   request3 <- buildRequest $ do
-                setMethod POST
-                formUrlEncoded
+                formUrlEncoded POST
                 setParams [("name", "John"), ("age", "21")]
   body3    <- getBody request3
   assertEqual "RequestBuilder formUrlEncoded invalid query string on body"
@@ -192,13 +190,12 @@ testBuildMultipartString = testCase "test/requestBuilder/buildMultipartString" $
 testMultipartEncoded :: Test
 testMultipartEncoded = testCase "test/requestBuilder/multipartEncoded" $ do
   request <- buildRequest $ do
-               setMethod POST
-               multipartEncoded 
+               multipartEncoded []
                setParams [("name", "John"), ("age", "21")]
 
   let contentType = fromJust $ T.getHeader "Content-Type" request
-      boundary    = S.tail $ S.dropWhile (/= '=') contentType 
-
+  let boundary    = S.tail $ S.dropWhile (/= '=') contentType 
+  
   body    <- getBody request
   assertEqual "RequestBuilder multipartEncoded not working"
               (buildMultipartString boundary "" (rqParams request) Map.empty)
@@ -221,7 +218,7 @@ testSetURI = testCase "test/requestBuilder/setURI" $ do
               (rqURI request1)
 
   request2 <- buildRequest $ do
-                setMethod GET
+                formUrlEncoded GET
                 setURI "/users"
                 addParam "name" "John"
                 addParam "age"  "25"
