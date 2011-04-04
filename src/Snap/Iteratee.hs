@@ -129,7 +129,6 @@ import           System.PosixCompat.Files
 import           System.PosixCompat.Types
 #endif
 
-
 ------------------------------------------------------------------------------
 instance (Functor m, MonadCatchIO m) =>
          MonadCatchIO (Iteratee s m) where
@@ -139,11 +138,7 @@ instance (Functor m, MonadCatchIO m) =>
         insideCatch !mm = Iteratee $ do
             ee <- try $ runIteratee mm
             case ee of 
-                -- if we got an async exception here then the iteratee workflow is
-                -- all messed up, we have no reasonable choice but to send EOF to the
-                -- handler, because the unparsed input got lost. If the enumerator
-                -- sends more chunks we can possibly recover later.
-                (Left e)  -> runIteratee (enumEOF $$ handler e)
+                (Left e)  -> runIteratee $ handler e
                 (Right v) -> step v
 
         step (Continue !k)  = do
