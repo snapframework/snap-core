@@ -117,7 +117,8 @@ Library
     Snap.Internal.Parsing,
     Snap.Util.FileServe,
     Snap.Util.FileUploads,
-    Snap.Util.GZip
+    Snap.Util.GZip,
+    Snap.Util.Readable
 
   other-modules:
     Snap.Internal.Instances,

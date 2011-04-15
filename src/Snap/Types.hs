@@ -22,6 +22,7 @@ module Snap.Types
   , method
   , methods
   , path
+  , pathArg
   , dir
   , ifTop
   , route

@@ -32,8 +32,9 @@ import           Prelude hiding (catch, take)
 
 ------------------------------------------------------------------
 import           Snap.Internal.Http.Types
-import           Snap.Iteratee
 import           Snap.Internal.Iteratee.Debug
+import           Snap.Util.Readable
+import           Snap.Iteratee
 
 
 ------------------------------------------------------------------------------
@@ -388,6 +389,19 @@ path :: MonadSnap m
 path = pathWith (==)
 {-# INLINE path #-}
 
+
+------------------------------------------------------------------------------
+-- | Runs a 'Snap' monad action only when the first path component is
+-- successfully parsed as the argument to the supplied handler function.
+pathArg :: (Readable a, MonadSnap m)
+        => (a -> m b)
+        -> m b
+pathArg f = do
+    req <- getRequest
+    let (p,_) = S.break (=='/') (rqPathInfo req)
+    a <- fromBS p
+    localRequest (updateContextPath $ S.length p) (f a)
+    
 
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only when 'rqPathInfo' is empty.
