@@ -104,6 +104,7 @@ module Snap.Types
   , deleteResponseCookie
   , modifyResponseCookie
   , getCookie
+  , readCookie
   , setContentLength
   , clearContentLength
   , redirect

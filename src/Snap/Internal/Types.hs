@@ -806,6 +806,15 @@ getCookie name = withRequest $
 
 
 ------------------------------------------------------------------------------
+-- | Gets the HTTP 'Cookie' with the specified name and decodes it.  If the
+-- decoding fails, the handler calls pass.
+readCookie :: (MonadSnap m, Readable a)
+           => ByteString
+           -> m a
+readCookie name = maybe pass (fromBS . cookieValue) =<< getCookie name
+
+
+------------------------------------------------------------------------------
 -- | Causes the handler thread to be killed @n@ seconds from now.
 setTimeout :: MonadSnap m
            => Int -> m ()
