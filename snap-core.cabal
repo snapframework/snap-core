@@ -105,7 +105,7 @@ Library
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
-    build-depends: bytestring-mmap >= 0.2.1 && <0.3
+    build-depends: bytestring-mmap >= 0.2.2 && <0.3
 
   exposed-modules:
     Data.CIByteString,
