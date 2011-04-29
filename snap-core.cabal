@@ -130,7 +130,7 @@ Library
     attoparsec >= 0.8.0.2 && < 0.9,
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
-    blaze-builder >= 0.2.1.4 && <0.3,
+    blaze-builder >= 0.2.1.4 && <0.4,
     bytestring,
     bytestring-nums,
     containers,
