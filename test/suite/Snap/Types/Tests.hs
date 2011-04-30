@@ -8,7 +8,8 @@ module Snap.Types.Tests
 import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Concurrent.MVar
-import           Control.Exception (SomeException)
+import           Control.DeepSeq
+import           Control.Exception (ErrorCall(..), SomeException, throwIO)
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans (liftIO)
@@ -16,7 +17,9 @@ import           Control.Parallel.Strategies
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified Data.IntMap as IM
 import           Data.IORef
+import           Data.Maybe (isJust)
 import           Data.Monoid
 import           Data.Text ()
 import           Data.Text.Lazy ()
@@ -30,7 +33,7 @@ import           Test.HUnit hiding (Test, path)
 import           Snap.Internal.Types
 import           Snap.Internal.Http.Types
 import           Snap.Iteratee
-import           Snap.Test.Common ()
+import           Snap.Test.Common
 
 
 tests :: [Test]
@@ -41,6 +44,7 @@ tests = [ testFail
         , testRqBody
         , testTrivials
         , testMethod
+        , testMethods
         , testDir
         , testCatchIO
         , testWrites
@@ -52,7 +56,8 @@ tests = [ testFail
         , testMZero404
         , testEvalSnap
         , testLocalRequest
-        , testRedirect ]
+        , testRedirect
+        , testBracketSnap ]
 
 
 expectException :: IO () -> IO ()
@@ -61,6 +66,17 @@ expectException m = do
     let b = either (\e -> show e `using` rdeepseq `seq` True)
                    (const False) r
     assertBool "expected exception" b
+
+
+expectSpecificException :: Exception e => e -> IO () -> IO ()
+expectSpecificException e0 m = do
+    r <- (try m :: IO (Either SomeException ()))
+
+    let b = either (\se -> isJust $
+                           forceSameType (Just e0) (fromException se))
+                   (const False)
+                   r
+    assertBool ("expected specific exception: " ++ show e0) b
 
 
 expect404 :: IO (Request,Response) -> IO ()
@@ -218,6 +234,56 @@ testEarlyTermination = testCase "types/earlyTermination" $ do
     assertEqual "foo" (Just ["Quux"]) $ getHeaders "Foo" resp
 
 
+isLeft :: Either a b -> Bool
+isLeft (Left _) = True
+isLeft _        = False
+
+isRight :: Either a b -> Bool
+isRight (Right _) = True
+isRight _         = False
+
+
+testBracketSnap :: Test
+testBracketSnap = testCase "types/bracketSnap" $ do
+    rq <- mkZomgRq
+
+    ref <- newIORef 0
+
+    expectSpecificException NoHandlerException $
+        run_ $ evalSnap (act ref) (const $ return ()) (const $ return ()) rq
+
+    y <- readIORef ref
+    assertEqual "bracketSnap/after1" (1::Int) y
+
+    expectSpecificException (ErrorCall "no value") $
+        run_ $ evalSnap (act ref <|> finishWith emptyResponse)
+                        (const $ return ())
+                        (const $ return ())
+                        rq
+                         
+    y' <- readIORef ref
+    assertEqual "bracketSnap/after" 2 y'
+
+
+    expectSpecificException (ErrorCall "foo") $
+        run_ $ evalSnap (act2 ref)
+                        (const $ return ())
+                        (const $ return ())
+                        rq
+                         
+    y'' <- readIORef ref
+    assertEqual "bracketSnap/after" 3 y''
+
+  where
+    act ref = bracketSnap (liftIO $ readIORef ref)
+                          (\z -> liftIO $ writeIORef ref $! z+1)
+                          (\z -> z `seq` mzero)
+
+    act2 ref = bracketSnap (liftIO $ readIORef ref)
+                           (\z -> liftIO $ writeIORef ref $! z+1)
+                           (\z -> z `seq` liftIO $ throwIO $ ErrorCall "foo")
+
+
 testCatchFinishWith :: Test
 testCatchFinishWith = testCase "types/catchFinishWith" $ do
     rq <- mkZomgRq
@@ -231,13 +297,6 @@ testCatchFinishWith = testCase "types/catchFinishWith" $ do
                          (const $ return ())
                          rq
     assertBool "catchFinishWith" $ isRight y
-
-  where
-    isLeft (Left _) = True
-    isLeft _        = False
-
-    isRight (Right _) = True
-    isRight _         = False
 
 
 testRqBody :: Test
@@ -293,14 +352,23 @@ testTrivials = testCase "types/trivials" $ do
         withRequest $ return . (`seq` ())
         withResponse $ return . (`seq` ())
 
-
         return ()
 
     b <- getBody rsp
-    let !_ = show b `using` rdeepseq
+    coverShowInstance b
+    coverShowInstance NoHandlerException
+    coverShowInstance GET
+    coverReadInstance GET
+    coverEqInstance GET
+    coverEqInstance NoHandlerException
+    coverOrdInstance GET
 
+    Prelude.map (\(x,y) -> (x,show y)) (IM.toList statusReasonMap)
+            `deepseq` return ()
 
-    let !_ = show NoHandlerException `seq` ()
+    let cookie = Cookie "" "" Nothing Nothing Nothing
+    coverEqInstance cookie
+    coverShowInstance cookie
 
     assertEqual "rq secure" True $ rqIsSecure rq
     assertEqual "rsp status" 333 $ rspStatus rsp
@@ -310,6 +378,14 @@ testMethod :: Test
 testMethod = testCase "types/method" $ do
    expect404 $ go (method POST $ return ())
    expectNo404 $ go (method GET $ return ())
+
+testMethods :: Test
+testMethods = testCase "types/methods" $ do
+   expect404 $ go (methods [POST,PUT] $ return ())
+   expectNo404 $ go (methods [GET] $ return ())
+   expectNo404 $ go (methods [POST,GET] $ return ())
+   expectNo404 $ go (methods [PUT,GET] $ return ())
+   expectNo404 $ go (methods [GET,PUT,DELETE] $ return ())
 
 
 testDir :: Test
@@ -441,6 +517,9 @@ testRedirect :: Test
 testRedirect = testCase "types/redirect" $ do
     (_,rsp)  <- go (redirect "/foo/bar")
 
+    b <- getBody rsp
+    assertEqual "no response body" "" b
+    assertEqual "response content length" (Just 0) $ rspContentLength rsp
     assertEqual "redirect path" (Just "/foo/bar") $ getHeader "Location" rsp
     assertEqual "redirect status" 302 $ rspStatus rsp
     assertEqual "status description" "Found" $ rspStatusReason rsp
