@@ -470,13 +470,6 @@ take' !n st@(Continue k) = do
 takeExactly :: (Monad m)
             => Int64
             -> Enumeratee ByteString ByteString m a
-takeExactly 0   s = do
-    s' <- lift $ runIteratee $ enumEOF s
-    case s' of
-      (Continue _) -> error "divergent iteratee"
-      (Error e)    -> throwError e
-      (Yield v _)  -> yield (Yield v EOF) EOF
-
 takeExactly !n  y@(Yield _ _ ) = drop' n >> return y
 takeExactly _     (Error e   ) = throwError e
 takeExactly !n st@(Continue !k) = do
