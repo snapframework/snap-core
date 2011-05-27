@@ -221,7 +221,11 @@ data DirectoryConfig m = DirectoryConfig {
     dynamicHandlers :: HandlerMap m,
 
     -- | MIME type map to look up content types.
-    mimeTypes       :: MimeMap
+    mimeTypes       :: MimeMap,
+
+    -- | Handler that is called before a file is served.  It will only be
+    -- called when a file is actually found, not for generated index pages.
+    preServeHook    :: FilePath -> m ()
     }
 
 
@@ -328,13 +332,14 @@ defaultIndexGenerator mm styles d = do
 ------------------------------------------------------------------------------
 -- | A very simple configuration for directory serving.  This configuration
 -- uses built-in MIME types from 'defaultMimeTypes', and has no index files,
--- index generator, or dynamic file handlers.
+-- index generator, dynamic file handlers, or 'preServeHook'.
 simpleDirectoryConfig :: MonadSnap m => DirectoryConfig m
 simpleDirectoryConfig = DirectoryConfig {
     indexFiles = [],
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes
+    mimeTypes = defaultMimeTypes,
+    preServeHook = const $ return ()
     }
 
 
@@ -342,13 +347,15 @@ simpleDirectoryConfig = DirectoryConfig {
 -- | A reasonable default configuration for directory serving.  This
 -- configuration uses built-in MIME types from 'defaultMimeTypes', serves
 -- common index files @index.html@ and @index.htm@, but does not autogenerate
--- directory indexes, nor have any dynamic file handlers.
+-- directory indexes, nor have any dynamic file handlers. The 'preServeHook'
+-- will not do anything.
 defaultDirectoryConfig :: MonadSnap m => DirectoryConfig m
 defaultDirectoryConfig = DirectoryConfig {
     indexFiles = ["index.html", "index.htm"],
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes
+    mimeTypes = defaultMimeTypes,
+    preServeHook = const $ return ()
     }
 
 
@@ -356,8 +363,8 @@ defaultDirectoryConfig = DirectoryConfig {
 -- | A more elaborate configuration for file serving.  This configuration
 -- uses built-in MIME types from 'defaultMimeTypes', serves common index files
 -- @index.html@ and @index.htm@, and autogenerates directory indexes with a
--- Snap-like feel.  It still has no dynamic file handlers, which should be
--- added as needed.
+-- Snap-like feel.  It still has no dynamic file handlers, nor 'preServeHook',
+-- which should be added as needed.
 --
 -- Files recognized as indexes include @index.html@, @index.htm@,
 -- @default.html@, @default.htm@, @home.html@
@@ -366,7 +373,8 @@ fancyDirectoryConfig = DirectoryConfig {
     indexFiles = ["index.html", "index.htm"],
     indexGenerator = defaultIndexGenerator defaultMimeTypes snapIndexStyles,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes
+    mimeTypes = defaultMimeTypes,
+    preServeHook = const $ return ()
     }
 
 
@@ -401,12 +409,13 @@ serveDirectoryWith cfg base = do
     generate = indexGenerator cfg
     mimes    = mimeTypes cfg
     dyns     = dynamicHandlers cfg
+    pshook   = preServeHook cfg
 
     -- Serves a file if it exists; passes if not
     serve f = do
         liftIO (doesFileExist f) >>= flip unless pass
-        let fname       = takeFileName f
-        let staticServe = do serveFileAs (fileType mimes fname)
+        let fname          = takeFileName f
+        let staticServe f' = pshook f >> serveFileAs (fileType mimes fname) f'
         lookupExt staticServe dyns fname f >> return True <|> return False
 
     -- Serves a directory via indices if available.  Returns True on success,
