@@ -112,10 +112,14 @@ class (Monad m, MonadIO m, MonadCatchIO m, MonadPlus m, Functor m,
 
 
 ------------------------------------------------------------------------------
+data SnapResult a = PassOnProcessing
+                  | EarlyTermination Response
+                  | SnapValue a
+
+------------------------------------------------------------------------------
 newtype Snap a = Snap {
-      unSnap :: StateT SnapState (Iteratee ByteString IO)
-                (Maybe (Either Response a))
-}
+      unSnap :: StateT SnapState (Iteratee ByteString IO) (SnapResult a)
+    }
 
 
 ------------------------------------------------------------------------------
@@ -128,6 +132,10 @@ data SnapState = SnapState
 
 ------------------------------------------------------------------------------
 instance Monad Snap where
+    (>>=)  = snapBind
+    return = snapReturn
+    fail   = snapFail
+{-
     (Snap m) >>= f =
         Snap $ do
             eth <- m
@@ -138,11 +146,33 @@ instance Monad Snap where
 
     return = Snap . return . Just . Right
     fail   = const $ Snap $ return Nothing
+-}
+
+------------------------------------------------------------------------------
+snapBind :: Snap a -> (a -> Snap b) -> Snap b
+snapBind (Snap m) f = Snap $ do
+    res <- m
+
+    case res of
+      SnapValue a        -> unSnap $ f a
+      PassOnProcessing   -> return PassOnProcessing
+      EarlyTermination r -> return $! EarlyTermination r
+{-# INLINE snapBind #-}
+
+
+snapReturn :: a -> Snap a
+snapReturn = Snap . return . SnapValue
+{-# INLINE snapReturn #-}
+
+
+snapFail :: String -> Snap a
+snapFail _ = Snap $ return PassOnProcessing
+{-# INLINE snapFail #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadIO Snap where
-    liftIO m = Snap $ liftM (Just . Right) $ liftIO m
+    liftIO m = Snap $ liftM SnapValue $ liftIO m
 
 
 ------------------------------------------------------------------------------
@@ -159,12 +189,14 @@ instance MonadCatchIO Snap where
 
 ------------------------------------------------------------------------------
 instance MonadPlus Snap where
-    mzero = Snap $ return Nothing
+    mzero = Snap $ return PassOnProcessing
 
     a `mplus` b =
         Snap $ do
-            mb <- unSnap a
-            if isJust mb then return mb else unSnap b
+            r <- unSnap a
+            case r of
+              PassOnProcessing -> unSnap b
+              _                -> return r
 
 
 ------------------------------------------------------------------------------
@@ -203,7 +235,7 @@ instance Typeable1 Snap where
 
 ------------------------------------------------------------------------------
 liftIter :: MonadSnap m => Iteratee ByteString IO a -> m a
-liftIter i = liftSnap $ Snap (lift i >>= return . Just . Right)
+liftIter i = liftSnap $ Snap (lift i >>= return . SnapValue)
 
 
 ------------------------------------------------------------------------------
@@ -278,7 +310,7 @@ transformRequestBody trans = do
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
 finishWith :: MonadSnap m => Response -> m a
-finishWith = liftSnap . Snap . return . Just . Left
+finishWith = liftSnap . Snap . return . EarlyTermination
 {-# INLINE finishWith #-}
 
 
@@ -291,11 +323,11 @@ finishWith = liftSnap . Snap . return . Just . Left
 -- 'Response' which was passed to the 'finishWith' call.
 catchFinishWith :: Snap a -> Snap (Either Response a)
 catchFinishWith (Snap m) = Snap $ do
-    eth <- m
-    maybe (return Nothing)
-          (either (\resp -> return $ Just $ Right $ Left resp)
-                  (\a    -> return $ Just $ Right $ Right a))
-          eth
+    r <- m
+    case r of
+      PassOnProcessing      -> return PassOnProcessing
+      EarlyTermination resp -> return $! SnapValue $! Left resp
+      SnapValue a           -> return $! SnapValue $! Right a
 {-# INLINE catchFinishWith #-}
 
 
@@ -399,14 +431,14 @@ ifTop = path ""
 ------------------------------------------------------------------------------
 -- | Local Snap version of 'get'.
 sget :: Snap SnapState
-sget = Snap $ liftM (Just . Right) get
+sget = Snap $ liftM SnapValue get
 {-# INLINE sget #-}
 
 
 ------------------------------------------------------------------------------
 -- | Local Snap monad version of 'modify'.
 smodify :: (SnapState -> SnapState) -> Snap ()
-smodify f = Snap $ modify f >> return (Just $ Right ())
+smodify f = Snap $ modify f >> return (SnapValue ())
 {-# INLINE smodify #-}
 
 
@@ -487,7 +519,7 @@ redirect' target status = do
 -- | Log an error message in the 'Snap' monad
 logError :: MonadSnap m => ByteString -> m ()
 logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
-                                       >>  return (Just $ Right ())
+                                       >>  return (SnapValue ())
 {-# INLINE logError #-}
 
 
@@ -712,14 +744,10 @@ runSnap :: Snap a
 runSnap (Snap m) logerr timeoutAction req = do
     (r, ss') <- runStateT m ss
 
-    e <- maybe (return $ Left fourohfour)
-               return
-               r
-
-    -- is this a case of early termination?
-    let resp = case e of
-                 Left x  -> x
-                 Right _ -> _snapResponse ss'
+    let resp = case r of
+                 PassOnProcessing   -> fourohfour
+                 EarlyTermination x -> x
+                 SnapValue _        -> _snapResponse ss'
 
     return (_snapRequest ss', resp)
 
@@ -745,14 +773,11 @@ evalSnap :: Snap a
 evalSnap (Snap m) logerr timeoutAction req = do
     (r, _) <- runStateT m ss
 
-    e <- maybe (liftIO $ throwIO NoHandlerException)
-               return
-               r
+    case r of
+      PassOnProcessing   -> liftIO $ throwIO NoHandlerException
+      EarlyTermination _ -> liftIO $ throwIO $ ErrorCall "no value"
+      SnapValue x        -> return x
 
-    -- is this a case of early termination?
-    case e of
-      Left _  -> liftIO $ throwIO $ ErrorCall "no value"
-      Right x -> return x
   where
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
     ss = SnapState req dresp logerr timeoutAction

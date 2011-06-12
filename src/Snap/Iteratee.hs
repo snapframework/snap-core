@@ -85,7 +85,7 @@ module Snap.Iteratee
   , concatEnums
     -- *** Enumeratees
   , checkDone
-  , Data.Enumerator.map
+  , Data.Enumerator.List.map
   , Data.Enumerator.sequence
   , joinI
 
@@ -113,6 +113,7 @@ import           Data.Enumerator hiding (consume, drop, head)
 import qualified Data.Enumerator as I
 import           Data.Enumerator.Binary (enumHandle)
 import           Data.Enumerator.List hiding (take, drop)
+import qualified Data.Enumerator.List as IL
 import qualified Data.List as List
 import           Data.Monoid (mappend)
 import           Data.Time.Clock.POSIX (getPOSIXTime)
@@ -137,7 +138,7 @@ instance (Functor m, MonadCatchIO m) =>
       where
         insideCatch !mm = Iteratee $ do
             ee <- try $ runIteratee mm
-            case ee of 
+            case ee of
                 (Left e)  -> runIteratee $ handler e
                 (Right v) -> step v
 
@@ -643,10 +644,10 @@ mapEnum :: (Monad m) =>
         -> Enumerator aIn m a
         -> Enumerator aOut m a
 mapEnum f g enum outStep = do
-    let z = I.map g outStep
+    let z = IL.map g outStep
     let p = joinI z
     let q = enum $$ p
-    (I.joinI . I.map f) $$ q
+    (I.joinI . IL.map f) $$ q
 
 
 ------------------------------------------------------------------------------
