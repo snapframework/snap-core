@@ -224,7 +224,8 @@ testFsCfg = testCase "fileServe/Cfg" $ do
         indexFiles      = [],
         indexGenerator  = const pass,
         dynamicHandlers = Map.empty,
-        mimeTypes       = defaultMimeTypes
+        mimeTypes       = defaultMimeTypes,
+        preServeHook    = const $ return ()
         }
 
     -- Named file in the root directory
@@ -266,7 +267,8 @@ testFsCfg = testCase "fileServe/Cfg" $ do
         indexFiles      = ["index.txt", "altindex.html"],
         indexGenerator  = const pass,
         dynamicHandlers = Map.empty,
-        mimeTypes       = defaultMimeTypes
+        mimeTypes       = defaultMimeTypes,
+        preServeHook    = const $ return ()
         }
 
     -- Request for root directory with index
@@ -296,7 +298,8 @@ testFsCfg = testCase "fileServe/Cfg" $ do
         indexFiles      = ["index.txt", "altindex.html"],
         indexGenerator  = printName,
         dynamicHandlers = Map.empty,
-        mimeTypes       = defaultMimeTypes
+        mimeTypes       = defaultMimeTypes,
+        preServeHook    = const $ return ()
         }
 
     -- Request for root directory with index
@@ -318,7 +321,8 @@ testFsCfg = testCase "fileServe/Cfg" $ do
         indexFiles      = [],
         indexGenerator  = const pass,
         dynamicHandlers = Map.fromList [ (".txt", printName) ],
-        mimeTypes       = defaultMimeTypes
+        mimeTypes       = defaultMimeTypes,
+        preServeHook    = const $ return ()
         }
 
     -- Request for file with dynamic handler

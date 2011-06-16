@@ -32,7 +32,7 @@ import qualified Test.HUnit as H
 
 import           Snap.Iteratee
 import           Snap.Internal.Iteratee.BoyerMooreHorspool
-import           Snap.Test.Common ()
+import           Snap.Test.Common (coverShowInstance)
 
 import Snap.Internal.Iteratee.Debug
 
@@ -79,6 +79,7 @@ tests = [ testEnumBS
         , testKillIfTooSlow1
         , testKillIfTooSlow2
         , testBMH
+        , testBMHTrivials
         , testCatchIO
         ]
 
@@ -427,6 +428,15 @@ testCountBytes2 = testProperty "iteratee/countBytes2" $
            (!_,m) <- countBytes $ drop' 4
            x <- liftM L.fromChunks consume
            return (m,x)
+
+
+------------------------------------------------------------------------------
+testBMHTrivials :: Test
+testBMHTrivials = testCase "iteratee/BoyerMooreHorspoolTrivial" prop
+  where
+    prop = do
+        coverShowInstance $ Match ""
+        coverShowInstance $ NoMatch ""
 
 
 ------------------------------------------------------------------------------

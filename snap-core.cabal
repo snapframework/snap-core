@@ -3,10 +3,9 @@ version:        0.5
 synopsis:       Snap: A Haskell Web Framework (Core)
 
 description:
-  This is the first developer prerelease of the Snap framework.  Snap is a
-  simple and fast web development framework and server written in Haskell. For
-  more information or to download the latest version, you can visit the Snap
-  project website at <http://snapframework.com/>.
+  Snap is a simple and fast web development framework and server written in
+  Haskell. For more information or to download the latest version, you can
+  visit the Snap project website at <http://snapframework.com/>.
   .
   This library contains the core definitions and types for the Snap framework,
   including:
@@ -106,7 +105,7 @@ Library
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
-    build-depends: bytestring-mmap >= 0.2.1 && <0.3
+    build-depends: bytestring-mmap >= 0.2.2 && <0.3
 
   exposed-modules:
     Snap.Types,
@@ -131,7 +130,7 @@ Library
     attoparsec >= 0.8.0.2 && < 0.9,
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
-    blaze-builder >= 0.2.1.4 && <0.3,
+    blaze-builder >= 0.2.1.4 && <0.4,
     bytestring,
     bytestring-nums,
     case-insensitive >= 0.2 && < 0.3,

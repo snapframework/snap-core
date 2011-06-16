@@ -85,7 +85,7 @@ module Snap.Iteratee
   , concatEnums
     -- *** Enumeratees
   , checkDone
-  , Data.Enumerator.map
+  , Data.Enumerator.List.map
   , Data.Enumerator.sequence
   , joinI
 
@@ -113,6 +113,7 @@ import           Data.Enumerator hiding (consume, drop, head)
 import qualified Data.Enumerator as I
 import           Data.Enumerator.Binary (enumHandle)
 import           Data.Enumerator.List hiding (take, drop)
+import qualified Data.Enumerator.List as IL
 import qualified Data.List as List
 import           Data.Monoid (mappend)
 import           Data.Time.Clock.POSIX (getPOSIXTime)
@@ -129,7 +130,6 @@ import           System.PosixCompat.Files
 import           System.PosixCompat.Types
 #endif
 
-
 ------------------------------------------------------------------------------
 instance (Functor m, MonadCatchIO m) =>
          MonadCatchIO (Iteratee s m) where
@@ -138,12 +138,8 @@ instance (Functor m, MonadCatchIO m) =>
       where
         insideCatch !mm = Iteratee $ do
             ee <- try $ runIteratee mm
-            case ee of 
-                -- if we got an async exception here then the iteratee workflow is
-                -- all messed up, we have no reasonable choice but to send EOF to the
-                -- handler, because the unparsed input got lost. If the enumerator
-                -- sends more chunks we can possibly recover later.
-                (Left e)  -> runIteratee (enumEOF $$ handler e)
+            case ee of
+                (Left e)  -> runIteratee $ handler e
                 (Right v) -> step v
 
         step (Continue !k)  = do
@@ -475,13 +471,6 @@ take' !n st@(Continue k) = do
 takeExactly :: (Monad m)
             => Int64
             -> Enumeratee ByteString ByteString m a
-takeExactly 0   s = do
-    s' <- lift $ runIteratee $ enumEOF s
-    case s' of
-      (Continue _) -> error "divergent iteratee"
-      (Error e)    -> throwError e
-      (Yield v _)  -> yield (Yield v EOF) EOF
-
 takeExactly !n  y@(Yield _ _ ) = drop' n >> return y
 takeExactly _     (Error e   ) = throwError e
 takeExactly !n st@(Continue !k) = do
@@ -655,10 +644,10 @@ mapEnum :: (Monad m) =>
         -> Enumerator aIn m a
         -> Enumerator aOut m a
 mapEnum f g enum outStep = do
-    let z = I.map g outStep
+    let z = IL.map g outStep
     let p = joinI z
     let q = enum $$ p
-    (I.joinI . I.map f) $$ q
+    (I.joinI . IL.map f) $$ q
 
 
 ------------------------------------------------------------------------------
