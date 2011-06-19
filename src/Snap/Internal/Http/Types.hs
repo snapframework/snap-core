@@ -232,9 +232,14 @@ data Request = Request
       --
       -- An identity is that:
       --
-      -- > rqURI r == 'S.concat' [ rqSnapletPath r
-      -- >                       , rqContextPath r
-      -- >                       , rqPathInfo r ]
+      -- > rqURI r == S.concat [ rqSnapletPath r
+      -- >                     , rqContextPath r
+      -- >                     , rqPathInfo r
+      -- >                     , let q = rqQueryString r
+      -- >                     , in if S.null q
+      -- >                            then ""
+      -- >                            else S.append "?" q
+      -- >                     ]
       --
       -- note that until we introduce snaplets in v0.2, 'rqSnapletPath' will
       -- be \"\"
@@ -246,10 +251,10 @@ data Request = Request
       -- value of 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
-      -- | The \"context path\" of the request; catenating 'rqContextPath',
-      -- and 'rqPathInfo' should get you back to the original 'rqURI'. The
-      -- 'rqContextPath' always begins and ends with a slash (@\"\/\"@)
-      -- character, and represents the path (relative to your
+      -- | The \"context path\" of the request; catenating 'rqContextPath', and
+      -- 'rqPathInfo' should get you back to the original 'rqURI' (ignoring
+      -- query strings). The 'rqContextPath' always begins and ends with a
+      -- slash (@\"\/\"@) character, and represents the path (relative to your
       -- component\/snaplet) you took to get to your handler.
     , rqContextPath    :: !ByteString
 

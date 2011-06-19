@@ -135,8 +135,15 @@ mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                     enum Nothing GET (1,1) [] "" uri "/"
-                     (S.concat ["/",uri]) "" Map.empty
+                     enum Nothing GET (1,1) [] "" pathPart "/"
+                     (S.concat ["/",uri]) queryPart Map.empty
+
+  where
+    (pathPart, queryPart) = breakQuery uri
+
+    breakQuery s = (a, S.drop 1 b)
+      where
+        (a,b) = S.break (=='?') s
 
 
 fs :: Snap ()
@@ -381,14 +388,24 @@ testFsCfgB = testCase "fileServe/cfgB" $ do
                 (Just "text/plain")
                 (getHeader "content-type" rB1)
 
-    -- Request for root directory with alternate index
-    rB2 <- gooo "mydir3/"
+    -- Request for root directory with index, query
+    rB2 <- gooo "mydir1/?z=z"
     bB2 <- getBody rB2
 
-    assertEqual "B2" "ALTINDEX\n" bB2
+    assertEqual "B2" "INDEX\n" bB2
     assertEqual "B2 content-type"
-                (Just "text/html")
+                (Just "text/plain")
                 (getHeader "content-type" rB2)
+
+
+    -- Request for root directory with alternate index
+    rB3 <- gooo "mydir3/"
+    bB3 <- getBody rB3
+
+    assertEqual "B3" "ALTINDEX\n" bB3
+    assertEqual "B3 content-type"
+                (Just "text/html")
+                (getHeader "content-type" rB3)
 
     -- Request for root directory with no index
     expect404 $ gooo "mydir2/"
@@ -407,11 +424,20 @@ testFsCfgC = testCase "fileServe/cfgC" $ do
                 (Just "text/plain")
                 (getHeader "content-type" rC1)
 
-    -- Request for root directory with generated index
-    rC2 <- gooo "mydir2/"
+    -- Request for root directory with index, query
+    rC2 <- gooo "mydir1/?z=z"
     bC2 <- getBody rC2
 
-    assertEqual "C2" "mydir2" bC2
+    assertEqual "C2" "INDEX\n" bC2
+    assertEqual "C2 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rC2)
+
+    -- Request for root directory with generated index
+    rC3 <- gooo "mydir2/"
+    bC3 <- getBody rC3
+
+    assertEqual "C3" "mydir2" bC3
 
 
 testFsCfgD :: Test
@@ -435,6 +461,18 @@ testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
         "<a href='../'" `S.isInfixOf` bE1
     assertBool "autogen-sub-file" $
         "<a href='foo.txt'" `S.isInfixOf` bE1
+
+
+    -- Request for directory with autogen index
+    rE2 <- go (fsCfg fancyDirectoryConfig) "mydir2/?z=z"
+    bE2 <- S.concat `fmap` L.toChunks `fmap` getBody rE2
+
+    assertBool "autogen-sub-index" $
+        "Directory Listing: /mydir2/" `S.isInfixOf` bE2
+    assertBool "autogen-sub-parent" $
+        "<a href='../'" `S.isInfixOf` bE2
+    assertBool "autogen-sub-file" $
+        "<a href='foo.txt'" `S.isInfixOf` bE2
 
 
 
