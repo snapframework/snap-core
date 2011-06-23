@@ -21,7 +21,7 @@ Executable testsuite
 
   build-depends:
     QuickCheck >= 2.3.0.2,
-    attoparsec >= 0.8.1 && < 0.9,
+    attoparsec >= 0.8.1 && < 0.10,
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
     base16-bytestring == 0.1.*,
