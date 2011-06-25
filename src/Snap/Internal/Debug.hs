@@ -33,7 +33,7 @@ import             Text.Printf
 #endif
 ------------------------------------------------------------------------------
 
-debug, debugErrno :: forall m . (MonadIO m => String -> m ())
+debug, debugErrno :: MonadIO m => String -> m ()
 
 
 #ifndef NODEBUG

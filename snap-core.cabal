@@ -1,12 +1,11 @@
 name:           snap-core
-version:        0.4.2
+version:        0.5.1.4
 synopsis:       Snap: A Haskell Web Framework (Core)
 
 description:
-  This is the first developer prerelease of the Snap framework.  Snap is a
-  simple and fast web development framework and server written in Haskell. For
-  more information or to download the latest version, you can visit the Snap
-  project website at <http://snapframework.com/>.
+  Snap is a simple and fast web development framework and server written in
+  Haskell. For more information or to download the latest version, you can
+  visit the Snap project website at <http://snapframework.com/>.
   .
   This library contains the core definitions and types for the Snap framework,
   including:
@@ -106,21 +105,21 @@ Library
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
-    build-depends: bytestring-mmap >= 0.2.1 && <0.3,
+    build-depends: bytestring-mmap >= 0.2.2 && <0.3,
                    regex-posix <= 0.94.4
 
   exposed-modules:
-    Data.CIByteString,
     Snap.Types,
     Snap.Iteratee,
     Snap.Internal.Debug,
     Snap.Internal.Http.Types,
     Snap.Internal.Iteratee.Debug,
     Snap.Internal.Parsing,
+    Snap.Test,
     Snap.Util.FileServe,
     Snap.Util.FileUploads,
     Snap.Util.GZip,
-    Snap.Test
+    Snap.Util.Readable
 
   other-modules:
     Snap.Internal.Instances,
@@ -132,19 +131,20 @@ Library
 
 
   build-depends:
-    QuickCheck >= 2.3.0.2,
-    attoparsec >= 0.8.0.2 && < 0.9,
+    QuickCheck >= 2.3.0.2 && <2.4,
+    attoparsec >= 0.8.0.2 && < 0.10,
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
     base16-bytestring <= 0.1.1.1,
-    blaze-builder >= 0.2.1.4 && <0.3,
+    blaze-builder >= 0.2.1.4 && <0.4,
     bytestring,
     bytestring-nums,
+    case-insensitive >= 0.2 && < 0.3,
     containers,
     deepseq >= 1.1 && <1.2,
     directory,
     dlist >= 0.5 && < 0.6,
-    enumerator >= 0.4.7 && < 0.5,
+    enumerator >= 0.4.8 && < 0.5,
     filepath,
     HUnit >= 1.2 && < 2,
     MonadCatchIO-transformers >= 0.2.1 && < 0.3,

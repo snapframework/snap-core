@@ -57,7 +57,8 @@ import           Foreign.C.String
 #endif
 
 ------------------------------------------------------------------------------
-import           Data.CIByteString
+import           Data.CaseInsensitive   (CI)
+import qualified Data.CaseInsensitive as CI
 import           Snap.Iteratee (Enumerator)
 import qualified Snap.Iteratee as I
 
@@ -84,7 +85,7 @@ foreign import ccall unsafe "c_format_log_time"
 
 ------------------------------------------------------------------------------
 -- | A type alias for a case-insensitive key-value mapping.
-type Headers = Map CIByteString [ByteString]
+type Headers = Map (CI ByteString) [ByteString]
 
 
 ------------------------------------------------------------------------------
@@ -102,33 +103,33 @@ class HasHeaders a where
 -- | Adds a header key-value-pair to the 'HasHeaders' datatype. If a header
 -- with the same name already exists, the new value is appended to the headers
 -- list.
-addHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
+addHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
 addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
 
 
 ------------------------------------------------------------------------------
 -- | Sets a header key-value-pair in a 'HasHeaders' datatype. If a header with
 -- the same name already exists, it is overwritten with the new value.
-setHeader :: (HasHeaders a) => CIByteString -> ByteString -> a -> a
+setHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
 setHeader k v = updateHeaders $ Map.insert k [v]
 
 
 ------------------------------------------------------------------------------
 -- | Gets all of the values for a given header.
-getHeaders :: (HasHeaders a) => CIByteString -> a -> Maybe [ByteString]
+getHeaders :: (HasHeaders a) => CI ByteString -> a -> Maybe [ByteString]
 getHeaders k a = Map.lookup k $ headers a
 
 
 ------------------------------------------------------------------------------
 -- | Gets a header value out of a 'HasHeaders' datatype. If many headers came
 -- in with the same name, they will be catenated together.
-getHeader :: (HasHeaders a) => CIByteString -> a -> Maybe ByteString
+getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
 getHeader k a = liftM (S.intercalate " ") (Map.lookup k $ headers a)
 
 
 ------------------------------------------------------------------------------
 -- | Clears a header value from a 'HasHeaders' datatype.
-deleteHeader :: (HasHeaders a) => CIByteString -> a -> a
+deleteHeader :: (HasHeaders a) => CI ByteString -> a -> a
 deleteHeader k = updateHeaders $ Map.delete k
 
 
@@ -204,8 +205,7 @@ data Request = Request
       -- | Returns the HTTP server's idea of its local hostname.
     , rqLocalHostname  :: !ByteString
 
-      -- | Returns @True@ if this is an @HTTPS@ session (currently always
-      -- @False@).
+      -- | Returns @True@ if this is an @HTTPS@ session.
     , rqIsSecure       :: !Bool
     , rqHeaders        :: Headers
     , rqBody           :: IORef SomeEnumerator
@@ -232,9 +232,14 @@ data Request = Request
       --
       -- An identity is that:
       --
-      -- > rqURI r == 'S.concat' [ rqSnapletPath r
-      -- >                       , rqContextPath r
-      -- >                       , rqPathInfo r ]
+      -- > rqURI r == S.concat [ rqSnapletPath r
+      -- >                     , rqContextPath r
+      -- >                     , rqPathInfo r
+      -- >                     , let q = rqQueryString r
+      -- >                     , in if S.null q
+      -- >                            then ""
+      -- >                            else S.append "?" q
+      -- >                     ]
       --
       -- note that until we introduce snaplets in v0.2, 'rqSnapletPath' will
       -- be \"\"
@@ -246,10 +251,10 @@ data Request = Request
       -- value of 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
-      -- | The \"context path\" of the request; catenating 'rqContextPath',
-      -- and 'rqPathInfo' should get you back to the original 'rqURI'. The
-      -- 'rqContextPath' always begins and ends with a slash (@\"\/\"@)
-      -- character, and represents the path (relative to your
+      -- | The \"context path\" of the request; catenating 'rqContextPath', and
+      -- 'rqPathInfo' should get you back to the original 'rqURI' (ignoring
+      -- query strings). The 'rqContextPath' always begins and ends with a
+      -- slash (@\"\/\"@) character, and represents the path (relative to your
       -- component\/snaplet) you took to get to your handler.
     , rqContextPath    :: !ByteString
 
@@ -304,7 +309,7 @@ instance Show Request where
       beginheaders  =
           "Headers:\n      ========================================"
       endheaders    = "  ========================================"
-      hdrs' (a,b)   = (B.unpack $ unCI a) ++ ": " ++ (show (map B.unpack b))
+      hdrs' (a,b)   = (B.unpack $ CI.original a) ++ ": " ++ (show (map B.unpack b))
       hdrs          = "      " ++ (concat $ intersperse "\n " $
                                    map hdrs' (Map.toAscList $ rqHeaders r))
       contentlength = concat [ "content-length: "

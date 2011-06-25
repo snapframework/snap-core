@@ -20,7 +20,9 @@ module Snap.Types
 
     -- ** Routing
   , method
+  , methods
   , path
+  , pathArg
   , dir
   , ifTop
   , route
@@ -102,6 +104,7 @@ module Snap.Types
   , deleteResponseCookie
   , modifyResponseCookie
   , getCookie
+  , readCookie
   , setContentLength
   , clearContentLength
   , redirect

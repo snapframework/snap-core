@@ -17,17 +17,18 @@ Executable testsuite
   else
     c-sources: ../cbits/timefuncs.c
     include-dirs: ../cbits
-    build-depends: bytestring-mmap >= 0.2.1 && <0.3
+    build-depends: bytestring-mmap >= 0.2.2 && <0.3
 
   build-depends:
     QuickCheck >= 2.3.0.2,
-    attoparsec >= 0.8.1 && < 0.9,
+    attoparsec >= 0.8.1 && < 0.10,
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
     base16-bytestring == 0.1.*,
-    blaze-builder >= 0.2.1.4 && <0.3,
+    blaze-builder >= 0.2.1.4 && <0.4,
     bytestring,
     bytestring-nums,
+    case-insensitive >= 0.2 && < 0.3,
     cereal == 0.3.*,
     containers,
     deepseq >= 1.1 && <1.2,

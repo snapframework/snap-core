@@ -129,6 +129,7 @@ type MimeMap = Map FilePath ByteString
 -- >   ( ".qt"      , "video/quicktime"                   ),
 -- >   ( ".sig"     , "application/pgp-signature"         ),
 -- >   ( ".spl"     , "application/futuresplash"          ),
+-- >   ( ".svg"     , "image/svg+xml"                     ),
 -- >   ( ".swf"     , "application/x-shockwave-flash"     ),
 -- >   ( ".tar"     , "application/x-tar"                 ),
 -- >   ( ".tar.bz2" , "application/x-bzip-compressed-tar" ),
@@ -186,6 +187,7 @@ defaultMimeTypes = Map.fromList [
   ( ".qt"      , "video/quicktime"                   ),
   ( ".sig"     , "application/pgp-signature"         ),
   ( ".spl"     , "application/futuresplash"          ),
+  ( ".svg"     , "image/svg+xml"                     ),
   ( ".swf"     , "application/x-shockwave-flash"     ),
   ( ".tar"     , "application/x-tar"                 ),
   ( ".tar.bz2" , "application/x-bzip-compressed-tar" ),
@@ -222,7 +224,11 @@ data DirectoryConfig m = DirectoryConfig {
     dynamicHandlers :: HandlerMap m,
 
     -- | MIME type map to look up content types.
-    mimeTypes       :: MimeMap
+    mimeTypes       :: MimeMap,
+
+    -- | Handler that is called before a file is served.  It will only be
+    -- called when a file is actually found, not for generated index pages.
+    preServeHook    :: FilePath -> m ()
     }
 
 
@@ -284,18 +290,19 @@ defaultIndexGenerator :: MonadSnap m
                       -> m ()
 defaultIndexGenerator mm styles d = do
     modifyResponse $ setContentType "text/html"
-
     rq      <- getRequest
+
+    let uri = uriWithoutQueryString rq
 
     writeBS "<style type='text/css'>"
     writeBS styles
     writeBS "</style><div class=\"header\">Directory Listing: "
-    writeBS (rqURI rq)
+    writeBS uri
     writeBS "</div><div class=\"content\">"
     writeBS "<table><tr><th>File Name</th><th>Type</th><th>Last Modified"
     writeBS "</th></tr>"
 
-    when (rqURI rq /= "/") $
+    when (uri /= "/") $
         writeBS "<tr><td><a href='../'>..</a></td><td colspan=2>DIR</td></tr>"
 
     entries <- liftIO $ getDirectoryContents d
@@ -329,13 +336,14 @@ defaultIndexGenerator mm styles d = do
 ------------------------------------------------------------------------------
 -- | A very simple configuration for directory serving.  This configuration
 -- uses built-in MIME types from 'defaultMimeTypes', and has no index files,
--- index generator, or dynamic file handlers.
+-- index generator, dynamic file handlers, or 'preServeHook'.
 simpleDirectoryConfig :: MonadSnap m => DirectoryConfig m
 simpleDirectoryConfig = DirectoryConfig {
     indexFiles = [],
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes
+    mimeTypes = defaultMimeTypes,
+    preServeHook = const $ return ()
     }
 
 
@@ -343,13 +351,15 @@ simpleDirectoryConfig = DirectoryConfig {
 -- | A reasonable default configuration for directory serving.  This
 -- configuration uses built-in MIME types from 'defaultMimeTypes', serves
 -- common index files @index.html@ and @index.htm@, but does not autogenerate
--- directory indexes, nor have any dynamic file handlers.
+-- directory indexes, nor have any dynamic file handlers. The 'preServeHook'
+-- will not do anything.
 defaultDirectoryConfig :: MonadSnap m => DirectoryConfig m
 defaultDirectoryConfig = DirectoryConfig {
     indexFiles = ["index.html", "index.htm"],
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes
+    mimeTypes = defaultMimeTypes,
+    preServeHook = const $ return ()
     }
 
 
@@ -357,8 +367,8 @@ defaultDirectoryConfig = DirectoryConfig {
 -- | A more elaborate configuration for file serving.  This configuration
 -- uses built-in MIME types from 'defaultMimeTypes', serves common index files
 -- @index.html@ and @index.htm@, and autogenerates directory indexes with a
--- Snap-like feel.  It still has no dynamic file handlers, which should be
--- added as needed.
+-- Snap-like feel.  It still has no dynamic file handlers, nor 'preServeHook',
+-- which should be added as needed.
 --
 -- Files recognized as indexes include @index.html@, @index.htm@,
 -- @default.html@, @default.htm@, @home.html@
@@ -367,7 +377,8 @@ fancyDirectoryConfig = DirectoryConfig {
     indexFiles = ["index.html", "index.htm"],
     indexGenerator = defaultIndexGenerator defaultMimeTypes snapIndexStyles,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes
+    mimeTypes = defaultMimeTypes,
+    preServeHook = const $ return ()
     }
 
 
@@ -402,12 +413,13 @@ serveDirectoryWith cfg base = do
     generate = indexGenerator cfg
     mimes    = mimeTypes cfg
     dyns     = dynamicHandlers cfg
+    pshook   = preServeHook cfg
 
     -- Serves a file if it exists; passes if not
     serve f = do
         liftIO (doesFileExist f) >>= flip unless pass
-        let fname       = takeFileName f
-        let staticServe = do serveFileAs (fileType mimes fname)
+        let fname          = takeFileName f
+        let staticServe f' = pshook f >> serveFileAs (fileType mimes fname) f'
         lookupExt staticServe dyns fname f >> return True <|> return False
 
     -- Serves a directory via indices if available.  Returns True on success,
@@ -415,7 +427,8 @@ serveDirectoryWith cfg base = do
     -- not for a directory (no trailing slash).
     directory = do
         rq  <- getRequest
-        unless ("/" `S.isSuffixOf` rqURI rq) pass
+        let uri = uriWithoutQueryString rq
+        unless ("/" `S.isSuffixOf` uri) pass
         rel <- (base </>) <$> getSafePath
         b   <- liftIO $ doesDirectoryExist rel
         if b then do let serveRel f = serve (rel </> f)
@@ -433,7 +446,10 @@ serveDirectoryWith cfg base = do
         rel <- (base </>) <$> getSafePath
         liftIO (doesDirectoryExist rel) >>= flip unless pass
         rq <- getRequest
-        redirect $ rqURI rq `S.append` "/" `S.append` rqQueryString rq
+        let uri = uriWithoutQueryString rq
+        let qss = queryStringSuffix rq
+        let u = S.concat [uri, "/", qss]
+        redirect u
 
 
 ------------------------------------------------------------------------------
@@ -715,3 +731,18 @@ fileServeSingle' = serveFileAs
 {-# INLINE fileServeSingle' #-}
 {-# DEPRECATED fileServeSingle' "Use serveFileAs instead" #-}
 
+
+------------------------------------------------------------------------------
+uriWithoutQueryString :: Request -> ByteString
+uriWithoutQueryString rq = S.concat [ cp, pinfo ]
+  where
+    cp    = rqContextPath rq
+    pinfo = rqPathInfo rq
+
+
+------------------------------------------------------------------------------
+queryStringSuffix :: Request -> ByteString
+queryStringSuffix rq = S.concat [ s, qs ]
+  where
+    qs = rqQueryString rq
+    s  = if S.null qs then "" else "?"
