@@ -724,4 +724,4 @@ killIfTooSlow !bump !minRate !minSeconds' !inputIter = do
 
 ------------------------------------------------------------------------------
 getTime :: IO Double
-getTime = (fromRational . toRational) `fmap` getPOSIXTime
+getTime = realToFrac `fmap` getPOSIXTime
