@@ -1,9 +1,10 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE EmptyDataDecls #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE PackageImports #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE EmptyDataDecls      #-}
+{-# LANGUAGE FlexibleInstances   #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE PackageImports      #-}
+{-# LANGUAGE RankNTypes          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Internal.Types where
 
@@ -13,7 +14,7 @@ import "MonadCatchIO-transformers" Control.Monad.CatchIO
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception (throwIO, ErrorCall(..))
+import           Control.Exception (SomeException, throwIO, ErrorCall(..))
 import           Control.Monad
 import           Control.Monad.State
 import           Data.ByteString.Char8 (ByteString)
@@ -242,6 +243,19 @@ liftIter i = liftSnap $ Snap (lift i >>= return . SnapValue)
 ------------------------------------------------------------------------------
 -- | Sends the request body through an iteratee (data consumer) and
 -- returns the result.
+--
+-- /NOTE:/ you are responsible for catching any errors produced by the iteratee
+-- passed into runRequestBody; if you do not, the exception will propagate to
+-- the server and the connection will be killed before your response body is
+-- sent. The reason for this is as follows: if your iteratee throws an
+-- exception, once the flow of control leaves 'runRequestBody' the server code
+-- has no idea how much of the request body has been read from the socket, and
+-- the HTTP protocol invariants cannot be maintained.
+--
+-- Also, we cannot simply eat the exception and skip to the end of the request
+-- body: there are instances (such as preventing \"slow loris\"-type attacks)
+-- in which what we actually want to do is stop reading the request body,
+-- /right now/.
 runRequestBody :: MonadSnap m => Iteratee ByteString IO a -> m a
 runRequestBody iter = do
     req  <- getRequest
@@ -249,7 +263,12 @@ runRequestBody iter = do
     let (SomeEnumerator enum) = senum
 
     -- make sure the iteratee consumes all of the output
-    let iter' = iter >>= \a -> skipToEof >> return a
+    let iter' = (iter >>= \a -> skipToEof >> return a)
+                `catch` \(e::SomeException) -> do
+                    let e' = IterateeFailedException e
+                    let en = SomeEnumerator $ const $ throwError e'
+                    liftIO $ writeIORef (rqBody req) en
+                    throwError e
 
     -- run the iteratee
     step   <- liftIO $ runIteratee iter'
@@ -746,6 +765,22 @@ instance Show NoHandlerException where
 
 ------------------------------------------------------------------------------
 instance Exception NoHandlerException
+
+
+------------------------------------------------------------------------------
+-- | This exception is thrown if the iteratee passed to 'runRequestBody' fails.
+data IterateeFailedException = IterateeFailedException SomeException
+   deriving (Typeable)
+
+
+------------------------------------------------------------------------------
+instance Show IterateeFailedException where
+    show (IterateeFailedException e) =
+        "Iteratee passed to runRequestBody failed with: " ++ show e
+
+
+------------------------------------------------------------------------------
+instance Exception IterateeFailedException
 
 
 ------------------------------------------------------------------------------
