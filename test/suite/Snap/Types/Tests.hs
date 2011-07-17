@@ -63,7 +63,7 @@ tests = [ testFail
 expectException :: IO () -> IO ()
 expectException m = do
     r <- (try m :: IO (Either SomeException ()))
-    let b = either (\e -> show e `using` rdeepseq `seq` True)
+    let b = either (\e -> (show e `using` rdeepseq) `seq` True)
                    (const False) r
     assertBool "expected exception" b
 

@@ -41,7 +41,7 @@ Executable testsuite
     mtl >= 2 && <3,
     old-locale,
     old-time,
-    parallel >= 2.2 && <2.3,
+    parallel >= 3 && <4,
     pureMD5 == 2.1.*,
     regex-posix >= 0.94.4 && <0.95,
     test-framework >= 0.3.1 && <0.4,
