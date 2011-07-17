@@ -19,6 +19,8 @@ import           Control.Monad.Trans
 import           Data.Attoparsec.Char8 hiding (Done)
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as S
+import qualified Data.Char as Char
 import           Data.Maybe
 import qualified Data.Set as Set
 import           Data.Set (Set)
@@ -85,7 +87,7 @@ withCompression' mimeTable action = do
     -- If a content-encoding is already set, do nothing. This prevents
     -- "withCompression $ withCompression m" from ruining your day.
     when (not $ isJust $ getHeader "Content-Encoding" resp) $ do
-       let mbCt = getHeader "Content-Type" resp
+       let mbCt = fmap chop $ getHeader "Content-Type" resp
 
        debug $ "withCompression', content-type is " ++ show mbCt
 
@@ -97,6 +99,8 @@ withCompression' mimeTable action = do
     getResponse >>= finishWith
 
   where
+    chop = S.takeWhile (\c -> c /= ';' && not (Char.isSpace c))
+
     chkAcceptEncoding = do
         req <- getRequest
         debug $ "checking accept-encoding"
