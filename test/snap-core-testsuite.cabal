@@ -36,7 +36,7 @@ Executable testsuite
     dlist >= 0.5 && < 0.6,
     filepath,
     HUnit >= 1.2 && < 2,
-    enumerator >= 0.4.7 && <0.5,
+    enumerator >= 0.4.13.1 && < 0.5,
     MonadCatchIO-transformers >= 0.2 && < 0.3,
     mtl >= 2 && <3,
     old-locale,
