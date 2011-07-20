@@ -198,7 +198,7 @@ enumLBS bs = enumList 1 (L.toChunks bs)
 skipToEof :: (Monad m) => Iteratee a m ()
 skipToEof = continue k
   where
-    k EOF = return ()
+    k EOF = yield () EOF
     k _   = skipToEof
 
 
