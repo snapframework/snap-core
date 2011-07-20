@@ -17,6 +17,7 @@ module Snap.Types
   , finishWith
   , catchFinishWith
   , pass
+  , terminateConnection
 
     -- ** Routing
   , method

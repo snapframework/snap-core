@@ -131,8 +131,8 @@ import           Snap.Types
 -- function skips processing using 'pass'.
 --
 -- If the client's upload rate passes below the configured minimum (see
--- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function throws
--- a 'RateTooSlowException'. This setting is there to protect the server
+-- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function
+-- terminates the connection. This setting is there to protect the server
 -- against slowloris-style denial of service attacks.
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
@@ -215,8 +215,8 @@ handleFileUploads tmpdir uploadPolicy partPolicy handler = do
 -- function skips processing using 'pass'.
 --
 -- If the client's upload rate passes below the configured minimum (see
--- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function throws
--- a 'RateTooSlowException'. This setting is there to protect the server
+-- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function
+-- terminates the connection. This setting is there to protect the server
 -- against slowloris-style denial of service attacks.
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
@@ -261,12 +261,20 @@ handleMultipart uploadPolicy origPartHandler = do
     procCaptures [] captures
 
   where
+    rateLimit bump m =
+        killIfTooSlow bump
+            (minimumUploadRate uploadPolicy)
+            (minimumUploadSeconds uploadPolicy)
+            m
+          `catchError` \e -> do
+              let (me::Maybe RateTooSlowException) = fromException e
+              maybe (throwError e)
+                    terminateConnection
+                    me
+
     iter bump boundary ph = iterateeDebugWrapper "killIfTooSlow" $
-                            killIfTooSlow
-                              bump
-                              (minimumUploadRate uploadPolicy)
-                              (minimumUploadSeconds uploadPolicy)
-                              (internalHandleMultipart boundary ph)
+                            rateLimit bump $
+                            internalHandleMultipart boundary ph
 
     ins k v = Map.insertWith' (\a b -> Prelude.head a : b) k [v]
 

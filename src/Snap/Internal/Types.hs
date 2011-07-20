@@ -9,13 +9,12 @@
 module Snap.Internal.Types where
 
 ------------------------------------------------------------------------------
-import "MonadCatchIO-transformers" Control.Monad.CatchIO
-
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
 import           Control.Exception (SomeException, throwIO, ErrorCall(..))
 import           Control.Monad
+import           Control.Monad.CatchIO
 import           Control.Monad.State
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -182,11 +181,23 @@ instance MonadCatchIO Snap where
     catch (Snap m) handler = Snap $ do
         x <- try m
         case x of
-          (Left e)  -> let (Snap z) = handler e in z
+          (Left e)  -> do
+              rethrowIfTermination $ fromException e
+              maybe (throw e)
+                    (\e' -> let (Snap z) = handler e' in z)
+                    (fromException e)
           (Right y) -> return y
 
     block (Snap m) = Snap $ block m
     unblock (Snap m) = Snap $ unblock m
+
+
+------------------------------------------------------------------------------
+rethrowIfTermination :: (MonadCatchIO m) =>
+                        Maybe ConnectionTerminatedException ->
+                        m ()
+rethrowIfTermination Nothing  = return ()
+rethrowIfTermination (Just e) = throw e
 
 
 ------------------------------------------------------------------------------
@@ -244,31 +255,20 @@ liftIter i = liftSnap $ Snap (lift i >>= return . SnapValue)
 -- | Sends the request body through an iteratee (data consumer) and
 -- returns the result.
 --
--- /NOTE:/ you are responsible for catching any errors produced by the iteratee
--- passed into runRequestBody; if you do not, the exception will propagate to
--- the server and the connection will be killed before your response body is
--- sent. The reason for this is as follows: if your iteratee throws an
--- exception, once the flow of control leaves 'runRequestBody' the server code
--- has no idea how much of the request body has been read from the socket, and
--- the HTTP protocol invariants cannot be maintained.
---
--- Also, we cannot simply eat the exception and skip to the end of the request
--- body: there are instances (such as preventing \"slow loris\"-type attacks)
--- in which what we actually want to do is stop reading the request body,
--- /right now/.
+-- If the iteratee you pass in here throws an exception, Snap will attempt to
+-- clear the rest of the unread request body before rethrowing the exception.
+-- If your iteratee used 'terminateConnection', however, Snap will give up and
+-- immediately close the socket.
 runRequestBody :: MonadSnap m => Iteratee ByteString IO a -> m a
 runRequestBody iter = do
-    req  <- getRequest
-    senum <- liftIO $ readIORef $ rqBody req
+    bumpTimeout <- liftM ($ 5) getTimeoutAction
+    req         <- getRequest
+    senum       <- liftIO $ readIORef $ rqBody req
     let (SomeEnumerator enum) = senum
 
     -- make sure the iteratee consumes all of the output
-    let iter' = (iter >>= \a -> skipToEof >> return a)
-                `catch` \(e::SomeException) -> do
-                    let e' = IterateeFailedException e
-                    let en = SomeEnumerator $ const $ throwError e'
-                    liftIO $ writeIORef (rqBody req) en
-                    throwError e
+    let iter' = handle bumpTimeout req
+                       (iter >>= \a -> skipToEnd bumpTimeout >> return a)
 
     -- run the iteratee
     step   <- liftIO $ runIteratee iter'
@@ -276,10 +276,28 @@ runRequestBody iter = do
 
     -- stuff a new dummy enumerator into the request, so you can only try to
     -- read the request body from the socket once
-    liftIO $ writeIORef (rqBody req)
-                        (SomeEnumerator $ joinI . take 0 )
-
+    resetEnum req
     return result
+
+  where
+    resetEnum req = liftIO $
+                    writeIORef (rqBody req) $
+                    SomeEnumerator $ joinI . take 0
+
+    skipToEnd bump = killIfTooSlow bump 500 5 skipToEof `catchError` \e ->
+                     throwError $ ConnectionTerminatedException e
+
+    handle bump req =
+        (`catches` [
+          Handler $ \(e :: ConnectionTerminatedException) -> do
+              let en = SomeEnumerator $ const $ throwError e
+              liftIO $ writeIORef (rqBody req) en
+              throwError e
+         , Handler $ \(e :: SomeException) -> do
+              resetEnum req
+              skipToEnd bump
+              throwError e
+         ])
 
 
 ------------------------------------------------------------------------------
@@ -768,19 +786,24 @@ instance Exception NoHandlerException
 
 
 ------------------------------------------------------------------------------
--- | This exception is thrown if the iteratee passed to 'runRequestBody' fails.
-data IterateeFailedException = IterateeFailedException SomeException
-   deriving (Typeable)
+data ConnectionTerminatedException = ConnectionTerminatedException SomeException
+  deriving (Typeable)
 
 
 ------------------------------------------------------------------------------
-instance Show IterateeFailedException where
-    show (IterateeFailedException e) =
-        "Iteratee passed to runRequestBody failed with: " ++ show e
+instance Show ConnectionTerminatedException where
+    show (ConnectionTerminatedException e) =
+        "Connection terminated with exception: " ++ show e
 
 
 ------------------------------------------------------------------------------
-instance Exception IterateeFailedException
+instance Exception ConnectionTerminatedException
+
+
+------------------------------------------------------------------------------
+-- | Terminate the HTTP session with the given exception.
+terminateConnection :: (Exception e, MonadCatchIO m) => e -> m a
+terminateConnection = throw . ConnectionTerminatedException . toException
 
 
 ------------------------------------------------------------------------------
