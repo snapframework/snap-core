@@ -131,8 +131,8 @@ import           Snap.Types
 -- function skips processing using 'pass'.
 --
 -- If the client's upload rate passes below the configured minimum (see
--- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function throws
--- a 'RateTooSlowException'. This setting is there to protect the server
+-- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function
+-- terminates the connection. This setting is there to protect the server
 -- against slowloris-style denial of service attacks.
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
@@ -174,15 +174,24 @@ handleFileUploads tmpdir uploadPolicy partPolicy handler = do
         retVal (_,x) = (partInfo, Right x)
 
         takeIt maxSize = do
+            debug "handleFileUploads/takeIt: begin"
             let it = fmap retVal $
                      joinI' $
+                     iterateeDebugWrapper "takeNoMoreThan" $
                      takeNoMoreThan maxSize $$
                      fileReader uploadedFiles tmpdir partInfo
 
-            it `catches` [ Handler $ \(_ :: TooManyBytesReadException) ->
-                                     (skipToEof >> tooMany maxSize)
-                         , Handler $ \(e :: SomeException) -> throw e
-                         ]
+            it `catches` [
+                    Handler $ \(_ :: TooManyBytesReadException) -> do
+                        debug $ "handleFileUploads/iter: " ++
+                                "caught TooManyBytesReadException"
+                        skipToEof
+                        tooMany maxSize
+                  , Handler $ \(e :: SomeException) -> do
+                        debug $ "handleFileUploads/iter: caught " ++ show e
+                        debug "handleFileUploads/iter: rethrowing"
+                        throw e
+                  ]
 
         tooMany maxSize =
             return ( partInfo
@@ -215,8 +224,8 @@ handleFileUploads tmpdir uploadPolicy partPolicy handler = do
 -- function skips processing using 'pass'.
 --
 -- If the client's upload rate passes below the configured minimum (see
--- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function throws
--- a 'RateTooSlowException'. This setting is there to protect the server
+-- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function
+-- terminates the connection. This setting is there to protect the server
 -- against slowloris-style denial of service attacks.
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
@@ -261,12 +270,21 @@ handleMultipart uploadPolicy origPartHandler = do
     procCaptures [] captures
 
   where
+    rateLimit bump m =
+        killIfTooSlow bump
+            (minimumUploadRate uploadPolicy)
+            (minimumUploadSeconds uploadPolicy)
+            m
+          `catchError` \e -> do
+              debug $ "rateLimit: caught " ++ show e
+              let (me::Maybe RateTooSlowException) = fromException e
+              maybe (throwError e)
+                    terminateConnection
+                    me
+
     iter bump boundary ph = iterateeDebugWrapper "killIfTooSlow" $
-                            killIfTooSlow
-                              bump
-                              (minimumUploadRate uploadPolicy)
-                              (minimumUploadSeconds uploadPolicy)
-                              (internalHandleMultipart boundary ph)
+                            rateLimit bump $
+                            internalHandleMultipart boundary ph
 
     ins k v = Map.insertWith' (\a b -> Prelude.head a : b) k [v]
 
@@ -543,10 +561,15 @@ captureVariableOrReadFile maxSize fileHandler partInfo =
         return $ Capture fieldName var
 
     handler e = do
+        debug $ "captureVariableOrReadFile/handler: caught " ++ show e
         let m = fromException e :: Maybe TooManyBytesReadException
         case m of
-          Nothing -> throwError e
-          Just _  -> throwError $ PolicyViolationException $
+          Nothing -> do
+              debug "didn't expect this error, rethrowing"
+              throwError e
+          Just _  -> do
+              debug "rethrowing as PolicyViolationException"
+              throwError $ PolicyViolationException $
                      T.concat [ "form input '"
                               , TE.decodeUtf8 fieldName
                               , "' exceeded maximum permissible size ("
@@ -566,6 +589,7 @@ fileReader :: UploadedFiles
            -> PartInfo
            -> Iteratee ByteString IO (PartInfo, FilePath)
 fileReader uploadedFiles tmpdir partInfo = do
+    debug "fileReader: begin"
     (fn, h) <- openFileForUpload uploadedFiles tmpdir
     let i = iterateeDebugWrapper "fileReader" $ iter fn h
     i `catch` \(e::SomeException) -> throwError e
@@ -622,6 +646,7 @@ internalHandleMultipart boundary clientHandler = go `catch` errorHandler
                iterParser pHeadersWithSeparator
 
         handler e = do
+            debug $ "internalHandleMultipart/takeHeaders: caught " ++ show e
             let m = fromException e :: Maybe TooManyBytesReadException
             case m of
               Nothing -> throwError e
@@ -631,6 +656,7 @@ internalHandleMultipart boundary clientHandler = go `catch` errorHandler
     --------------------------------------------------------------------------
     iter = do
         hdrs <- takeHeaders
+        debug $ "internalHandleMultipart/iter: got headers"
 
         -- are we using mixed?
         let (contentType, mboundary) = getContentType hdrs

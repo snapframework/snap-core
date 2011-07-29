@@ -11,6 +11,7 @@ import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.Zlib as Zlib
 import           Control.Exception hiding (assert)
 import           Control.Monad (liftM)
+import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Digest.Pure.MD5
 import           Data.IORef
@@ -39,6 +40,7 @@ stream2stream = liftM (toLazyByteString . mconcat) consume
 ------------------------------------------------------------------------------
 tests :: [Test]
 tests = [ testIdentity1
+        , testIdentity1_charset
         , testIdentity2
         , testIdentity3
         , testIdentity4
@@ -157,19 +159,21 @@ noContentType :: L.ByteString -> Snap ()
 noContentType s = modifyResponse $ setResponseBody $
                   enumBuilder $ fromLazyByteString s
 
+------------------------------------------------------------------------------
+withContentType :: ByteString -> L.ByteString -> Snap ()
+withContentType ct body =
+    modifyResponse $
+    setResponseBody (enumBuilder $ fromLazyByteString body) .
+    setContentType ct
 
 ------------------------------------------------------------------------------
 textPlain :: L.ByteString -> Snap ()
-textPlain s = modifyResponse $
-              setResponseBody (enumBuilder $ fromLazyByteString s) .
-              setContentType "text/plain"
+textPlain = withContentType "text/plain"
 
 
 ------------------------------------------------------------------------------
 binary :: L.ByteString -> Snap ()
-binary s = modifyResponse $
-           setResponseBody (enumBuilder $ fromLazyByteString s) .
-           setContentType "application/octet-stream"
+binary = withContentType "application/octet-stream"
 
 
 ------------------------------------------------------------------------------
@@ -201,7 +205,7 @@ testNoAcceptEncoding = testProperty "gzip/noAcceptEncoding" $
   where
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
-        -- if there's no content-type, withCompression should be a no-op
+        -- if there's no accept-encoding, withCompression should be a no-op
         (!_,!rsp) <- liftQ $ goNoHeaders (seqSnap $ withCompression
                                                   $ textPlain s)
         assert $ getHeader "Content-Encoding" rsp == Nothing
@@ -221,6 +225,27 @@ testIdentity1 = testProperty "gzip/identity1" $ monadicIO $ forAllM arbitrary pr
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
         (!_,!rsp) <- liftQ $ goGZip (seqSnap $ withCompression $ textPlain s)
+        assert $ getHeader "Content-Encoding" rsp == Just "gzip"
+        assert $ getHeader "Vary" rsp == Just "Accept-Encoding"
+        let body = rspBodyToEnum $ rspBody rsp
+
+        c <- liftQ $
+             runIteratee stream2stream >>= run_ . body
+
+        let s1 = GZip.decompress c
+        assert $ s == s1
+
+
+------------------------------------------------------------------------------
+testIdentity1_charset :: Test
+testIdentity1_charset = testProperty "gzip/identity1_charset" $
+                        monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (!_,!rsp) <- liftQ $
+                     goGZip (seqSnap $ withCompression $
+                             withContentType "text/plain; charset=utf-8" s)
         assert $ getHeader "Content-Encoding" rsp == Just "gzip"
         assert $ getHeader "Vary" rsp == Just "Accept-Encoding"
         let body = rspBodyToEnum $ rspBody rsp
