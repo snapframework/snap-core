@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Types.Tests
@@ -33,6 +34,7 @@ import           Test.HUnit hiding (Test, path)
 import           Snap.Internal.Types
 import           Snap.Internal.Http.Types
 import           Snap.Iteratee
+import qualified Snap.Iteratee as I
 import           Snap.Test.Common
 
 
@@ -42,6 +44,8 @@ tests = [ testFail
         , testEarlyTermination
         , testCatchFinishWith
         , testRqBody
+        , testRqBodyException
+        , testRqBodyTermination
         , testTrivials
         , testMethod
         , testMethods
@@ -60,17 +64,19 @@ tests = [ testFail
         , testBracketSnap ]
 
 
-expectException :: IO () -> IO ()
+expectException :: IO a -> IO ()
 expectException m = do
-    r <- (try m :: IO (Either SomeException ()))
-    let b = either (\e -> show e `using` rdeepseq `seq` True)
-                   (const False) r
+    r <- try m
+    let b = either (\e -> (show (e::SomeException) `using` rdeepseq)
+                              `seq` True)
+                   (const False)
+                   r
     assertBool "expected exception" b
 
 
-expectSpecificException :: Exception e => e -> IO () -> IO ()
+expectSpecificException :: Exception e => e -> IO a -> IO ()
 expectSpecificException e0 m = do
-    r <- (try m :: IO (Either SomeException ()))
+    r <- try m
 
     let b = either (\se -> isJust $
                            forceSameType (Just e0) (fromException se))
@@ -129,12 +135,15 @@ mkIpHeaderRq = do
 
 
 mkRqWithBody :: IO Request
-mkRqWithBody = do
-    enum <- newIORef $ SomeEnumerator (enumBS "zazzle" >==> enumEOF)
+mkRqWithBody = mkRqWithEnum (enumBS "zazzle" >==> enumEOF)
+
+
+mkRqWithEnum :: (forall a . Enumerator ByteString IO a) -> IO Request
+mkRqWithEnum e = do
+    enum <- newIORef $ SomeEnumerator e
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
                  enum Nothing GET (1,1) [] "" "/" "/" "/" ""
                  Map.empty
-
 
 testCatchIO :: Test
 testCatchIO = testCase "types/catchIO" $ do
@@ -191,6 +200,16 @@ goPathQuery s k v m = do
 goBody :: Snap a -> IO (Request,Response)
 goBody m = do
     rq <- mkRqWithBody
+    run_ $ runSnap m dummy dummy rq
+  where
+    dummy = const $ return ()
+
+
+goEnum :: (forall a . Enumerator ByteString IO a)
+       -> Snap b
+       -> IO (Request,Response)
+goEnum enum m = do
+    rq <- mkRqWithEnum enum
     run_ $ runSnap m dummy dummy rq
   where
     dummy = const $ return ()
@@ -324,6 +343,39 @@ testRqBody = testCase "types/requestBodies" $ do
         getRequestBody >>= liftIO . putMVar mvar2
 
     g = transformRequestBody returnI
+
+
+testRqBodyException :: Test
+testRqBodyException = testCase "types/requestBodyException" $ do
+    (req,resp) <- goEnum (enumList 1 ["the", "quick", "brown", "fox"]) hndlr
+    bd      <- getBody resp
+
+    (SomeEnumerator e) <- readIORef $ rqBody req
+    b' <- liftM (S.concat) $ run_ $ e $$ consume
+    assertEqual "request body was consumed" "" b'
+    assertEqual "response body was produced" "OK" bd
+
+  where
+    h0 = runRequestBody $ do
+             _ <- I.head
+             throw $ ErrorCall "foo"
+
+    hndlr = h0 `catch` \(_::SomeException) -> writeBS "OK"
+
+
+testRqBodyTermination :: Test
+testRqBodyTermination =
+    testCase "types/requestBodyTermination" $
+    expectException $
+    goEnum (enumList 1 ["the", "quick", "brown", "fox"]) hndlr
+
+  where
+    h0 = runRequestBody $ do
+             _ <- I.head
+             terminateConnection $ ErrorCall "foo"
+
+    hndlr = h0 `catch` \(_::SomeException) -> writeBS "OK"
+
 
 
 testTrivials :: Test

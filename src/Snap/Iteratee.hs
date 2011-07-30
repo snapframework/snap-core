@@ -198,7 +198,7 @@ enumLBS bs = enumList 1 (L.toChunks bs)
 skipToEof :: (Monad m) => Iteratee a m ()
 skipToEof = continue k
   where
-    k EOF = return ()
+    k EOF = yield () EOF
     k _   = skipToEof
 
 
@@ -724,4 +724,4 @@ killIfTooSlow !bump !minRate !minSeconds' !inputIter = do
 
 ------------------------------------------------------------------------------
 getTime :: IO Double
-getTime = (fromRational . toRational) `fmap` getPOSIXTime
+getTime = realToFrac `fmap` getPOSIXTime

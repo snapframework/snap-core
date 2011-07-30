@@ -25,9 +25,19 @@ import           Snap.Util.FileServe
 import           Snap.Iteratee
 
 tests :: [Test]
-tests = [ testFs
-        , testFsCfg
+tests = [ testFooBin
+        , testFooTxt
+        , testFooHtml
+        , testFooBinBinBin
+        , test404s
         , testFsSingle
+
+        , testFsCfgA
+        , testFsCfgB
+        , testFsCfgC
+        , testFsCfgD
+        , testFsCfgFancy
+
         , testRangeOK
         , testRangeBad
         , testMultiRange
@@ -59,6 +69,7 @@ runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
 runIt m rq = runSnap m d d rq
   where
     d = const $ return ()
+
 
 go :: Snap a -> ByteString -> IO Response
 go m s = do
@@ -124,8 +135,15 @@ mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
-                     enum Nothing GET (1,1) [] "" uri "/"
-                     (S.concat ["/",uri]) "" Map.empty
+                     enum Nothing GET (1,1) [] "" pathPart "/"
+                     (S.concat ["/",uri]) queryPart Map.empty
+
+  where
+    (pathPart, queryPart) = breakQuery uri
+
+    breakQuery s = (a, S.drop 1 b)
+      where
+        (a,b) = S.break (=='?') s
 
 
 fs :: Snap ()
@@ -146,62 +164,316 @@ fsCfg cfg = do
     return $! x `seq` ()
 
 
-testFs :: Test
-testFs = testCase "fileServe/multi" $ do
+
+------------------------------------------------------------------------------
+testFooBin :: Test
+testFooBin = testCase "fileServe/foo.bin" $ do
     r1 <- go fs "foo.bin"
-    b1 <- getBody r1
-
-    assertEqual "foo.bin" "FOO\n" b1
-    assertEqual "foo.bin content-type"
-                (Just "application/octet-stream")
-                (getHeader "content-type" r1)
-
-    assertEqual "foo.bin size" (Just 4) (rspContentLength r1)
-
-    assertBool "last-modified header" (isJust $ getHeader "last-modified" r1)
-    assertEqual "accept-ranges header" (Just "bytes")
-                                       (getHeader "accept-ranges" r1)
-
+    checkProps "fileServe/foo.bin/default" r1
     let !lm = fromJust $ getHeader "last-modified" r1
+
+    go fs "foo.bin?blah=blah" >>= checkProps "fileServe/foo.bin/query-string"
 
     -- check last modified stuff
     r2 <- goIfModifiedSince fs "foo.bin" lm
     assertEqual "foo.bin 304" 304 $ rspStatus r2
 
     r3 <- goIfModifiedSince fs "foo.bin" "Wed, 15 Nov 1995 04:58:08 GMT"
-    assertEqual "foo.bin 200" 200 $ rspStatus r3
-    b3 <- getBody r3
-    assertEqual "foo.bin 2" "FOO\n" b3
+    checkProps "fileServe/foo.bin/ifModifiedSince" r3
 
-    r4 <- go fs "foo.txt"
-    b4 <- getBody r4
+  where
+    checkProps name r = do
+        b <- getBody r
 
-    assertEqual "foo.txt" "FOO\n" b4
-    assertEqual "foo.txt content-type"
-                (Just "text/plain")
-                (getHeader "content-type" r4)
+        assertEqual (name ++ "/contents") "FOO\n" b
+        assertEqual (name ++ "/content-type")
+                    (Just "application/octet-stream")
+                    (getHeader "content-type" r)
+
+        assertEqual (name ++ "/size") (Just 4) (rspContentLength r)
+
+        assertBool  (name ++ "/last-modified")
+                    (isJust $ getHeader "last-modified" r)
+
+        assertEqual (name ++ "/accept-ranges")
+                    (Just "bytes")
+                    (getHeader "accept-ranges" r)
+
+
+------------------------------------------------------------------------------
+testFooTxt :: Test
+testFooTxt = testCase "fileServe/foo.txt" $ do
+    go fs "foo.txt" >>= checkProps "fileServe/foo.txt/default"
+    go fs "foo.txt?blah=blah" >>= checkProps "fileServe/foo.txt/query"
+
+  where
+    checkProps name r = do
+        b <- getBody r
+
+        assertEqual (name ++ "/contents") "FOO\n" b
+        assertEqual (name ++ "/content-type")
+                    (Just "text/plain")
+                    (getHeader "content-type" r)
+
+        assertEqual (name ++ "/size") (Just 4) (rspContentLength r)
+
+        assertBool  (name ++ "/last-modified")
+                    (isJust $ getHeader "last-modified" r)
+
+        assertEqual (name ++ "/accept-ranges")
+                    (Just "bytes")
+                    (getHeader "accept-ranges" r)
     
-    r5 <- go fs "foo.html"
-    b5 <- getBody r5
-
-    assertEqual "foo.html" "FOO\n" b5
-    assertEqual "foo.html content-type"
-                (Just "text/html")
-                (getHeader "content-type" r5)
     
-    r6 <- go fs "foo.bin.bin.bin"
-    b6 <- getBody r6
 
-    assertEqual "foo.bin.bin.bin" "FOO\n" b6
-    assertEqual "foo.bin.bin.bin content-type"
-                (Just "application/octet-stream")
-                (getHeader "content-type" r6)
+------------------------------------------------------------------------------
+testFooHtml :: Test
+testFooHtml = testCase "fileServe/foo.html" $ do
+    go fs "foo.html" >>= checkProps "fileServe/foo.html/default"
+    go fs "foo.html?bar=bar" >>= checkProps "fileServe/foo.html/query"
 
+  where
+    checkProps name r = do
+        b <- getBody r
+
+        assertEqual (name ++ "/contents") "FOO\n" b
+        assertEqual (name ++ "/content-type")
+                    (Just "text/html")
+                    (getHeader "content-type" r)
+
+        assertEqual (name ++ "/size") (Just 4) (rspContentLength r)
+
+        assertBool  (name ++ "/last-modified")
+                    (isJust $ getHeader "last-modified" r)
+
+        assertEqual (name ++ "/accept-ranges")
+                    (Just "bytes")
+                    (getHeader "accept-ranges" r)
+
+
+------------------------------------------------------------------------------
+testFooBinBinBin :: Test
+testFooBinBinBin = testCase "fileServe/foo.bin.bin.bin" $ do
+    go fs "foo.bin.bin.bin" >>= checkProps "fileServe/foo.bin.bin.bin"
+
+  where
+    checkProps name r = do
+        b <- getBody r
+
+        assertEqual (name ++ "/contents") "FOO\n" b
+        assertEqual (name ++ "/content-type")
+                    (Just "application/octet-stream")
+                    (getHeader "content-type" r)
+
+        assertEqual (name ++ "/size") (Just 4) (rspContentLength r)
+
+        assertBool  (name ++ "/last-modified")
+                    (isJust $ getHeader "last-modified" r)
+
+        assertEqual (name ++ "/accept-ranges")
+                    (Just "bytes")
+                    (getHeader "accept-ranges" r)
+
+
+------------------------------------------------------------------------------
+test404s :: Test
+test404s = testCase "fileServe/404s" $ do
     expect404 $ go fs "jfldksjflksd"
     expect404 $ go fs "dummy/../foo.txt"
     expect404 $ go fs "/etc/password"
 
     coverMimeMap
+
+
+------------------------------------------------------------------------------
+printName :: FilePath -> Snap ()
+printName c = writeBS $ snd $ S.breakEnd (=='/') $ S.pack c
+
+
+cfgA, cfgB, cfgC, cfgD :: DirectoryConfig Snap
+cfgA = DirectoryConfig {
+         indexFiles      = []
+       , indexGenerator  = const pass
+       , dynamicHandlers = Map.empty
+       , mimeTypes       = defaultMimeTypes
+       , preServeHook    = const $ return ()
+       }
+
+cfgB = DirectoryConfig {
+         indexFiles      = ["index.txt", "altindex.html"]
+       , indexGenerator  = const pass
+       , dynamicHandlers = Map.empty
+       , mimeTypes       = defaultMimeTypes
+       , preServeHook    = const $ return ()
+       }
+
+cfgC = DirectoryConfig {
+         indexFiles      = ["index.txt", "altindex.html"]
+       , indexGenerator  = printName
+       , dynamicHandlers = Map.empty
+       , mimeTypes       = defaultMimeTypes
+       , preServeHook    = const $ return ()
+       }
+
+cfgD = DirectoryConfig {
+         indexFiles      = []
+       , indexGenerator  = const pass
+       , dynamicHandlers = Map.fromList [ (".txt", printName) ]
+       , mimeTypes       = defaultMimeTypes
+       , preServeHook    = const $ return ()
+       }
+
+
+testFsCfgA :: Test
+testFsCfgA = testCase "fileServe/cfgA" $ do
+    let gooo = go (fsCfg cfgA)
+
+    -- Named file in the root directory
+    gooo "foo.bin" >>= checkProps "cfgA1/1" "application/octet-stream"
+    gooo "foo.bin?blah=blah" >>=
+         checkProps "cfgA1/2" "application/octet-stream"
+
+    -- Missing file in the root directory
+    expect404 $ gooo "bar.bin"
+
+    -- Named file in a subdirectory
+    gooo "mydir2/foo.txt" >>= checkProps "cfgA1/subdir/1" "text/plain" 
+    gooo "mydir2/foo.txt?z=z" >>= checkProps "cfgA1/subdir/2" "text/plain"
+   
+    -- Missing file in a subdirectory
+    expect404 $ gooo "mydir2/bar.txt"
+
+    -- Request for directory with no trailing slash
+    expect302 "/mydir1/" $ gooo "mydir1"
+
+    -- Request for directory with no trailing slash, with query param
+    expect302 "/mydir1/?z=z" $ gooo "mydir1?z=z"
+
+    -- Request for directory with trailing slash, no index
+    expect404 $ gooo "mydir1/"
+    expect404 $ gooo "mydir2/"
+
+    -- Request file with trailing slash
+    expect404 $ gooo "foo.html/"
+    expect404 $ gooo "mydir2/foo.txt/"
+
+  where
+    checkProps name ct r = do
+        b <- getBody r
+
+        assertEqual (name ++ "/contents") "FOO\n" b
+        assertEqual (name ++ "/content-type")
+                    (Just ct)
+                    (getHeader "content-type" r)
+
+        assertEqual (name ++ "/size") (Just 4) (rspContentLength r)
+
+        assertBool  (name ++ "/last-modified")
+                    (isJust $ getHeader "last-modified" r)
+
+        assertEqual (name ++ "/accept-ranges")
+                    (Just "bytes")
+                    (getHeader "accept-ranges" r)
+    
+testFsCfgB :: Test
+testFsCfgB = testCase "fileServe/cfgB" $ do
+    let gooo = go (fsCfg cfgB)
+
+    -- Request for root directory with index
+    rB1 <- gooo "mydir1/"
+    bB1 <- getBody rB1
+
+    assertEqual "B1" "INDEX\n" bB1
+    assertEqual "B1 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rB1)
+
+    -- Request for root directory with index, query
+    rB2 <- gooo "mydir1/?z=z"
+    bB2 <- getBody rB2
+
+    assertEqual "B2" "INDEX\n" bB2
+    assertEqual "B2 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rB2)
+
+
+    -- Request for root directory with alternate index
+    rB3 <- gooo "mydir3/"
+    bB3 <- getBody rB3
+
+    assertEqual "B3" "ALTINDEX\n" bB3
+    assertEqual "B3 content-type"
+                (Just "text/html")
+                (getHeader "content-type" rB3)
+
+    -- Request for root directory with no index
+    expect404 $ gooo "mydir2/"
+
+
+testFsCfgC :: Test
+testFsCfgC = testCase "fileServe/cfgC" $ do
+    let gooo = go (fsCfg cfgC)
+
+    -- Request for root directory with index
+    rC1 <- gooo "mydir1/"
+    bC1 <- getBody rC1
+
+    assertEqual "C1" "INDEX\n" bC1
+    assertEqual "C1 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rC1)
+
+    -- Request for root directory with index, query
+    rC2 <- gooo "mydir1/?z=z"
+    bC2 <- getBody rC2
+
+    assertEqual "C2" "INDEX\n" bC2
+    assertEqual "C2 content-type"
+                (Just "text/plain")
+                (getHeader "content-type" rC2)
+
+    -- Request for root directory with generated index
+    rC3 <- gooo "mydir2/"
+    bC3 <- getBody rC3
+
+    assertEqual "C3" "mydir2" bC3
+
+
+testFsCfgD :: Test
+testFsCfgD = testCase "fileServe/cfgD" $ do
+    -- Request for file with dynamic handler
+    rD1 <- go (fsCfg cfgD) "mydir2/foo.txt"
+    bD1 <- getBody rD1
+
+    assertEqual "D1" "foo.txt" bD1
+
+
+testFsCfgFancy :: Test
+testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
+    -- Request for directory with autogen index
+    rE1 <- go (fsCfg fancyDirectoryConfig) "mydir2/"
+    bE1 <- S.concat `fmap` L.toChunks `fmap` getBody rE1
+
+    assertBool "autogen-sub-index" $
+        "Directory Listing: /mydir2/" `S.isInfixOf` bE1
+    assertBool "autogen-sub-parent" $
+        "<a href='../'" `S.isInfixOf` bE1
+    assertBool "autogen-sub-file" $
+        "<a href='foo.txt'" `S.isInfixOf` bE1
+
+
+    -- Request for directory with autogen index
+    rE2 <- go (fsCfg fancyDirectoryConfig) "mydir2/?z=z"
+    bE2 <- S.concat `fmap` L.toChunks `fmap` getBody rE2
+
+    assertBool "autogen-sub-index" $
+        "Directory Listing: /mydir2/" `S.isInfixOf` bE2
+    assertBool "autogen-sub-parent" $
+        "<a href='../'" `S.isInfixOf` bE2
+    assertBool "autogen-sub-file" $
+        "<a href='foo.txt'" `S.isInfixOf` bE2
+
 
 
 testFsSingle :: Test
@@ -216,131 +488,6 @@ testFsSingle = testCase "fileServe/Single" $ do
 
     assertEqual "foo.html size" (Just 4) (rspContentLength r1)
 
-
-testFsCfg :: Test
-testFsCfg = testCase "fileServe/Cfg" $ do
-
-    let cfgA = DirectoryConfig {
-        indexFiles      = [],
-        indexGenerator  = const pass,
-        dynamicHandlers = Map.empty,
-        mimeTypes       = defaultMimeTypes,
-        preServeHook    = const $ return ()
-        }
-
-    -- Named file in the root directory
-    rA1 <- go (fsCfg cfgA) "foo.bin"
-    bA1 <- getBody rA1
-
-    assertEqual "A1" "FOO\n" bA1
-    assertEqual "A1 content-type"
-                (Just "application/octet-stream")
-                (getHeader "content-type" rA1)
-
-    -- Missing file in the root directory
-    expect404 $ go (fsCfg cfgA) "bar.bin"
-
-    -- Named file in a subdirectory
-    rA2 <- go (fsCfg cfgA) "mydir2/foo.txt"
-    bA2 <- getBody rA2
-
-    assertEqual "A2" "FOO\n" bA2
-    assertEqual "A2 content-type"
-                (Just "text/plain")
-                (getHeader "content-type" rA2)
-
-    -- Missing file in a subdirectory
-    expect404 $ go (fsCfg cfgA) "mydir2/bar.txt"
-
-    -- Request for directory with no trailing slash
-    expect302 "/mydir1/" $ go (fsCfg cfgA) "mydir1"
-
-    -- Request for directory with trailing slash, no index
-    expect404 $ go (fsCfg cfgA) "mydir1/"
-    expect404 $ go (fsCfg cfgA) "mydir2/"
-
-    -- Request file with trailing slash
-    expect404 $ go (fsCfg cfgA) "foo.html/"
-    expect404 $ go (fsCfg cfgA) "mydir2/foo.txt/"
-
-    let cfgB = DirectoryConfig {
-        indexFiles      = ["index.txt", "altindex.html"],
-        indexGenerator  = const pass,
-        dynamicHandlers = Map.empty,
-        mimeTypes       = defaultMimeTypes,
-        preServeHook    = const $ return ()
-        }
-
-    -- Request for root directory with index
-    rB1 <- go (fsCfg cfgB) "mydir1/"
-    bB1 <- getBody rB1
-
-    assertEqual "B1" "INDEX\n" bB1
-    assertEqual "B1 content-type"
-                (Just "text/plain")
-                (getHeader "content-type" rB1)
-
-    -- Request for root directory with alternate index
-    rB2 <- go (fsCfg cfgB) "mydir3/"
-    bB2 <- getBody rB2
-
-    assertEqual "B2" "ALTINDEX\n" bB2
-    assertEqual "B2 content-type"
-                (Just "text/html")
-                (getHeader "content-type" rB2)
-
-    -- Request for root directory with no index
-    expect404 $ go (fsCfg cfgB) "mydir2/"
-
-    let printName c = writeBS $ snd $ S.breakEnd (=='/') $ S.pack c
-
-    let cfgC = DirectoryConfig {
-        indexFiles      = ["index.txt", "altindex.html"],
-        indexGenerator  = printName,
-        dynamicHandlers = Map.empty,
-        mimeTypes       = defaultMimeTypes,
-        preServeHook    = const $ return ()
-        }
-
-    -- Request for root directory with index
-    rC1 <- go (fsCfg cfgC) "mydir1/"
-    bC1 <- getBody rC1
-
-    assertEqual "C1" "INDEX\n" bC1
-    assertEqual "C1 content-type"
-                (Just "text/plain")
-                (getHeader "content-type" rC1)
-
-    -- Request for root directory with generated index
-    rC2 <- go (fsCfg cfgC) "mydir2/"
-    bC2 <- getBody rC2
-
-    assertEqual "C2" "mydir2" bC2
-
-    let cfgD = DirectoryConfig {
-        indexFiles      = [],
-        indexGenerator  = const pass,
-        dynamicHandlers = Map.fromList [ (".txt", printName) ],
-        mimeTypes       = defaultMimeTypes,
-        preServeHook    = const $ return ()
-        }
-
-    -- Request for file with dynamic handler
-    rD1 <- go (fsCfg cfgD) "mydir2/foo.txt"
-    bD1 <- getBody rD1
-
-    assertEqual "D1" "foo.txt" bD1
-
-    -- Request for directory with autogen index
-    rE1 <- go (fsCfg fancyDirectoryConfig) "mydir2/"
-    bE1 <- S.concat `fmap` L.toChunks `fmap` getBody rE1
-
-    assertBool "autogen-sub-index" $
-        "Directory Listing: /mydir2/" `S.isInfixOf` bE1
-    assertBool "autogen-sub-parent" $
-        "<a href='../'" `S.isInfixOf` bE1
-    assertBool "autogen-sub-file" $
-        "<a href='foo.txt'" `S.isInfixOf` bE1
 
 
 testRangeOK :: Test

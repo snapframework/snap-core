@@ -128,6 +128,7 @@ type MimeMap = Map FilePath ByteString
 -- >   ( ".qt"      , "video/quicktime"                   ),
 -- >   ( ".sig"     , "application/pgp-signature"         ),
 -- >   ( ".spl"     , "application/futuresplash"          ),
+-- >   ( ".svg"     , "image/svg+xml"                     ),
 -- >   ( ".swf"     , "application/x-shockwave-flash"     ),
 -- >   ( ".tar"     , "application/x-tar"                 ),
 -- >   ( ".tar.bz2" , "application/x-bzip-compressed-tar" ),
@@ -185,6 +186,7 @@ defaultMimeTypes = Map.fromList [
   ( ".qt"      , "video/quicktime"                   ),
   ( ".sig"     , "application/pgp-signature"         ),
   ( ".spl"     , "application/futuresplash"          ),
+  ( ".svg"     , "image/svg+xml"                     ),
   ( ".swf"     , "application/x-shockwave-flash"     ),
   ( ".tar"     , "application/x-tar"                 ),
   ( ".tar.bz2" , "application/x-bzip-compressed-tar" ),
@@ -287,18 +289,19 @@ defaultIndexGenerator :: MonadSnap m
                       -> m ()
 defaultIndexGenerator mm styles d = do
     modifyResponse $ setContentType "text/html"
-
     rq      <- getRequest
+
+    let uri = uriWithoutQueryString rq
 
     writeBS "<style type='text/css'>"
     writeBS styles
     writeBS "</style><div class=\"header\">Directory Listing: "
-    writeBS (rqURI rq)
+    writeBS uri
     writeBS "</div><div class=\"content\">"
     writeBS "<table><tr><th>File Name</th><th>Type</th><th>Last Modified"
     writeBS "</th></tr>"
 
-    when (rqURI rq /= "/") $
+    when (uri /= "/") $
         writeBS "<tr><td><a href='../'>..</a></td><td colspan=2>DIR</td></tr>"
 
     entries <- liftIO $ getDirectoryContents d
@@ -423,7 +426,8 @@ serveDirectoryWith cfg base = do
     -- not for a directory (no trailing slash).
     directory = do
         rq  <- getRequest
-        unless ("/" `S.isSuffixOf` rqURI rq) pass
+        let uri = uriWithoutQueryString rq
+        unless ("/" `S.isSuffixOf` uri) pass
         rel <- (base </>) <$> getSafePath
         b   <- liftIO $ doesDirectoryExist rel
         if b then do let serveRel f = serve (rel </> f)
@@ -441,7 +445,10 @@ serveDirectoryWith cfg base = do
         rel <- (base </>) <$> getSafePath
         liftIO (doesDirectoryExist rel) >>= flip unless pass
         rq <- getRequest
-        redirect $ rqURI rq `S.append` "/" `S.append` rqQueryString rq
+        let uri = uriWithoutQueryString rq
+        let qss = queryStringSuffix rq
+        let u = S.concat [uri, "/", qss]
+        redirect u
 
 
 ------------------------------------------------------------------------------
@@ -723,3 +730,18 @@ fileServeSingle' = serveFileAs
 {-# INLINE fileServeSingle' #-}
 {-# DEPRECATED fileServeSingle' "Use serveFileAs instead" #-}
 
+
+------------------------------------------------------------------------------
+uriWithoutQueryString :: Request -> ByteString
+uriWithoutQueryString rq = S.concat [ cp, pinfo ]
+  where
+    cp    = rqContextPath rq
+    pinfo = rqPathInfo rq
+
+
+------------------------------------------------------------------------------
+queryStringSuffix :: Request -> ByteString
+queryStringSuffix rq = S.concat [ s, qs ]
+  where
+    qs = rqQueryString rq
+    s  = if S.null qs then "" else "?"
