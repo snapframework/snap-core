@@ -17,20 +17,12 @@ module Snap.Internal.Http.Types where
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
-import           Control.Applicative hiding (empty)
-import           Control.Monad (liftM, when)
-import qualified Data.Attoparsec as Atto
-import           Data.Attoparsec hiding (many, Result(..))
-import           Data.Bits
+import           Control.Monad (liftM)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import           Data.ByteString.Internal (c2w,w2c)
-import qualified Data.ByteString.Nums.Careless.Hex as Cvt
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Unsafe as S
 import           Data.Char
-import           Data.DList (DList)
-import qualified Data.DList as DL
 import           Data.Int
 import qualified Data.IntMap as IM
 import           Data.IORef
@@ -40,8 +32,6 @@ import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Time.Clock
-import           Data.Word
-import           Foreign hiding (new)
 import           Foreign.C.Types
 import           Prelude hiding (take)
 
@@ -53,6 +43,8 @@ import           Data.Time.Clock.POSIX
 import           System.Locale (defaultTimeLocale)
 #else
 import           Data.Time.Format ()
+import           Foreign
+import qualified Data.ByteString.Unsafe as S
 import           Foreign.C.String
 #endif
 
@@ -236,7 +228,7 @@ data Request = Request
       -- >                     , rqContextPath r
       -- >                     , rqPathInfo r
       -- >                     , let q = rqQueryString r
-      -- >                     , in if S.null q
+      -- >                       in if S.null q
       -- >                            then ""
       -- >                            else S.append "?" q
       -- >                     ]
@@ -413,25 +405,28 @@ data Response = Response
 
 ------------------------------------------------------------------------------
 instance Show Response where
-  show r = concat [ "Response <\n"
-                  , body
-                  , ">" ]
+  show r = concat [ statusline
+                  , hdrs
+                  , "\r\n"
+                  ]
     where
-      body = concat $ map (("    "++) . (++ "\n")) [
-                         hdrs
-                       , version
-                       , status
-                       , reason
-                       ]
+      (v1,v2) = rspHttpVersion r
 
-      hdrs    = concat [ "headers:\n"
-                       , "      ==============================\n      "
-                       , show $ rspHeaders r
-                       , "\n      ==============================" ]
+      statusline = concat [ "HTTP/"
+                          , show v1
+                          , "." 
+                          , show v2
+                          , " "
+                          , show $ rspStatus r
+                          , " "
+                          , toStr $ rspStatusReason r
+                          , "\r\n" ]
 
-      version = concat [ "version: ", show $ rspHttpVersion r ]
-      status  = concat [ "status: ", show $ rspStatus r ]
-      reason  = concat [ "reason: ", toStr $ rspStatusReason r ]
+      hdrs = concatMap showHdr $ Map.toList $ rspHeaders r
+
+      showHdr (k,vs) = concatMap (showOneHdr k) vs
+
+      showOneHdr k v = concat [ toStr (CI.original k), ": ", toStr v, "\r\n" ]
 
 
 ------------------------------------------------------------------------------
@@ -677,102 +672,6 @@ parseHttpTime s = S.unsafeUseAsCString s $ \ptr ->
     c_parse_http_time ptr
 
 #endif
-
-
-------------------------------------------------------------------------------
--- URL ENCODING
-------------------------------------------------------------------------------
-
-parseToCompletion :: Parser a -> ByteString -> Maybe a
-parseToCompletion p s = toResult $ finish r
-  where
-    r = parse p s
-
-    toResult (Atto.Done _ c) = Just c
-    toResult _               = Nothing
-
-
-------------------------------------------------------------------------------
-pUrlEscaped :: Parser ByteString
-pUrlEscaped = do
-    sq <- nextChunk DL.empty
-    return $ S.concat $ DL.toList sq
-
-  where
-    nextChunk :: DList ByteString -> Parser (DList ByteString)
-    nextChunk s = (endOfInput *> pure s) <|> do
-        c <- anyWord8
-        case w2c c of
-          '+' -> plusSpace s
-          '%' -> percentEncoded s
-          _   -> unEncoded c s
-
-    percentEncoded :: DList ByteString -> Parser (DList ByteString)
-    percentEncoded l = do
-        hx <- take 2
-        when (S.length hx /= 2 ||
-               (not $ S.all (isHexDigit . w2c) hx)) $
-             fail "bad hex in url"
-
-        let code = (Cvt.hex hx) :: Word8
-        nextChunk $ DL.snoc l (S.singleton code)
-
-    unEncoded :: Word8 -> DList ByteString -> Parser (DList ByteString)
-    unEncoded c l' = do
-        let l = DL.snoc l' (S.singleton c)
-        bs <- takeTill (flip elem (map c2w "%+"))
-        if S.null bs
-          then nextChunk l
-          else nextChunk $ DL.snoc l bs
-
-    plusSpace :: DList ByteString -> Parser (DList ByteString)
-    plusSpace l = nextChunk (DL.snoc l (S.singleton $ c2w ' '))
-
-
-------------------------------------------------------------------------------
--- | Decodes an URL-escaped string (see
--- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
-urlDecode :: ByteString -> Maybe ByteString
-urlDecode = parseToCompletion pUrlEscaped
-
-
-------------------------------------------------------------------------------
--- "...Only alphanumerics [0-9a-zA-Z], the special characters "$-_.+!*'(),"
--- [not including the quotes - ed], and reserved characters used for their
--- reserved purposes may be used unencoded within a URL."
-
--- | URL-escapes a string (see
--- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
-urlEncode :: ByteString -> ByteString
-urlEncode = toByteString . S.foldl' f mempty
-  where
-    f b c =
-        if c == c2w ' '
-          then b `mappend` fromWord8 (c2w '+')
-          else if isKosher c
-                 then b `mappend` fromWord8 c
-                 else b `mappend` hexd c
-
-    isKosher w = any ($ c) [ isAlphaNum
-                           , flip elem ['$', '-', '.', '!', '*'
-                                       , '\'', '(', ')', ',' ]]
-      where
-        c = w2c w
-
-
-------------------------------------------------------------------------------
-hexd :: Word8 -> Builder
-hexd c = fromWord8 (c2w '%') `mappend` fromWord8 hi `mappend` fromWord8 low
-  where
-    d   = c2w . intToDigit
-    low = d $ fromEnum $ c .&. 0xf
-    hi  = d $ fromEnum $ (c .&. 0xf0) `shift` (-4)
-
-
-------------------------------------------------------------------------------
-finish :: Atto.Result a -> Atto.Result a
-finish (Atto.Partial f) = flip feed "" $ f ""
-finish x                = x
 
 
 ------------------------------------------------------------------------------

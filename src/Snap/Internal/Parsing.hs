@@ -2,22 +2,38 @@
 
 module Snap.Internal.Parsing where
 
-import           Control.Arrow (first)
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.CaseInsensitive as CI
-import           Data.CaseInsensitive (CI)
-import           Data.Char (isAlpha, isAscii, isControl)
+------------------------------------------------------------------------------
+import           Blaze.ByteString.Builder
 import           Control.Applicative
+import           Control.Arrow (first, second)
 import           Control.Monad
 import           Data.Attoparsec.Char8 hiding (Done, many)
 import qualified Data.Attoparsec.Char8 as Atto
+import           Data.Attoparsec.FastSet (FastSet)
+import qualified Data.Attoparsec.FastSet as FS
+import           Data.Bits
+import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Char8 as S
+import           Data.ByteString.Internal (c2w, w2c)
+import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Nums.Careless.Int (int)
+import qualified Data.ByteString.Nums.Careless.Hex as Cvt
+import qualified Data.CaseInsensitive as CI
+import           Data.CaseInsensitive (CI)
+import           Data.Char hiding (isDigit, isSpace)
+import           Data.DList (DList)
+import qualified Data.DList as DL
 import           Data.Int
-import qualified Data.Vector.Unboxed as Vec
-import           Data.Vector.Unboxed (Vector)
+import           Data.List (foldl', intersperse)
+import           Data.Map (Map)
+import qualified Data.Map as Map
+import           Data.Maybe
+import           Data.Monoid
+import           Data.Word
 import           Prelude hiding (head, take, takeWhile)
+
+------------------------------------------------------------------------------
+import           Snap.Internal.Http.Types
 
 
 ------------------------------------------------------------------------------
@@ -58,6 +74,11 @@ crlf = string "\r\n"
 
 
 ------------------------------------------------------------------------------
+generateFS :: (Word8 -> Bool) -> FastSet
+generateFS f = FS.fromList $ filter f [0..255]
+
+
+------------------------------------------------------------------------------
 -- | Parser for zero or more spaces.
 spaces :: Parser [Char]
 spaces = many sp
@@ -72,14 +93,15 @@ pSpaces = takeWhile isSpace
 fieldChars :: Parser ByteString
 fieldChars = takeWhile isFieldChar
   where
-    isFieldChar c = (Vec.!) fieldCharTable (fromEnum c)
+    isFieldChar = flip FS.memberChar fieldCharSet
 
 
 ------------------------------------------------------------------------------
-fieldCharTable :: Vector Bool
-fieldCharTable = Vec.generate 256 f
+fieldCharSet :: FastSet
+fieldCharSet = generateFS f
   where
-    f d = let c=toEnum d in (isDigit c) || (isAlpha c) || c == '-' || c == '_'
+    f d = let c = (toEnum $ fromEnum d)
+          in (isDigit c) || (isAlpha c) || c == '-' || c == '_'
 
 
 ------------------------------------------------------------------------------
@@ -212,11 +234,11 @@ pToken = takeWhile isToken
 ------------------------------------------------------------------------------
 {-# INLINE isToken #-}
 isToken :: Char -> Bool
-isToken c = (Vec.!) tokenTable (fromEnum c)
-  where
-    tokenTable :: Vector Bool
-    tokenTable = Vec.generate 256 (f . toEnum)
+isToken c = FS.memberChar c tokenTable
 
+tokenTable :: FastSet
+tokenTable = generateFS (f . toEnum . fromEnum)
+  where
     f = matchAll [ isAscii
                  , not . isControl
                  , not . isSpace
@@ -224,6 +246,184 @@ isToken c = (Vec.!) tokenTable (fromEnum c)
                                    , ':', '\\', '\"', '/', '[', ']'
                                    , '?', '=', '{', '}' ]
                  ]
+
+
+------------------------------------------------------------------------------
+-- URL ENCODING
+------------------------------------------------------------------------------
+
+parseToCompletion :: Parser a -> ByteString -> Maybe a
+parseToCompletion p s = toResult $ finish r
+  where
+    r = parse p s
+
+    toResult (Atto.Done _ c) = Just c
+    toResult _               = Nothing
+
+
+------------------------------------------------------------------------------
+pUrlEscaped :: Parser ByteString
+pUrlEscaped = do
+    sq <- nextChunk DL.empty
+    return $ S.concat $ DL.toList sq
+
+  where
+    nextChunk :: DList ByteString -> Parser (DList ByteString)
+    nextChunk s = (endOfInput *> pure s) <|> do
+        c <- anyChar
+        case c of
+          '+' -> plusSpace s
+          '%' -> percentEncoded s
+          _   -> unEncoded c s
+
+    percentEncoded :: DList ByteString -> Parser (DList ByteString)
+    percentEncoded l = do
+        hx <- take 2
+        when (S.length hx /= 2 || (not $ S.all isHexDigit hx)) $
+             fail "bad hex in url"
+
+        let code = w2c ((Cvt.hex hx) :: Word8)
+        nextChunk $ DL.snoc l (S.singleton code)
+
+    unEncoded :: Char -> DList ByteString -> Parser (DList ByteString)
+    unEncoded c l' = do
+        let l = DL.snoc l' (S.singleton c)
+        bs <- takeTill (flip elem "%+")
+        if S.null bs
+          then nextChunk l
+          else nextChunk $ DL.snoc l bs
+
+    plusSpace :: DList ByteString -> Parser (DList ByteString)
+    plusSpace l = nextChunk (DL.snoc l (S.singleton ' '))
+
+
+------------------------------------------------------------------------------
+-- | Decodes an URL-escaped string (see
+-- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
+urlDecode :: ByteString -> Maybe ByteString
+urlDecode = parseToCompletion pUrlEscaped
+
+
+------------------------------------------------------------------------------
+-- "...Only alphanumerics [0-9a-zA-Z], the special characters "$-_.+!*'(),"
+-- [not including the quotes - ed], and reserved characters used for their
+-- reserved purposes may be used unencoded within a URL."
+
+-- | URL-escapes a string (see
+-- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
+urlEncode :: ByteString -> ByteString
+urlEncode = toByteString . urlEncodeBuilder
+
+
+------------------------------------------------------------------------------
+-- | URL-escapes a string (see
+-- <http://tools.ietf.org/html/rfc2396.html#section-2.4>) into a 'Builder'.
+urlEncodeBuilder :: ByteString -> Builder
+urlEncodeBuilder = S.foldl' f mempty
+  where
+    f b c =
+        if c == ' '
+          then b `mappend` fromWord8 (c2w '+')
+          else if FS.memberChar c urlEncodeTable
+                 then b `mappend` fromWord8 (c2w c)
+                 else b `mappend` hexd c
+
+
+------------------------------------------------------------------------------
+urlEncodeTable :: FastSet
+urlEncodeTable = generateFS f
+  where
+    f w = any ($ c) [ isAlphaNum
+                    , flip elem ['$', '-', '.', '!', '*'
+                                , '\'', '(', ')', ',' ]]
+      where
+        c = w2c w
+
+
+------------------------------------------------------------------------------
+hexd :: Char -> Builder
+hexd c0 = fromWord8 (c2w '%') `mappend` fromWord8 hi `mappend` fromWord8 low
+  where
+    c   = c2w c0
+    d   = c2w . intToDigit
+    low = d $ fromEnum $ c .&. 0xf
+    hi  = d $ fromEnum $ (c .&. 0xf0) `shiftR` 4
+
+
+------------------------------------------------------------------------------
+finish :: Atto.Result a -> Atto.Result a
+finish (Atto.Partial f) = flip feed "" $ f ""
+finish x                = x
+
+
+
+------------------------------------------------------------------------------
+-- application/x-www-form-urlencoded
+------------------------------------------------------------------------------
+
+------------------------------------------------------------------------------
+-- | Parses a string encoded in @application/x-www-form-urlencoded@ format.
+parseUrlEncoded :: ByteString -> Map ByteString [ByteString]
+parseUrlEncoded s = foldl' (\m (k,v) -> Map.insertWith' (++) k [v] m)
+                           Map.empty
+                           decoded
+  where
+    breakApart = (second (S.drop 1)) . S.break (== '=')
+
+    parts :: [(ByteString,ByteString)]
+    parts = map breakApart $ S.splitWith (\c -> c == '&' || c == ';') s
+
+    urldecode = parseToCompletion pUrlEscaped
+
+    decodeOne (a,b) = do
+        a' <- urldecode a
+        b' <- urldecode b
+        return (a',b')
+
+    decoded = catMaybes $ map decodeOne parts
+
+
+------------------------------------------------------------------------------
+buildUrlEncoded :: Map ByteString [ByteString] -> Builder
+buildUrlEncoded m = mconcat builders
+  where
+    builders = intersperse (fromWord8 $ c2w '&') $
+               concatMap encodeVS $ Map.toList m
+
+    encodeVS (k,vs) = concatMap (encodeOne k) vs
+
+    encodeOne k v = [ urlEncodeBuilder k
+                    , fromWord8 $ c2w '='
+                    , urlEncodeBuilder v ]
+
+
+------------------------------------------------------------------------------
+printUrlEncoded :: Map ByteString [ByteString] -> ByteString
+printUrlEncoded = toByteString . buildUrlEncoded
+
+
+------------------------------------------------------------------------------
+-- COOKIE PARSING
+------------------------------------------------------------------------------
+
+-- these definitions try to mirror RFC-2068 (the HTTP/1.1 spec) and RFC-2109
+-- (cookie spec): please point out any errors!
+
+------------------------------------------------------------------------------
+pCookies :: Parser [Cookie]
+pCookies = do
+    -- grab kvps and turn to strict bytestrings
+    kvps <- pAvPairs
+
+    return $ map toCookie $ filter (not . S.isPrefixOf "$" . fst) kvps
+
+  where
+    toCookie (nm,val) = Cookie nm val Nothing Nothing Nothing
+
+
+------------------------------------------------------------------------------
+parseCookie :: ByteString -> Maybe [Cookie]
+parseCookie = parseToCompletion pCookies
 
 
 ------------------------------------------------------------------------------

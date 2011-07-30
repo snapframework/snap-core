@@ -1,12 +1,25 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Snap.Internal.Test.Assertions where
 
-import           Data.ByteString (ByteString)
+------------------------------------------------------------------------------
+import           Blaze.ByteString.Builder
+import           Control.Monad (liftM)
+import           Data.ByteString.Char8 (ByteString)
 import           Data.Maybe (fromJust)
+import           Data.Monoid (mconcat)
 import           Test.HUnit (Assertion, assertBool, assertEqual)
-import           Snap.Internal.Http.Types (Response(..), getHeader)
-import           Snap.Internal.Test.RequestBuilder (HasBody (..), getBody)
 import           Text.Regex.Posix ((=~))
+
+------------------------------------------------------------------------------
+import           Snap.Internal.Http.Types
+import           Snap.Iteratee (run_, consume, ($$))
+
+------------------------------------------------------------------------------
+getBody :: Response -> IO ByteString
+getBody rsp = run_ $ enum $$ liftM toBS consume
+  where
+    enum = rspBodyToEnum $ rspBody rsp
+    toBS = toByteString . mconcat
 
 ------------------------------------------------------------------------------
 -- | Given a Response, asserts that its HTTP status code is 200 (success).
@@ -56,11 +69,10 @@ assertRedirect rsp = assertBool message (300 <= status && status <= 399)
 
 
 ------------------------------------------------------------------------------
--- | Given a Request or a Response, asserts that its body matches the given
--- regular expression.
-assertBodyContains :: (HasBody r) =>
-                      ByteString   -- ^ Regexp that will match the body content
-                   -> r            -- ^ A 'Request' or 'Response'
+-- | Given a Response, asserts that its body matches the given regular
+-- expression.
+assertBodyContains :: ByteString   -- ^ Regexp that will match the body content
+                   -> Response
                    -> Assertion
 assertBodyContains match rsp = do
     body <- getBody rsp
