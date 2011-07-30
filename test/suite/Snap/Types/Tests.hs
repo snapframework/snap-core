@@ -418,7 +418,7 @@ testTrivials = testCase "types/trivials" $ do
     Prelude.map (\(x,y) -> (x,show y)) (IM.toList statusReasonMap)
             `deepseq` return ()
 
-    let cookie = Cookie "" "" Nothing Nothing Nothing
+    let cookie = Cookie "" "" Nothing Nothing Nothing False False
     coverEqInstance cookie
     coverShowInstance cookie
 
