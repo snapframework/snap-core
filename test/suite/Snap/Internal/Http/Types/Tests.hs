@@ -116,8 +116,8 @@ testTypes = testCase "show" $ do
     resp2 = addResponseCookie cook2 resp
 
     utc   = UTCTime (ModifiedJulianDay 55226) 0
-    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/")
-    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/")
+    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False False
+    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") False False
 
 
 testCookies :: Test
@@ -146,9 +146,9 @@ testCookies = testCase "cookies" $ do
     resp4 = addResponseCookie cook3 emptyResponse
 
     utc   = UTCTime (ModifiedJulianDay 55226) 0
-    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/")
-    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/")
-    cook3 = Cookie "boo" "baz" Nothing Nothing Nothing
+    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False True
+    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") True False
+    cook3 = Cookie "boo" "baz" Nothing Nothing Nothing False False
 
     rCook = getResponseCookie "foo" resp
     nilCook = getResponseCookie "foo" resp'
