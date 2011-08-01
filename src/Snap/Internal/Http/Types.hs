@@ -148,19 +148,25 @@ type HttpVersion = (Int,Int)
 -- | A datatype representing an HTTP cookie.
 data Cookie = Cookie {
       -- | The name of the cookie.
-      cookieName    :: !ByteString
+      cookieName      :: !ByteString
 
       -- | The cookie's string value.
-    , cookieValue   :: !ByteString
+    , cookieValue     :: !ByteString
 
       -- | The cookie's expiration value, if it has one.
-    , cookieExpires :: !(Maybe UTCTime)
+    , cookieExpires   :: !(Maybe UTCTime)
 
       -- | The cookie's \"domain\" value, if it has one.
-    , cookieDomain  :: !(Maybe ByteString)
+    , cookieDomain    :: !(Maybe ByteString)
 
       -- | The cookie path.
-    , cookiePath    :: !(Maybe ByteString)
+    , cookiePath      :: !(Maybe ByteString)
+
+      -- | Tag as secure cookie?
+    , cookieSecure    :: !Bool
+
+      -- | HttpOnly?
+    , cookieHttpOnly  :: !Bool
 } deriving (Eq, Show)
 
 
@@ -547,7 +553,7 @@ addCookie = addResponseCookie
 addResponseCookie :: Cookie            -- ^ cookie value
                   -> Response          -- ^ response to modify
                   -> Response
-addResponseCookie ck@(Cookie k _ _ _ _) r = r { rspCookies = cks' }
+addResponseCookie ck@(Cookie k _ _ _ _ _ _) r = r { rspCookies = cks' }
   where
     cks'= Map.insert k ck $ rspCookies r
 {-# INLINE addResponseCookie #-}
