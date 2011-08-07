@@ -412,7 +412,7 @@ instance Show PolicyViolationException where
 --   whenever we receive input from the client.
 data UploadPolicy = UploadPolicy {
       processFormInputs         :: Bool
-    , maximumFormInputSize      :: Int
+    , maximumFormInputSize      :: Int64
     , maximumNumberOfFormInputs :: Int
     , minimumUploadRate         :: Double
     , minimumUploadSeconds      :: Int
@@ -459,14 +459,14 @@ setProcessFormInputs b u = u { processFormInputs = b }
 ------------------------------------------------------------------------------
 -- | Get the maximum size of a form input which will be read into our
 --   'rqParams' map.
-getMaximumFormInputSize :: UploadPolicy -> Int
+getMaximumFormInputSize :: UploadPolicy -> Int64
 getMaximumFormInputSize = maximumFormInputSize
 
 
 ------------------------------------------------------------------------------
 -- | Set the maximum size of a form input which will be read into our
 --   'rqParams' map.
-setMaximumFormInputSize :: Int -> UploadPolicy -> UploadPolicy
+setMaximumFormInputSize :: Int64 -> UploadPolicy -> UploadPolicy
 setMaximumFormInputSize s u = u { maximumFormInputSize = s }
 
 
@@ -542,7 +542,7 @@ allowWithMaximumSize = PartUploadPolicy . Just
 
 ------------------------------------------------------------------------------
 captureVariableOrReadFile ::
-       Int                                     -- ^ maximum size of form input
+       Int64                                   -- ^ maximum size of form input
     -> (PartInfo -> Iteratee ByteString IO a)  -- ^ file reading code
     -> (PartInfo -> Iteratee ByteString IO (Capture a))
 captureVariableOrReadFile maxSize fileHandler partInfo =
@@ -557,7 +557,7 @@ captureVariableOrReadFile maxSize fileHandler partInfo =
     varIter = do
         var <- liftM S.concat $
                joinI' $
-               takeNoMoreThan (fromIntegral maxSize) $$ consume
+               takeNoMoreThan maxSize $$ consume
         return $ Capture fieldName var
 
     handler e = do
