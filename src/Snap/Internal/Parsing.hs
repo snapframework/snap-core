@@ -24,7 +24,7 @@ import           Data.Char hiding (isDigit, isSpace)
 import           Data.DList (DList)
 import qualified Data.DList as DL
 import           Data.Int
-import           Data.List (foldl', intersperse)
+import           Data.List (intersperse)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
@@ -364,14 +364,15 @@ finish x                = x
 ------------------------------------------------------------------------------
 -- | Parses a string encoded in @application/x-www-form-urlencoded@ format.
 parseUrlEncoded :: ByteString -> Map ByteString [ByteString]
-parseUrlEncoded s = foldl' (\m (k,v) -> Map.insertWith' (++) k [v] m)
-                           Map.empty
-                           decoded
+parseUrlEncoded s = foldr (\(k,v) m -> Map.insertWith' (++) k [v] m)
+                          Map.empty
+                          decoded
   where
     breakApart = (second (S.drop 1)) . S.break (== '=')
 
     parts :: [(ByteString,ByteString)]
-    parts = map breakApart $ S.splitWith (\c -> c == '&' || c == ';') s
+    parts = map breakApart $
+            S.splitWith (\c -> c == '&' || c == ';') s
 
     urldecode = parseToCompletion pUrlEscaped
 
@@ -390,11 +391,11 @@ buildUrlEncoded m = mconcat builders
     builders = intersperse (fromWord8 $ c2w '&') $
                concatMap encodeVS $ Map.toList m
 
-    encodeVS (k,vs) = concatMap (encodeOne k) vs
+    encodeVS (k,vs) = map (encodeOne k) vs
 
-    encodeOne k v = [ urlEncodeBuilder k
-                    , fromWord8 $ c2w '='
-                    , urlEncodeBuilder v ]
+    encodeOne k v = mconcat [ urlEncodeBuilder k
+                            , fromWord8 $ c2w '='
+                            , urlEncodeBuilder v ]
 
 
 ------------------------------------------------------------------------------
@@ -418,7 +419,7 @@ pCookies = do
     return $ map toCookie $ filter (not . S.isPrefixOf "$" . fst) kvps
 
   where
-    toCookie (nm,val) = Cookie nm val Nothing Nothing Nothing
+    toCookie (nm,val) = Cookie nm val Nothing Nothing Nothing False False
 
 
 ------------------------------------------------------------------------------

@@ -31,8 +31,9 @@ import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit hiding (Test, path)
                  
-import           Snap.Internal.Types
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Parsing
+import           Snap.Internal.Types
 import           Snap.Iteratee
 import qualified Snap.Iteratee as I
 import           Snap.Test.Common

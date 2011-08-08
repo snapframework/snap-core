@@ -3,21 +3,22 @@
 
 module Snap.Internal.Instances where
 
-import                       Control.Applicative
-import                       Control.Monad.Cont
-import                       Control.Monad.Error
-import                       Control.Monad.List
-import                       Control.Monad.RWS.Strict hiding (pass)
-import qualified             Control.Monad.RWS.Lazy as LRWS
-import                       Control.Monad.Reader
-import                       Control.Monad.State.Strict
-import qualified             Control.Monad.State.Lazy as LState
-import                       Control.Monad.Writer.Strict hiding (pass)
-import qualified             Control.Monad.Writer.Lazy as LWriter
-import                       Prelude hiding (catch)
+import           Control.Applicative
+import           Control.Monad.CatchIO ()
+import           Control.Monad.Cont
+import           Control.Monad.Error
+import           Control.Monad.List
+import           Control.Monad.RWS.Strict    hiding (pass)
+import qualified Control.Monad.RWS.Lazy      as LRWS
+import           Control.Monad.Reader
+import           Control.Monad.State.Strict
+import qualified Control.Monad.State.Lazy    as LState
+import           Control.Monad.Writer.Strict hiding (pass)
+import qualified Control.Monad.Writer.Lazy   as LWriter
+import           Prelude                     hiding (catch)
 
 ------------------------------------------------------------------------------
-import                       Snap.Internal.Types
+import           Snap.Internal.Types
 
 
 ------------------------------------------------------------------------------

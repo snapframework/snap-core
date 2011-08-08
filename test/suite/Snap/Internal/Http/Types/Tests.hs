@@ -20,6 +20,7 @@ import           Test.HUnit hiding (Test, path)
 import           Text.Regex.Posix
 
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Parsing
 import           Snap.Iteratee
 
 

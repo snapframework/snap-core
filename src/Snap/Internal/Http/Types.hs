@@ -96,7 +96,7 @@ class HasHeaders a where
 -- with the same name already exists, the new value is appended to the headers
 -- list.
 addHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
-addHeader k v = updateHeaders $ Map.insertWith' (++) k [v]
+addHeader k v = updateHeaders $ Map.insertWith' (flip (++)) k [v]
 
 
 ------------------------------------------------------------------------------

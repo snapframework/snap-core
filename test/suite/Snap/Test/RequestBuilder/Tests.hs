@@ -1,24 +1,38 @@
-{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Snap.Test.RequestBuilder.Tests 
-  (
-  tests
+  ( tests
   ) where
 
+------------------------------------------------------------------------------
 import qualified Data.ByteString.Char8 as S
+import           Data.ByteString.Char8 (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.IORef
 import qualified Data.Map as Map
 import           Data.Maybe (fromJust)
+import           Control.Monad
 import           Control.Monad.Trans (liftIO)
-
 import           Test.Framework (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit (assertEqual, assertBool)
-
+------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types (Request(..))
 import qualified Snap.Internal.Http.Types as T
-import           Snap.Types hiding (setHeader, addHeader)
+import           Snap.Types hiding (setHeader, addHeader, setContentType)
 import           Snap.Internal.Test.RequestBuilder
+import           Snap.Iteratee
 
+------------------------------------------------------------------------------
 tests :: [Test]
+tests = [ testSetRequestType
+        , testSetQueryString
+        , testSetQueryStringRaw
+        , testHeaders
+--        , testMisc
+        ]
+
+{-
 tests = [
           testSetRequestType
         , testAddParam
@@ -34,12 +48,81 @@ tests = [
         , testSetURI
         , testRunHandler
         ]
+-}
 
+------------------------------------------------------------------------------
 testSetRequestType :: Test
 testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do 
+    request1 <- buildRequest $ setRequestType GetRequest
+    assertEqual "setRequestType/1" GET (rqMethod request1)
+
+    request2 <- buildRequest $ setRequestType DeleteRequest
+    assertEqual "setRequestType/2" DELETE (rqMethod request2)
+
+    request3 <- buildRequest $ setRequestType $ RequestWithRawBody PUT "foo"
+    assertEqual "setRequestType/3/Method" PUT (rqMethod request3)
+
+    rqBody3  <- getRqBody request3
+    assertEqual "setRequestType/3/Body" "foo" rqBody3
+
+    request4 <- buildRequest $ setRequestType rt4
+    assertEqual "setRequestType/4/Method" POST (rqMethod request4)
+    -- will test correctness of multipart generation code in another test
+
+    request5 <- buildRequest $ setRequestType $
+                UrlEncodedPostRequest $ Map.fromList [("foo", ["foo"])]
+    assertEqual "setRequestType/5/Method" POST (rqMethod request5)
+
+  where
+    rt4 = MultipartPostRequest [ ("foo", FormData ["foo"])
+                               , ("bar", Files [fd4])
+                               ]
+
+    fd4 = FileData "bar.txt" "text/plain" "bar"
+
+
+------------------------------------------------------------------------------
+testSetQueryString :: Test
+testSetQueryString = testCase "test/requestBuilder/testSetQueryString" $ do
+    request <- buildRequest $ get "/" params
+    assertEqual "setQueryString" params $ rqParams request
+
+  where
+    params = Map.fromList [ ("foo", ["foo", "foo2"])
+                          , ("bar", ["bar"]) ]
+
+------------------------------------------------------------------------------
+testSetQueryStringRaw :: Test
+testSetQueryStringRaw = testCase "test/requestBuilder/testSetQueryStringRaw" $ do
     request <- buildRequest $ do
-                 setRequestType GetRequest
-    assertEqual "RequestBuilder setRequestType not working" GET (rqMethod request)
+                   get "/" Map.empty
+                   setQueryStringRaw "foo=foo&foo=foo2&bar=bar"
+    assertEqual "setQueryStringRaw" params $ rqParams request
+
+  where
+    params = Map.fromList [ ("foo", ["foo", "foo2"])
+                          , ("bar", ["bar"]) ]
+
+
+------------------------------------------------------------------------------
+testHeaders :: Test
+testHeaders = testCase "test/requestBuilder/testHeaders" $ do
+    request <- buildRequest $ do
+                   get "/" Map.empty
+                   setHeader "foo" "foo"
+                   addHeader "bar" "bar"
+                   addHeader "bar" "bar2"
+                   setContentType "image/gif"  -- this should get deleted
+    assertEqual "setHeader" (Just "foo") $ getHeader "foo" request
+    assertEqual "addHeader" (Just ["bar","bar2"]) $ T.getHeaders "bar" request
+    assertEqual "contentType" Nothing $ T.getHeader "Content-Type" request
+
+    request2 <- buildRequest $ put "/" "text/zzz" "zzz"
+    assertEqual "contentType2" (Just "text/zzz") $
+                T.getHeader "Content-Type" request2
+
+
+{-
 
 testAddParam :: Test
 testAddParam = testCase "test/requestBuilder/addParam" $ do
@@ -242,3 +325,14 @@ testRunHandler = testCase "test/requestBuilder/runHandler" $ do
 
   assertEqual "runHandler not working" 200 (rspStatus response)
 
+-}
+
+
+
+------------------------------------------------------------------------------
+getRqBody :: Request -> IO ByteString
+getRqBody rq = do
+    (SomeEnumerator enum) <- readIORef ref
+    run_ $ enum $$ liftM S.concat consume
+  where
+    ref = rqBody rq
