@@ -286,7 +286,7 @@ handleMultipart uploadPolicy origPartHandler = do
                             rateLimit bump $
                             internalHandleMultipart boundary ph
 
-    ins k v = Map.insertWith' (\a b -> Prelude.head a : b) k [v]
+    ins k v = Map.insertWith' (flip (++)) k [v]
 
     maxFormVars = maximumNumberOfFormInputs uploadPolicy
 

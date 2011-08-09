@@ -15,8 +15,8 @@ import           Snap.Internal.Http.Types
 import           Snap.Iteratee (run_, consume, ($$))
 
 ------------------------------------------------------------------------------
-getBody :: Response -> IO ByteString
-getBody rsp = run_ $ enum $$ liftM toBS consume
+getResponseBody :: Response -> IO ByteString
+getResponseBody rsp = run_ $ enum $$ liftM toBS consume
   where
     enum = rspBodyToEnum $ rspBody rsp
     toBS = toByteString . mconcat
@@ -75,7 +75,7 @@ assertBodyContains :: ByteString   -- ^ Regexp that will match the body content
                    -> Response
                    -> Assertion
 assertBodyContains match rsp = do
-    body <- getBody rsp
+    body <- getResponseBody rsp
     assertBool message (body =~ match)
   where
     message = "Expected body to match regexp \"" ++ show match

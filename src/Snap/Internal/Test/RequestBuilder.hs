@@ -16,6 +16,7 @@ module Snap.Internal.Test.RequestBuilder
   , setHeader
   , setContentType
   , setSecure
+  , setHttpVersion
   , setRequestPath
   , get
   , postUrlEncoded
@@ -26,6 +27,7 @@ module Snap.Internal.Test.RequestBuilder
   , runHandler
   , runHandler'
   , dumpResponse
+  , responseToString
   ) where
 
 ------------------------------------------------------------------------------
@@ -41,6 +43,7 @@ import           Data.IORef
 import qualified Data.Map as Map
 import           Data.Monoid
 import           Data.Word
+import           System.PosixCompat.Time
 import           System.Random.MWC
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types hiding (addHeader,
@@ -108,7 +111,7 @@ buildRequest mm = do
               let rq' = deleteHeader "Content-Type" rq
               liftIO $ writeIORef (rqBody rq') (SomeEnumerator enumEOF)
               rPut $ rq' { rqContentLength = Nothing }
-          else return ()
+          else return $! ()
 
     fixupCL = do
         rq <- rGet
@@ -142,7 +145,7 @@ type MultipartParams = [(ByteString, MultipartParam)]
 data MultipartParam =
     FormData [ByteString]
         -- ^ a form variable consisting of the given 'ByteString' values.
-  | Files [FileData] 
+  | Files [FileData]
         -- ^ a file upload consisting of the given 'FileData' values.
   deriving (Show)
 
@@ -217,7 +220,7 @@ makeBoundary = do
 
 ------------------------------------------------------------------------------
 multipartHeader :: ByteString -> ByteString -> Builder
-multipartHeader boundary name = 
+multipartHeader boundary name =
     mconcat [ fromByteString boundary
             , fromByteString "\r\ncontent-disposition: form-data"
             , fromByteString "; name=\""
@@ -228,7 +231,7 @@ multipartHeader boundary name =
 ------------------------------------------------------------------------------
 -- Assume initial or preceding "--" just before this
 encodeFormData :: ByteString -> ByteString -> [ByteString] -> IO Builder
-encodeFormData boundary name vals = 
+encodeFormData boundary name vals =
     case vals of
       []  -> return mempty
       [v] -> return $ mconcat [ hdr
@@ -398,6 +401,12 @@ setSecure b = rModify $ \rq -> rq { rqIsSecure = b }
 
 
 ------------------------------------------------------------------------------
+-- | Sets the test request's http version
+setHttpVersion :: Monad m => (Int,Int) -> RequestBuilder m ()
+setHttpVersion v = rModify $ \rq -> rq { rqVersion = v }
+
+
+------------------------------------------------------------------------------
 -- | Sets the request's path. The path provided must begin with a \"@/@\" and
 -- must /not/ contain a query string; if you want to provide a query string in
 -- your test request, you must use 'setQueryString' or 'setQueryStringRaw'.
@@ -497,8 +506,11 @@ runHandler' :: (MonadIO m, MonadSnap n) =>
                -- ^ a web handler
             -> m Response
 runHandler' rSnap rBuilder snap = do
-    rq <- buildRequest rBuilder
-    rSnap rq snap
+    rq  <- buildRequest rBuilder
+    rsp <- rSnap rq snap
+    t1  <- liftIO (epochTime >>= formatHttpTime)
+    return $ H.setHeader "Date" t1 rsp
+
 
 ------------------------------------------------------------------------------
 -- | Given a web handler in the 'Snap' monad, and a 'RequestBuilder' defining a
@@ -511,8 +523,8 @@ runHandler = runHandler' rs
   where
     rs rq s = do
         (_,rsp) <- liftIO $ run_ $ runSnap s
-                                      (const $ return ())
-                                      (const $ return ())
+                                      (const $ return $! ())
+                                      (const $ return $! ())
                                       rq
         return rsp
 

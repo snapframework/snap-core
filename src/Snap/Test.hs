@@ -26,6 +26,7 @@ module Snap.Test
   , addHeader
   , setContentType
   , setHeader
+  , setHttpVersion
   , setQueryString
   , setQueryStringRaw
   , setRequestPath
@@ -39,8 +40,12 @@ module Snap.Test
   , assertRedirect
   , assertBodyContains
 
-   -- * Dumping Responses to stdout
+   -- * Getting response bodies
+  , getResponseBody
+
+   -- * Dumping HTTP Responses
   , dumpResponse
+  , responseToString
   )
   where
 

@@ -1,27 +1,27 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Snap.Test.RequestBuilder.Tests 
+module Snap.Test.RequestBuilder.Tests
   ( tests
   ) where
 
 ------------------------------------------------------------------------------
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
 import qualified Data.Map as Map
-import           Data.Maybe (fromJust)
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
 import           Test.Framework (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit (assertEqual, assertBool)
+import           Text.Regex.Posix ((=~))
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types (Request(..))
 import qualified Snap.Internal.Http.Types as T
-import           Snap.Types hiding (setHeader, addHeader, setContentType)
-import           Snap.Internal.Test.RequestBuilder
+import           Snap.Test
 import           Snap.Iteratee
+import           Snap.Types hiding (setHeader, addHeader, setContentType)
+import           Snap.Util.FileUploads
 
 ------------------------------------------------------------------------------
 tests :: [Test]
@@ -29,7 +29,13 @@ tests = [ testSetRequestType
         , testSetQueryString
         , testSetQueryStringRaw
         , testHeaders
---        , testMisc
+        , testMisc
+        , testMultipart
+        , testPost
+        , testToString
+        , testAssert404
+        , testAssertBodyContains
+        , testAssertRedirect
         ]
 
 {-
@@ -42,8 +48,8 @@ tests = [
         , testAddHeader
         , testBuildQueryString
         , testFormUrlEncoded
-        , testBuildMultipartString 
-        , testMultipartEncoded 
+        , testBuildMultipartString
+        , testMultipartEncoded
         , testUseHttps
         , testSetURI
         , testRunHandler
@@ -52,7 +58,7 @@ tests = [
 
 ------------------------------------------------------------------------------
 testSetRequestType :: Test
-testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do 
+testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do
     request1 <- buildRequest $ setRequestType GetRequest
     assertEqual "setRequestType/1" GET (rqMethod request1)
 
@@ -86,10 +92,13 @@ testSetQueryString :: Test
 testSetQueryString = testCase "test/requestBuilder/testSetQueryString" $ do
     request <- buildRequest $ get "/" params
     assertEqual "setQueryString" params $ rqParams request
+    assertEqual "queryString" "bar=bar&foo=foo&foo=foo2" $
+                rqQueryString request
 
   where
     params = Map.fromList [ ("foo", ["foo", "foo2"])
                           , ("bar", ["bar"]) ]
+
 
 ------------------------------------------------------------------------------
 testSetQueryStringRaw :: Test
@@ -116,10 +125,160 @@ testHeaders = testCase "test/requestBuilder/testHeaders" $ do
     assertEqual "setHeader" (Just "foo") $ getHeader "foo" request
     assertEqual "addHeader" (Just ["bar","bar2"]) $ T.getHeaders "bar" request
     assertEqual "contentType" Nothing $ T.getHeader "Content-Type" request
+    assertEqual "contentLength" Nothing $ rqContentLength request
+    assertEqual "contentLengthHdr" Nothing $ getHeader "Content-Length" request
 
     request2 <- buildRequest $ put "/" "text/zzz" "zzz"
     assertEqual "contentType2" (Just "text/zzz") $
                 T.getHeader "Content-Type" request2
+    assertEqual "contentLength" (Just 3) $ rqContentLength request2
+    assertEqual "contentLengthHdr" (Just "3") $
+                getHeader "Content-Length" request2
+
+
+------------------------------------------------------------------------------
+testMisc :: Test
+testMisc = testCase "test/requestBuilder/testMisc" $ do
+    request <- buildRequest $ do
+        get "/" Map.empty
+        setSecure True
+        setRequestPath "/foo/bar"
+
+    assertEqual "secure" True $ rqIsSecure request
+    assertEqual "rqPathInfo" "/foo/bar" $ rqPathInfo request
+    assertEqual "rqURI" "/foo/bar" $ rqURI request
+    assertEqual "rqContextPath" "" $ rqContextPath request
+    assertEqual "rqVersion" (1,1) $ rqVersion request
+
+    body <- getRqBody request
+    assertEqual "body" "" body
+
+    request2 <- buildRequest $ do
+        postRaw "/" "text/zzz" "zzz"
+        setHttpVersion (1,0)
+
+    body2 <- getRqBody request2
+    assertEqual "body2" "zzz" body2
+
+    assertEqual "contentType2" (Just "text/zzz") $
+                T.getHeader "Content-Type" request2
+    assertEqual "postRaw" POST $ rqMethod request2
+    assertEqual "rqVersion2" (1,0) $ rqVersion request2
+
+    request3 <- buildRequest $ do
+        delete "/" Map.empty
+        setSecure True
+        setRequestPath "/foo/bar"
+
+    assertEqual "secure" True $ rqIsSecure request3
+    assertEqual "method" DELETE $ rqMethod request3
+    assertEqual "rqPathInfo" "/foo/bar" $ rqPathInfo request3
+    assertEqual "rqURI" "/foo/bar" $ rqURI request3
+    assertEqual "rqContextPath" "" $ rqContextPath request3
+    assertEqual "rqVersion" (1,1) $ rqVersion request3
+
+
+------------------------------------------------------------------------------
+testMultipart :: Test
+testMultipart = testCase "test/requestBuilder/testMultipart" $ do
+    request  <- buildRequest rq
+    rbody    <- getRqBody request
+    assertEqual "content-length" (Just (S.length rbody)) $
+                rqContentLength request
+
+    response <- runHandler rq handler
+    body     <- getResponseBody response
+    assertEqual "body" "OK" body
+
+  where
+    partHandler (PartInfo field fn ct) = do
+        body <- liftM S.concat consume
+        return (field, fn, ct, body)
+
+    expectedParts = [ ("bar", Just "bar1.txt", "text/plain", "bar")
+                    , ("bar", Just "bar2.txt", "text/zzz", "bar2")
+                    , ("baz", Just "baz.gif", "text/gif", "baz") ]
+
+    handler = do
+        parts <- handleMultipart defaultUploadPolicy partHandler
+        fooParam <- getParam "foo"
+        liftIO $ assertEqual "param" (Just "oof") fooParam
+
+        quuxParams <- getParam "quux"
+        liftIO $ assertEqual "quux" (Just "quux1 quux2") quuxParams
+        liftIO $ assertEqual "parts" expectedParts parts
+        writeBS "OK"
+
+    rq = postMultipart "/" rt
+
+    rt = [ ("foo", FormData ["oof"])
+         , ("bar", Files [fb1, fb2])
+         , ("baz", Files [fz])
+         , ("zzz", Files [])
+         , ("zz0", FormData [])
+         , ("quux", FormData ["quux1", "quux2"])
+         ]
+
+    fb1 = FileData "bar1.txt" "text/plain" "bar"
+    fb2 = FileData "bar2.txt" "text/zzz" "bar2"
+    fz = FileData "baz.gif" "text/gif" "baz"
+
+
+------------------------------------------------------------------------------
+testPost :: Test
+testPost = testCase "test/requestBuilder/testPost" $ do
+    request <- buildRequest $ do
+        postUrlEncoded "/" $ Map.fromList [("foo", ["foo1", "foo2"])]
+
+    body <- getRqBody request
+    assertEqual "body" "foo=foo1&foo=foo2" body
+    assertEqual "len" (Just (S.length body)) $ rqContentLength request
+    assertEqual "contentType" (Just "application/x-www-form-urlencoded") $
+                getHeader "Content-Type" request
+
+
+------------------------------------------------------------------------------
+testToString :: Test
+testToString = testCase "test/requestBuilder/testToString" $ do
+    rsp  <- runHandler rq h
+    http <- responseToString rsp
+    body <- getResponseBody rsp
+
+    assertSuccess rsp
+    assertEqual "HTTP body" "" body
+    assertBool "HTTP header" $ http =~ headRE
+    assertBool "HTTP date"   $ http =~ dateRE
+  where
+    rq     = get "/" Map.empty
+    h      = return ()
+    headRE = "HTTP/1.1 200 OK" :: ByteString
+    dateRE = S.concat [ "Date: [a-zA-Z]+, [0-9]+ [a-zA-Z]+ "
+                      , "[0-9]+ [0-9]+:[0-9]+:[0-9]+ GMT"
+                      ]
+
+
+------------------------------------------------------------------------------
+testAssert404 :: Test
+testAssert404 = testCase "test/requestBuilder/testAssert404" $ do
+    rsp <- runHandler (get "/" Map.empty) mzero
+    assert404 rsp
+
+
+------------------------------------------------------------------------------
+testAssertBodyContains :: Test
+testAssertBodyContains =
+    testCase "test/requestBuilder/testAssertBodyContains" $ do
+        rsp <- runHandler (get "/" Map.empty) $ do
+                   writeBS "RESPONSE IS OK"
+        assertBodyContains "NSE IS" rsp
+
+
+------------------------------------------------------------------------------
+testAssertRedirect :: Test
+testAssertRedirect = testCase "test/requestBuilder/testAssertRedirect" $ do
+    rsp <- runHandler (get "/" Map.empty) $ redirect "/bar"
+    assertRedirectTo "/bar" rsp
+    assertRedirect rsp
 
 
 {-
@@ -129,16 +288,16 @@ testAddParam = testCase "test/requestBuilder/addParam" $ do
   request <- buildRequest $ do
                addParam "name" "John"
                addParam "age"  "26"
-  assertEqual "RequestBuilder addParam not working" 
-              (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
+  assertEqual "RequestBuilder addParam not working"
+              (Map.fromList [("name", ["John"]), ("age", ["26"])])
               (rqParams request)
 
 testSetParams :: Test
 testSetParams = testCase "test/requestBuilder/setParams" $ do
   request <- buildRequest $ do
               setParams [("name", "John"), ("age", "26")]
-  assertEqual "RequestBuilder setParams not working" 
-              (Map.fromList [("name", ["John"]), ("age", ["26"])]) 
+  assertEqual "RequestBuilder setParams not working"
+              (Map.fromList [("name", ["John"]), ("age", ["26"])])
               (rqParams request)
 
 testSetRequestBody :: Test
@@ -147,7 +306,7 @@ testSetRequestBody = testCase "test/requestBuilder/setBody" $ do
                -- setRequestBody sets the PUT Method on the Request
                setRequestBody PUT "Hello World"
   body <- getBody request
-  assertEqual "RequestBuilder setBody not working with PUT method" 
+  assertEqual "RequestBuilder setBody not working with PUT method"
               "Hello World"
               body
 
@@ -155,7 +314,7 @@ testSetHeader :: Test
 testSetHeader = testCase "test/requestBuilder/setHeader" $ do
   request <- buildRequest $ do
                setHeader "Accepts" "application/json"
-  assertEqual "RequestBuilder setHeader not working" 
+  assertEqual "RequestBuilder setHeader not working"
               (Just ["application/json"])
               (Map.lookup "Accepts" (rqHeaders request))
 
@@ -170,7 +329,7 @@ testAddHeader = testCase "test/requestBuilder/addHeader" $ do
 
 testBuildQueryString :: Test
 testBuildQueryString = testCase "test/requestBuilder/buildQueryString" $ do
-  let qs1 = buildQueryString $ 
+  let qs1 = buildQueryString $
               Map.fromList [("name", ["John"]), ("age", ["25"])]
   assertEqual "buildQueryString not working"
               "age=25&name=John"
@@ -195,7 +354,7 @@ testFormUrlEncoded = testCase "test/requestBuilder/formUrlEncoded" $ do
   request2 <- buildRequest $ do
                 formUrlEncoded GET
                 setParams [("name", "John"), ("age", "21")]
-  assertEqual "RequestBuilder formUrlEncoded invalid query string" 
+  assertEqual "RequestBuilder formUrlEncoded invalid query string"
               "age=21&name=John"
               (rqQueryString request2)
 
@@ -222,9 +381,9 @@ testBuildMultipartString = testCase "test/requestBuilder/buildMultipartString" $
                  , ("document", [("document.pdf", "Some Content")])
                  ]
 
-  let result1 = buildMultipartString 
-                  "Boundary" 
-                  ""  
+  let result1 = buildMultipartString
+                  "Boundary"
+                  ""
                   params
                   Map.empty
   assertEqual "buildMultipartString not working with simple params"
@@ -244,7 +403,7 @@ testBuildMultipartString = testCase "test/requestBuilder/buildMultipartString" $
                   "FileBoundary"
                   Map.empty
                   fParams1
-    
+
   assertEqual "buildMultipartString not working with files"
               "--Boundary\r\n\
               \Content-Disposition: form-data; name=\"document\"; filename=\"document.pdf\"\r\n\
@@ -277,13 +436,13 @@ testMultipartEncoded = testCase "test/requestBuilder/multipartEncoded" $ do
                setParams [("name", "John"), ("age", "21")]
 
   let contentType = fromJust $ T.getHeader "Content-Type" request
-  let boundary    = S.tail $ S.dropWhile (/= '=') contentType 
-  
+  let boundary    = S.tail $ S.dropWhile (/= '=') contentType
+
   body    <- getBody request
   assertEqual "RequestBuilder multipartEncoded not working"
               (buildMultipartString boundary "" (rqParams request) Map.empty)
               body
-            
+
 testUseHttps :: Test
 testUseHttps = testCase "test/requestBuilder/useHttps" $ do
   request <- buildRequest $ do
@@ -296,8 +455,8 @@ testSetURI = testCase "test/requestBuilder/setURI" $ do
   request1 <- buildRequest $ do
                setURI "/users"
 
-  assertEqual "RequestBuilder setURI is not working" 
-              "/users" 
+  assertEqual "RequestBuilder setURI is not working"
+              "/users"
               (rqURI request1)
 
   request2 <- buildRequest $ do
@@ -318,7 +477,7 @@ testRunHandler = testCase "test/requestBuilder/runHandler" $ do
                                        (Just "John")
                                        name
                   modifyResponse (setResponseCode 200)
-  
+
   response <- runHandler handler $ do
                 postUrlEncoded "/my-handler"
                                [("name", "John")]
