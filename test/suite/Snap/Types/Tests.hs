@@ -65,16 +65,6 @@ tests = [ testFail
         , testBracketSnap ]
 
 
-expectException :: IO a -> IO ()
-expectException m = do
-    r <- try m
-    let b = either (\e -> (show (e::SomeException) `using` rdeepseq)
-                              `seq` True)
-                   (const False)
-                   r
-    assertBool "expected exception" b
-
-
 expectSpecificException :: Exception e => e -> IO a -> IO ()
 expectSpecificException e0 m = do
     r <- try m
@@ -367,7 +357,7 @@ testRqBodyException = testCase "types/requestBodyException" $ do
 testRqBodyTermination :: Test
 testRqBodyTermination =
     testCase "types/requestBodyTermination" $
-    expectException $
+    expectExceptionH $
     goEnum (enumList 1 ["the", "quick", "brown", "fox"]) hndlr
 
   where
@@ -538,7 +528,7 @@ testMZero404 = testCase "types/mzero404" $ do
 testEvalSnap :: Test
 testEvalSnap = testCase "types/evalSnap-exception" $ do
     rq <- mkZomgRq
-    expectException (run_ $ evalSnap f
+    expectExceptionH (run_ $ evalSnap f
                                     (const $ return ())
                                     (const $ return ())
                                     rq >> return ())
