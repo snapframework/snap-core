@@ -21,11 +21,6 @@ module Snap.Util.FileServe
 , serveDirectoryWith
 , serveFile
 , serveFileAs
-  -- * Deprecated interface
-, fileServe
-, fileServe'
-, fileServeSingle
-, fileServeSingle'
 ) where
 
 ------------------------------------------------------------------------------
@@ -667,68 +662,6 @@ checkRangeReq req fp sz = do
 ------------------------------------------------------------------------------
 dbg :: (MonadIO m) => String -> m ()
 dbg s = debug $ "FileServe:" ++ s
-
-
-------------------------------------------------------------------------------
--- Obsolete functions retained for compatibility.
-------------------------------------------------------------------------------
-
-------------------------------------------------------------------------------
--- | Serves files out of the given directory, using no index files and default
--- MIME types.
---
--- The function name is obsolete.  You should use 'serveDirectory' or
--- 'serveDirectoryWith' instead, which do similar things but with more options
--- and clearer, more consistent names.
-fileServe :: MonadSnap m
-          => FilePath  -- ^ root directory
-          -> m ()
-fileServe = serveDirectoryWith simpleDirectoryConfig
-{-# INLINE fileServe #-}
-{-# DEPRECATED fileServe "Use serveDirectory or serveDirectoryWith" #-}
-
-
-------------------------------------------------------------------------------
--- | Serves files out of the given directory, with a given MIME type mapping.
---
--- The function name is obsolete.  You should use 'serveDirectoryWith'
--- instead, which offers more options and a clearer, more consistent name.
-fileServe' :: MonadSnap m
-           => MimeMap           -- ^ MIME type mapping
-           -> FilePath          -- ^ root directory
-           -> m ()
-fileServe' mm = serveDirectoryWith (simpleDirectoryConfig { mimeTypes = mm })
-{-# INLINE fileServe' #-}
-{-# DEPRECATED fileServe' "Use serveDirectoryWith instead" #-}
-
-
-------------------------------------------------------------------------------
--- | Serves a single file specified by a full or relative path.  The
--- path restrictions on fileServe don't apply to this function since
--- the path is not being supplied by the user.
---
--- The function name is obsolete.  You should use 'serveFile' instead, which
--- does the same thing but with a clearer, more consistent name.
-fileServeSingle :: MonadSnap m
-                => FilePath          -- ^ path to file
-                -> m ()
-fileServeSingle = serveFile
-{-# INLINE fileServeSingle #-}
-{-# DEPRECATED fileServeSingle "Use serveFile instead" #-}
-
-
-------------------------------------------------------------------------------
--- | Same as 'fileServeSingle', with control over the MIME mapping used.
---
--- The function name is obsolete.  You should use 'serveFileAs' instead, which
--- does the same thing but with a clearer, more consistent name.
-fileServeSingle' :: MonadSnap m
-                 => ByteString        -- ^ MIME type mapping
-                 -> FilePath          -- ^ path to file
-                 -> m ()
-fileServeSingle' = serveFileAs
-{-# INLINE fileServeSingle' #-}
-{-# DEPRECATED fileServeSingle' "Use serveFileAs instead" #-}
 
 
 ------------------------------------------------------------------------------
