@@ -151,7 +151,7 @@ Library
     HUnit >= 1.2 && < 2,
     MonadCatchIO-transformers >= 0.2.1 && < 0.3,
     mtl == 2.0.*,
-    mwc-random >= 0.8 && <0.9,
+    mwc-random >= 0.10 && <0.11,
     old-locale,
     old-time,
     text >= 0.11 && <0.12,
