@@ -22,6 +22,7 @@ import           Text.Regex.Posix
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Iteratee
+import qualified Snap.Types.Headers as H
 
 
 tests :: [Test]
@@ -35,7 +36,7 @@ tests = [ testTypes
 mkRq :: IO Request
 mkRq = do
     enum <- newIORef (SomeEnumerator $ enumBS "")
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                  enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
@@ -71,7 +72,7 @@ testTypes = testCase "show" $ do
     defReq <- mkRq
 
     let req = rqModifyParams (Map.insert "zzz" ["bbb"]) $
-              updateHeaders (Map.insert "zzz" ["bbb"]) $
+              updateHeaders (H.set "zzz" "bbb") $
               rqSetParam "foo" ["bar"] $
               defReq
 
@@ -85,7 +86,7 @@ testTypes = testCase "show" $ do
     assertBool "show" $ a /= b
     assertEqual "rqParam" (Just ["bar"]) (rqParam "foo" req)
     assertEqual "lookup" (Just ["bbb"]) (Map.lookup "zzz" $ rqParams req)
-    assertEqual "lookup 2" (Just ["bbb"]) (Map.lookup "zzz" $ headers req)
+    assertEqual "lookup 2" (Just ["bbb"]) (H.lookup "zzz" $ headers req)
 
     assertEqual "response status" 555 $ rspStatus resp
     assertEqual "response status reason" "bogus" $ rspStatusReason resp

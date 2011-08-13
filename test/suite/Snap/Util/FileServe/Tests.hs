@@ -23,6 +23,7 @@ import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
 import           Snap.Util.FileServe
 import           Snap.Iteratee
+import qualified Snap.Types.Headers as H
 
 tests :: [Test]
 tests = [ testFooBin
@@ -134,7 +135,7 @@ goRangeSuffix m s end = do
 mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "" pathPart "/"
                      (S.concat ["/",uri]) queryPart Map.empty
 

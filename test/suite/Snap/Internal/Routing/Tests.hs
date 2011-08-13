@@ -16,11 +16,11 @@ import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
 
-
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Routing
 import           Snap.Internal.Types
 import           Snap.Iteratee hiding (head)
+import qualified Snap.Types.Headers as H
 
 tests :: [Test]
 tests = [ testRouting1
@@ -65,7 +65,7 @@ mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
 
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "" uri "/"
                      (B.concat ["/",uri]) "" Map.empty
 

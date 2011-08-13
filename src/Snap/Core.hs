@@ -150,6 +150,7 @@ import           Snap.Internal.Parsing
 import           Snap.Internal.Routing
 import           Snap.Internal.Types
 import           Snap.Iteratee (Enumerator)
+import           Snap.Types.Headers (Headers)
 ------------------------------------------------------------------------------
 
 -- $httpDoc

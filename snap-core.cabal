@@ -118,6 +118,7 @@ Library
     Snap.Internal.Iteratee.Debug,
     Snap.Internal.Parsing,
     Snap.Test,
+    Snap.Types.Headers,
     Snap.Util.FileServe,
     Snap.Util.FileUploads,
     Snap.Util.GZip,

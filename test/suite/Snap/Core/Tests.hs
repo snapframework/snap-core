@@ -37,6 +37,7 @@ import           Snap.Internal.Types
 import           Snap.Iteratee
 import qualified Snap.Iteratee as I
 import           Snap.Test.Common
+import qualified Snap.Types.Headers as H
 
 
 tests :: [Test]
@@ -93,7 +94,7 @@ mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
 
-    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False Map.empty
+    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "" uri "/"
                      (S.concat ["/",uri]) "" Map.empty
 
@@ -104,7 +105,7 @@ mkRequestQuery uri k v = do
     let mp = Map.fromList [(k,v)]
     let q  = S.concat [k,"=", S.concat v]
 
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "" uri "/"
                      (S.concat ["/",uri,"?",q]) q mp
 
@@ -113,7 +114,7 @@ mkZomgRq :: IO Request
 mkZomgRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
-    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False Map.empty
+    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
 
 
@@ -132,7 +133,7 @@ mkRqWithBody = mkRqWithEnum (enumBS "zazzle" >==> enumEOF)
 mkRqWithEnum :: (forall a . Enumerator ByteString IO a) -> IO Request
 mkRqWithEnum e = do
     enum <- newIORef $ SomeEnumerator e
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False Map.empty
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                  enum Nothing GET (1,1) [] "" "/" "/" "/" ""
                  Map.empty
 

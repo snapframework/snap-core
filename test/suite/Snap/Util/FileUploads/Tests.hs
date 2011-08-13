@@ -32,6 +32,7 @@ import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Types
 import           Snap.Util.FileUploads
 import           Snap.Iteratee hiding (map)
+import qualified Snap.Types.Headers as H
 
 ------------------------------------------------------------------------------
 tests :: [Test]
@@ -324,9 +325,9 @@ mkRequest :: ByteString -> IO Request
 mkRequest body = do
     enum <- newIORef $ SomeEnumerator $ enumBS body
 
-    let hdrs = Map.fromList [
-                 ("Content-type", [S.append "multipart/form-data; boundary="
-                                            boundaryValue])
+    let hdrs = H.fromList [
+                 ("Content-type", S.append "multipart/form-data; boundary="
+                                            boundaryValue)
                 ]
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs

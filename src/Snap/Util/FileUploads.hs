@@ -98,7 +98,7 @@ import           Snap.Internal.Debug
 import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Iteratee.BoyerMooreHorspool
 import           Snap.Internal.Parsing
-
+import qualified Snap.Types.Headers as H
 
 ------------------------------------------------------------------------------
 -- | Reads uploaded files into a temporary directory and calls a user handler
@@ -743,11 +743,11 @@ processPart st = {-# SCC "pPart/outer" #-}
     go :: (Monad m) => (Stream ByteString -> Iteratee ByteString m a)
                     -> Iteratee MatchInfo m (Step ByteString m a)
     go !k = {-# SCC "pPart/go" #-}
-            I.head >>= maybe finish process
+            I.head >>= maybe finished process
       where
         -- called when outer stream is EOF
-        finish = {-# SCC "pPart/finish" #-}
-                 lift $ runIteratee $ k EOF
+        finished = {-# SCC "pPart/finish" #-}
+                   lift $ runIteratee $ k EOF
 
         -- no match ==> pass the stream chunk along
         process (NoMatch !s) = {-# SCC "pPart/noMatch" #-} do
@@ -813,10 +813,9 @@ pHeadersWithSeparator = pHeaders <* crlf
 
 ------------------------------------------------------------------------------
 toHeaders :: [(ByteString,ByteString)] -> Headers
-toHeaders kvps = foldl' f Map.empty kvps'
+toHeaders kvps = H.fromList kvps'
   where
-    kvps'     = map (first CI.mk . second (:[])) kvps
-    f m (k,v) = Map.insertWith' (flip (++)) k v m
+    kvps'     = map (first CI.mk) kvps
 
 
 ------------------------------------------------------------------------------

@@ -31,6 +31,7 @@ import           Snap.Internal.Http.Types
 import           Snap.Iteratee
 import           Snap.Test.Common ()
 import           Snap.Util.GZip
+import qualified Snap.Types.Headers as H
 
 
 stream2stream
@@ -69,7 +70,7 @@ liftQ = QC.run
 
 ------------------------------------------------------------------------------
 gzipHdrs, xGzipHdrs, badHdrs, compressHdrs, xCompressHdrs, emptyHdrs :: Headers
-emptyHdrs = Map.empty
+emptyHdrs = H.empty
 gzipHdrs = setHeader "Accept-Encoding" "froz,gzip, x-gzip" emptyHdrs
 xGzipHdrs = setHeader "Accept-Encoding" "x-gzip;q=1.0" emptyHdrs
 badHdrs = setHeader "Accept-Encoding" "*&%^&^$%&%&*^\023" emptyHdrs

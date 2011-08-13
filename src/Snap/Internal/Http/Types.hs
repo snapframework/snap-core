@@ -54,7 +54,8 @@ import           Data.CaseInsensitive   (CI)
 import qualified Data.CaseInsensitive as CI
 import           Snap.Iteratee (Enumerator)
 import qualified Snap.Iteratee as I
-
+import           Snap.Types.Headers (Headers)
+import qualified Snap.Types.Headers as H
 
 #ifndef PORTABLE
 
@@ -77,11 +78,6 @@ foreign import ccall unsafe "c_format_log_time"
 
 
 ------------------------------------------------------------------------------
--- | A type alias for a case-insensitive key-value mapping.
-type Headers = Map (CI ByteString) [ByteString]
-
-
-------------------------------------------------------------------------------
 -- | A typeclass for datatypes which contain HTTP headers.
 class HasHeaders a where
 
@@ -97,33 +93,33 @@ class HasHeaders a where
 -- with the same name already exists, the new value is appended to the headers
 -- list.
 addHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
-addHeader k v = updateHeaders $ Map.insertWith' (flip (++)) k [v]
+addHeader k v = updateHeaders $ H.insert k v
 
 
 ------------------------------------------------------------------------------
 -- | Sets a header key-value-pair in a 'HasHeaders' datatype. If a header with
 -- the same name already exists, it is overwritten with the new value.
 setHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
-setHeader k v = updateHeaders $ Map.insert k [v]
+setHeader k v = updateHeaders $ H.set k v
 
 
 ------------------------------------------------------------------------------
 -- | Gets all of the values for a given header.
 getHeaders :: (HasHeaders a) => CI ByteString -> a -> Maybe [ByteString]
-getHeaders k a = Map.lookup k $ headers a
+getHeaders k a = H.lookup k $ headers a
 
 
 ------------------------------------------------------------------------------
 -- | Gets a header value out of a 'HasHeaders' datatype. If many headers came
 -- in with the same name, they will be catenated together.
 getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
-getHeader k a = liftM (S.intercalate " ") (Map.lookup k $ headers a)
+getHeader k a = liftM (S.intercalate " ") (H.lookup k $ headers a)
 
 
 ------------------------------------------------------------------------------
 -- | Clears a header value from a 'HasHeaders' datatype.
 deleteHeader :: (HasHeaders a) => CI ByteString -> a -> a
-deleteHeader k = updateHeaders $ Map.delete k
+deleteHeader k = updateHeaders $ H.delete k
 
 
 ------------------------------------------------------------------------------
@@ -308,9 +304,9 @@ instance Show Request where
       beginheaders  =
           "Headers:\n      ========================================"
       endheaders    = "  ========================================"
-      hdrs' (a,b)   = (B.unpack $ CI.original a) ++ ": " ++ (show (map B.unpack b))
+      hdrs' (a,b)   = (B.unpack $ CI.original a) ++ ": " ++ B.unpack b
       hdrs          = "      " ++ (concat $ intersperse "\n " $
-                                   map hdrs' (Map.toAscList $ rqHeaders r))
+                                   map hdrs' (H.toList $ rqHeaders r))
       contentlength = concat [ "content-length: "
                              , show $ rqContentLength r
                              ]
@@ -429,11 +425,9 @@ instance Show Response where
                           , toStr $ rspStatusReason r
                           , "\r\n" ]
 
-      hdrs = concatMap showHdr $ Map.toList $ rspHeaders r
+      hdrs = concatMap showHdr $ H.toList $ rspHeaders r
 
-      showHdr (k,vs) = concatMap (showOneHdr k) vs
-
-      showOneHdr k v = concat [ toStr (CI.original k), ": ", toStr v, "\r\n" ]
+      showHdr (k,v) = concat [ toStr (CI.original k), ": ", toStr v, "\r\n" ]
 
 
 ------------------------------------------------------------------------------
@@ -480,7 +474,7 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 
 -- | An empty 'Response'.
 emptyResponse :: Response
-emptyResponse = Response Map.empty Map.empty (1,1) Nothing
+emptyResponse = Response H.empty Map.empty (1,1) Nothing
                          (Enum (I.enumBuilder mempty))
                          200 "OK" False
 

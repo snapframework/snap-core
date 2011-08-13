@@ -53,7 +53,7 @@ import qualified Snap.Internal.Http.Types as H
 import           Snap.Internal.Parsing
 import           Snap.Iteratee hiding (map)
 import           Snap.Core hiding (addHeader, setContentType, setHeader)
-
+import qualified Snap.Types.Headers as H
 
 ------------------------------------------------------------------------------
 -- | RequestBuilder is a monad transformer that allows you to conveniently
@@ -74,7 +74,7 @@ mkDefaultRequest = do
                      8080
                      "localhost"
                      False
-                     Map.empty
+                     H.empty
                      bodyRef
                      Nothing
                      GET
