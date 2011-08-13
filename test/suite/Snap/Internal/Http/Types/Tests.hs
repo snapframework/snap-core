@@ -20,6 +20,7 @@ import           Test.HUnit hiding (Test, path)
 import           Text.Regex.Posix
 
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Parsing
 import           Snap.Iteratee
 
 
@@ -57,7 +58,7 @@ testAddHeader = testCase "addHeader" $ do
 
 
     let x = getHeader "foo" req
-    assertEqual "addHeader x 2" (Just "bar baz") x
+    assertEqual "addHeader x 2" (Just "baz bar") x
 
 
 testUrlDecode :: Test

@@ -32,32 +32,12 @@ import qualified Test.HUnit as H
 
 import           Snap.Iteratee
 import           Snap.Internal.Iteratee.BoyerMooreHorspool
-import           Snap.Test.Common (coverShowInstance)
+import           Snap.Test.Common
 
 import Snap.Internal.Iteratee.Debug
 
-liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
-liftQ = QC.run
-
-
 throwErr :: String -> Iteratee a IO b
 throwErr = throwError . AssertionFailed
-
-
-expectException :: IO a -> PropertyM IO ()
-expectException m = do
-    e <- liftQ $ E.try m
-    case e of
-      Left (z::SomeException)  -> (show z) `seq` return ()
-      Right _ -> fail "expected exception, didn't get one"
-
-
-expectExceptionH :: IO a -> IO ()
-expectExceptionH act = do
-    e <- E.try act
-    case e of
-      Left (z::SomeException) -> (show z) `seq` return ()
-      Right _ -> fail "expected expected, didn't get one"
 
 
 tests :: [Test]

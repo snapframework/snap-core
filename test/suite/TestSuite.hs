@@ -4,11 +4,13 @@ import Test.Framework (defaultMain, testGroup)
 
 import qualified Snap.Types.Tests
 import qualified Snap.Internal.Http.Types.Tests
+import qualified Snap.Internal.Parsing.Tests
 import qualified Snap.Internal.Routing.Tests
 import qualified Snap.Iteratee.Tests
 import qualified Snap.Util.FileServe.Tests
 import qualified Snap.Util.FileUploads.Tests
 import qualified Snap.Util.GZip.Tests
+import qualified Snap.Test.Tests
 
 
 main :: IO ()
@@ -22,10 +24,14 @@ main = defaultMain tests
                             Snap.Types.Tests.tests
                 , testGroup "Snap.Iteratee.Tests"
                             Snap.Iteratee.Tests.tests
+                , testGroup "Snap.Internal.Parsing.Tests"
+                            Snap.Internal.Parsing.Tests.tests
                 , testGroup "Snap.Util.GZip.Tests"
                             Snap.Util.GZip.Tests.tests
                 , testGroup "Snap.Util.FileServe.Tests"
                             Snap.Util.FileServe.Tests.tests
                 , testGroup "Snap.Util.FileUploads.Tests"
                             Snap.Util.FileUploads.Tests.tests
+                , testGroup "Snap.Test.Tests"
+                            Snap.Test.Tests.tests
                 ]

@@ -13,6 +13,7 @@ import qualified Data.Map as Map
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Parsing
 import           Snap.Internal.Types
 
 

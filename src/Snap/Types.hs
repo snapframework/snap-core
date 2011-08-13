@@ -64,6 +64,7 @@ module Snap.Types
   , addHeader
   , setHeader
   , getHeader
+  , getHeaders
   , deleteHeader
   , ipHeaderFilter
   , ipHeaderFilter'
@@ -134,13 +135,18 @@ module Snap.Types
     -- * HTTP utilities
   , formatHttpTime
   , parseHttpTime
+  , parseUrlEncoded
+  , buildUrlEncoded
+  , printUrlEncoded
   , urlEncode
+  , urlEncodeBuilder
   , urlDecode
   ) where
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Instances ()
+import           Snap.Internal.Parsing
 import           Snap.Internal.Routing
 import           Snap.Internal.Types
 import           Snap.Iteratee (Enumerator)

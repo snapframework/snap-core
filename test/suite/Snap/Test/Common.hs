@@ -10,6 +10,9 @@ module Snap.Test.Common
   , coverShowInstance
   , coverTypeableInstance
   , forceSameType
+  , expectException
+  , expectExceptionH
+  , liftQ
   ) where
 
 import           Control.DeepSeq
@@ -22,6 +25,8 @@ import           Data.ByteString.Internal (c2w)
 import           Data.Typeable
 import           Prelude hiding (catch)
 import           Test.QuickCheck
+import qualified Test.QuickCheck.Monadic as QC
+import           Test.QuickCheck.Monadic
 
 
 instance Arbitrary S.ByteString where
@@ -80,3 +85,23 @@ coverOrdInstance x = a `deepseq` b `deepseq` return ()
 
 coverTypeableInstance :: (Monad m, Typeable a) => a -> m ()
 coverTypeableInstance a = typeOf a `seq` return ()
+
+
+expectException :: IO a -> PropertyM IO ()
+expectException m = do
+    e <- liftQ $ try m
+    case e of
+      Left (z::SomeException)  -> (length $ show z) `seq` return ()
+      Right _ -> fail "expected exception, didn't get one"
+
+
+expectExceptionH :: IO a -> IO ()
+expectExceptionH act = do
+    e <- try act
+    case e of
+      Left (z::SomeException) -> (length $ show z) `seq` return ()
+      Right _ -> fail "expected exception, didn't get one"
+
+
+liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
+liftQ = QC.run
