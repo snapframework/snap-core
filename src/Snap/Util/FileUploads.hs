@@ -91,13 +91,13 @@ import           Prelude hiding (catch, getLine, takeWhile)
 import           System.Directory
 import           System.IO hiding (isEOF)
 ------------------------------------------------------------------------------
+import           Snap.Core
 import           Snap.Iteratee hiding (map)
 import qualified Snap.Iteratee as I
 import           Snap.Internal.Debug
 import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Iteratee.BoyerMooreHorspool
 import           Snap.Internal.Parsing
-import           Snap.Types
 
 
 ------------------------------------------------------------------------------

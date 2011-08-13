@@ -52,7 +52,7 @@ import           Snap.Internal.Http.Types hiding (addHeader,
 import qualified Snap.Internal.Http.Types as H
 import           Snap.Internal.Parsing
 import           Snap.Iteratee hiding (map)
-import           Snap.Types hiding (addHeader, setContentType, setHeader)
+import           Snap.Core hiding (addHeader, setContentType, setHeader)
 
 
 ------------------------------------------------------------------------------

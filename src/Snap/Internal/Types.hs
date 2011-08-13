@@ -239,7 +239,7 @@ instance MonadSnap Snap where
 -- | The Typeable instance is here so Snap can be dynamically executed with
 -- Hint.
 snapTyCon :: TyCon
-snapTyCon = mkTyCon "Snap.Types.Snap"
+snapTyCon = mkTyCon "Snap.Core.Snap"
 {-# NOINLINE snapTyCon #-}
 
 instance Typeable1 Snap where

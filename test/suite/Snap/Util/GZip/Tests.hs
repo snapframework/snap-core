@@ -26,7 +26,7 @@ import           Test.QuickCheck.Monadic hiding (run)
 import           Test.Framework.Providers.HUnit
 import qualified Test.HUnit as H
 
-import           Snap.Types
+import           Snap.Core
 import           Snap.Internal.Http.Types
 import           Snap.Iteratee
 import           Snap.Test.Common ()

@@ -2,7 +2,7 @@ module Main where
 
 import Test.Framework (defaultMain, testGroup)
 
-import qualified Snap.Types.Tests
+import qualified Snap.Core.Tests
 import qualified Snap.Internal.Http.Types.Tests
 import qualified Snap.Internal.Parsing.Tests
 import qualified Snap.Internal.Routing.Tests
@@ -20,8 +20,8 @@ main = defaultMain tests
                             Snap.Internal.Http.Types.Tests.tests
                 , testGroup "Snap.Internal.Routing.Tests"
                             Snap.Internal.Routing.Tests.tests
-                , testGroup "Snap.Types.Tests"
-                            Snap.Types.Tests.tests
+                , testGroup "Snap.Core.Tests"
+                            Snap.Core.Tests.tests
                 , testGroup "Snap.Iteratee.Tests"
                             Snap.Iteratee.Tests.tests
                 , testGroup "Snap.Internal.Parsing.Tests"

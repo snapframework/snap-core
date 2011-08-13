@@ -26,7 +26,7 @@ description:
        * Early termination of the computation if you know early what you want
          to return and want to prevent further monadic processing
   .
-  /Quick start/: The 'Snap' monad and HTTP definitions are in "Snap.Types",
+  /Quick start/: The 'Snap' monad and HTTP definitions are in "Snap.Core",
   some iteratee utilities are in "Snap.Iteratee".
   .
   Higher-level facilities for building web applications (like user/session
@@ -68,12 +68,12 @@ extra-source-files:
   test/data/fileServe/mydir3/altindex.html,
   test/runTestsAndCoverage.sh,
   test/snap-core-testsuite.cabal,
+  test/suite/Snap/Core/Tests.hs,
   test/suite/Snap/Internal/Http/Types/Tests.hs,
   test/suite/Snap/Internal/Parsing/Tests.hs,
   test/suite/Snap/Internal/Routing/Tests.hs,
   test/suite/Snap/Iteratee/Tests.hs,
   test/suite/Snap/Test/Common.hs,
-  test/suite/Snap/Types/Tests.hs,
   test/suite/Snap/Util/FileServe/Tests.hs,
   test/suite/Snap/Util/FileUploads/Tests.hs,
   test/suite/Snap/Util/GZip/Tests.hs
@@ -110,6 +110,7 @@ Library
                    regex-posix <= 0.94.4
 
   exposed-modules:
+    Snap.Core,
     Snap.Types,
     Snap.Iteratee,
     Snap.Internal.Debug,

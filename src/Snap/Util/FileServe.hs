@@ -46,10 +46,10 @@ import           System.Directory
 import           System.FilePath
 import           System.PosixCompat.Files
 ------------------------------------------------------------------------------
+import           Snap.Core
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
 import           Snap.Iteratee hiding (drop)
-import           Snap.Types
 
 
 ------------------------------------------------------------------------------

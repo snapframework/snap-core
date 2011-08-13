@@ -28,11 +28,11 @@ import           Data.Typeable
 import           Prelude hiding (catch, takeWhile)
 
 ----------------------------------------------------------------------------
+import           Snap.Core
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
 import           Snap.Iteratee
 import qualified Snap.Iteratee as I
-import           Snap.Types
 
 
 ------------------------------------------------------------------------------

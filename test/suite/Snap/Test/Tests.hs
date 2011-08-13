@@ -21,7 +21,7 @@ import qualified Snap.Internal.Http.Types as T
 import           Snap.Test
 import           Snap.Test.Common
 import           Snap.Iteratee
-import           Snap.Types hiding (setHeader, addHeader, setContentType)
+import           Snap.Core hiding (setHeader, addHeader, setContentType)
 import           Snap.Util.FileUploads
 
 ------------------------------------------------------------------------------

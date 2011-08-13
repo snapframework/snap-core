@@ -3,7 +3,7 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Snap.Types.Tests
+module Snap.Core.Tests
   ( tests ) where
 
 import           Blaze.ByteString.Builder
