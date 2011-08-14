@@ -66,6 +66,7 @@ module Snap.Util.FileUploads
 ------------------------------------------------------------------------------
 import           Control.Arrow
 import           Control.Applicative
+import           Control.Concurrent.MVar
 import           Control.Exception (SomeException(..))
 import           Control.Monad
 import           Control.Monad.CatchIO
@@ -850,18 +851,23 @@ emptyUploadedFilesState = UploadedFilesState Nothing []
 
 
 ------------------------------------------------------------------------------
-newtype UploadedFiles = UploadedFiles (IORef UploadedFilesState)
+data UploadedFiles = UploadedFiles (IORef UploadedFilesState)
+                                   (MVar ())
 
 
 ------------------------------------------------------------------------------
 newUploadedFiles :: MonadIO m => m UploadedFiles
-newUploadedFiles = liftM UploadedFiles $
-                   liftIO $ newIORef emptyUploadedFilesState
+newUploadedFiles = liftIO $ do
+    r <- newIORef emptyUploadedFilesState
+    m <- newMVar ()
+    let u = UploadedFiles r m
+    addMVarFinalizer m $ cleanupUploadedFiles u
+    return u
 
 
 ------------------------------------------------------------------------------
 cleanupUploadedFiles :: (MonadIO m) => UploadedFiles -> m ()
-cleanupUploadedFiles (UploadedFiles stateRef) = liftIO $ do
+cleanupUploadedFiles (UploadedFiles stateRef _) = liftIO $ do
     state <- readIORef stateRef
     killOpenFile state
     mapM_ killFile $ _alreadyReadFiles state
@@ -882,7 +888,7 @@ openFileForUpload :: (MonadIO m) =>
                      UploadedFiles
                   -> FilePath
                   -> m (FilePath, Handle)
-openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
+openFileForUpload ufs@(UploadedFiles stateRef _) tmpdir = liftIO $ do
     state <- readIORef stateRef
 
     -- It should be an error to open a new file with this interface if there
@@ -905,7 +911,7 @@ openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
 
 ------------------------------------------------------------------------------
 closeActiveFile :: (MonadIO m) => UploadedFiles -> m ()
-closeActiveFile (UploadedFiles stateRef) = liftIO $ do
+closeActiveFile (UploadedFiles stateRef _) = liftIO $ do
     state <- readIORef stateRef
     let m = _currentFile state
     maybe (return ())
