@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns              #-}
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -99,6 +100,10 @@ import           Snap.Internal.Iteratee.BoyerMooreHorspool
 import           Snap.Internal.Parsing
 import           Snap.Types
 
+#ifdef USE_UNIX
+import           System.FilePath ((</>))
+import           System.Posix.Temp (mkstemp)
+#endif
 
 ------------------------------------------------------------------------------
 -- | Reads uploaded files into a temporary directory and calls a user handler
@@ -886,7 +891,7 @@ openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
         cleanupUploadedFiles ufs
         throw $ GenericFileUploadException alreadyOpenMsg
 
-    fph@(_,h) <- openBinaryTempFile tmpdir "snap-"
+    fph@(_,h) <- makeTempFile tmpdir "snap-"
     hSetBuffering h NoBuffering
 
     writeIORef stateRef $ state { _currentFile = Just fph }
@@ -916,3 +921,11 @@ closeActiveFile (UploadedFiles stateRef) = liftIO $ do
 eatException :: (MonadCatchIO m) => m a -> m ()
 eatException m =
     (m >> return ()) `catch` (\(_ :: SomeException) -> return ())
+
+
+makeTempFile :: FilePath -> String -> IO (FilePath, Handle)
+#ifdef USE_UNIX
+makeTempFile fp temp = mkstemp $ fp </> (temp ++ "XXXXXXX")
+#else
+makeTempFile = openBinaryTempFile
+#endif
