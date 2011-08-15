@@ -107,7 +107,9 @@ Library
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
     build-depends: bytestring-mmap >= 0.2.2 && <0.3,
-                   regex-posix <= 0.94.4
+                   regex-posix <= 0.94.4,
+                   unix >= 2.4 && <3.0
+    cpp-options: -DUSE_UNIX
 
   exposed-modules:
     Snap.Core,

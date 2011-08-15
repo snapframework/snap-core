@@ -1,5 +1,6 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Util.FileUploads.Tests
@@ -9,7 +10,7 @@ module Snap.Util.FileUploads.Tests
 import           Control.Applicative
 import           Control.Concurrent (threadDelay)
 import           Control.DeepSeq
-import           Control.Exception (SomeException(..))
+import           Control.Exception (Exception(..), SomeException(..))
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
@@ -19,8 +20,10 @@ import           Data.IORef
 import qualified Data.Map as Map
 import           Data.Maybe
 import qualified Data.Text as T
+import           Data.Typeable
 import           Prelude hiding (catch)
 import           System.Directory
+import           System.Mem
 import           System.Timeout
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
@@ -30,9 +33,17 @@ import           Snap.Internal.Http.Types
 import           Snap.Internal.Debug
 import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Types
-import           Snap.Util.FileUploads
 import           Snap.Iteratee hiding (map)
 import qualified Snap.Types.Headers as H
+import           Snap.Test.Common
+import           Snap.Util.FileUploads
+
+
+------------------------------------------------------------------------------
+data TestException = TestException
+  deriving (Show, Typeable)
+
+instance Exception TestException
 
 ------------------------------------------------------------------------------
 tests :: [Test]
@@ -47,6 +58,7 @@ tests = [ testSuccess1
         , testWrongContentType
         , testSlowEnumerator
         , testTrivials
+        , testDisconnectionCleanup
         ]
 
 
@@ -303,6 +315,32 @@ testTrivials = testCase "fileUploads/trivials" $ do
              setUploadTimeout 9 $
              defaultUploadPolicy
 
+
+------------------------------------------------------------------------------
+testDisconnectionCleanup :: Test
+testDisconnectionCleanup = testCase "fileUploads/disconnectionCleanup" $ do
+    runTest `finally` removeDirectoryRecursive tmpdir
+  where
+    runTest = do
+        eatException $ removeDirectoryRecursive tmpdir
+        createDirectoryIfMissing True tmpdir
+        rq <- mkDamagedRequest mixedTestBody
+        eatException $ liftM snd (run_ $ runIt hndl rq)
+        performGC
+        dirs <- liftM (filter (\x -> x /= "." && x /= "..")) $
+                getDirectoryContents tmpdir
+        assertEqual "files should be cleaned up" [] dirs
+    
+
+    tmpdir = "tempdirC"
+    hndl = handleFileUploads tmpdir
+                             defaultUploadPolicy
+                             (const $ allowWithMaximumSize 300000)
+                             hndl'
+
+    hndl' _ = return ()
+        
+
 ------------------------------------------------------------------------------
 harness :: FilePath -> Snap a -> ByteString -> IO ()
 harness = harness' go
@@ -333,6 +371,24 @@ mkRequest body = do
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
                      enum Nothing POST (1,1) [] "" "/" "/"
                      "/" "" Map.empty
+
+
+------------------------------------------------------------------------------
+mkDamagedRequest :: ByteString -> IO Request
+mkDamagedRequest body = do
+    enum <- newIORef $ SomeEnumerator $ enum
+
+    let hdrs = Map.fromList [
+                 ("Content-type", [S.append "multipart/form-data; boundary="
+                                            boundaryValue])
+                ]
+
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
+                     enum Nothing POST (1,1) [] "" "/" "/"
+                     "/" "" Map.empty
+  where
+    enum = enumBS (S.take (S.length body - 1) body) >==> dieNow
+    dieNow _ = throw TestException
 
 
 ------------------------------------------------------------------------------

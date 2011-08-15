@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns              #-}
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -65,6 +66,7 @@ module Snap.Util.FileUploads
 ------------------------------------------------------------------------------
 import           Control.Arrow
 import           Control.Applicative
+import           Control.Concurrent.MVar
 import           Control.Exception (SomeException(..))
 import           Control.Monad
 import           Control.Monad.CatchIO
@@ -99,6 +101,11 @@ import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Iteratee.BoyerMooreHorspool
 import           Snap.Internal.Parsing
 import qualified Snap.Types.Headers as H
+
+#ifdef USE_UNIX
+import           System.FilePath ((</>))
+import           System.Posix.Temp (mkstemp)
+#endif
 
 ------------------------------------------------------------------------------
 -- | Reads uploaded files into a temporary directory and calls a user handler
@@ -844,18 +851,23 @@ emptyUploadedFilesState = UploadedFilesState Nothing []
 
 
 ------------------------------------------------------------------------------
-newtype UploadedFiles = UploadedFiles (IORef UploadedFilesState)
+data UploadedFiles = UploadedFiles (IORef UploadedFilesState)
+                                   (MVar ())
 
 
 ------------------------------------------------------------------------------
 newUploadedFiles :: MonadIO m => m UploadedFiles
-newUploadedFiles = liftM UploadedFiles $
-                   liftIO $ newIORef emptyUploadedFilesState
+newUploadedFiles = liftIO $ do
+    r <- newIORef emptyUploadedFilesState
+    m <- newMVar ()
+    let u = UploadedFiles r m
+    addMVarFinalizer m $ cleanupUploadedFiles u
+    return u
 
 
 ------------------------------------------------------------------------------
 cleanupUploadedFiles :: (MonadIO m) => UploadedFiles -> m ()
-cleanupUploadedFiles (UploadedFiles stateRef) = liftIO $ do
+cleanupUploadedFiles (UploadedFiles stateRef _) = liftIO $ do
     state <- readIORef stateRef
     killOpenFile state
     mapM_ killFile $ _alreadyReadFiles state
@@ -876,7 +888,7 @@ openFileForUpload :: (MonadIO m) =>
                      UploadedFiles
                   -> FilePath
                   -> m (FilePath, Handle)
-openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
+openFileForUpload ufs@(UploadedFiles stateRef _) tmpdir = liftIO $ do
     state <- readIORef stateRef
 
     -- It should be an error to open a new file with this interface if there
@@ -885,7 +897,7 @@ openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
         cleanupUploadedFiles ufs
         throw $ GenericFileUploadException alreadyOpenMsg
 
-    fph@(_,h) <- openBinaryTempFile tmpdir "snap-"
+    fph@(_,h) <- makeTempFile tmpdir "snap-"
     hSetBuffering h NoBuffering
 
     writeIORef stateRef $ state { _currentFile = Just fph }
@@ -899,7 +911,7 @@ openFileForUpload ufs@(UploadedFiles stateRef) tmpdir = liftIO $ do
 
 ------------------------------------------------------------------------------
 closeActiveFile :: (MonadIO m) => UploadedFiles -> m ()
-closeActiveFile (UploadedFiles stateRef) = liftIO $ do
+closeActiveFile (UploadedFiles stateRef _) = liftIO $ do
     state <- readIORef stateRef
     let m = _currentFile state
     maybe (return ())
@@ -915,3 +927,11 @@ closeActiveFile (UploadedFiles stateRef) = liftIO $ do
 eatException :: (MonadCatchIO m) => m a -> m ()
 eatException m =
     (m >> return ()) `catch` (\(_ :: SomeException) -> return ())
+
+
+makeTempFile :: FilePath -> String -> IO (FilePath, Handle)
+#ifdef USE_UNIX
+makeTempFile fp temp = mkstemp $ fp </> (temp ++ "XXXXXXX")
+#else
+makeTempFile = openBinaryTempFile
+#endif
