@@ -332,7 +332,7 @@ testDisconnectionCleanup = testCase "fileUploads/disconnectionCleanup" $ do
         assertEqual "files should be cleaned up" [] dirs
     
 
-    tmpdir = "tempdir1"
+    tmpdir = "tempdirC"
     hndl = handleFileUploads tmpdir
                              defaultUploadPolicy
                              (const $ allowWithMaximumSize 300000)
