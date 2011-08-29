@@ -163,4 +163,4 @@ Library
 
 source-repository head
   type:     git
-  location: http://git.snapframework.com/snap-core.git
+  location: git://github.com/snapframework/snap-core.git
