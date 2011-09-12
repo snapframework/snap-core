@@ -211,7 +211,7 @@ testFormInputPolicyViolation = testCase "fileUploads/formInputTooBig" $
 ------------------------------------------------------------------------------
 testNoBoundary :: Test
 testNoBoundary = testCase "fileUploads/noBoundary" $
-                 expectException $
+                 expectExceptionH $
                  harness' goBadContentType tmpdir hndl mixedTestBody
   where
     tmpdir = "tempdir_noboundary"
@@ -227,7 +227,7 @@ testNoBoundary = testCase "fileUploads/noBoundary" $
 ------------------------------------------------------------------------------
 testNoMixedBoundary :: Test
 testNoMixedBoundary = testCase "fileUploads/noMixedBoundary" $
-                      expectException $
+                      expectExceptionH $
                       harness' go tmpdir hndl badMixedBody
   where
     tmpdir = "tempdir_mixednoboundary"
@@ -243,7 +243,7 @@ testNoMixedBoundary = testCase "fileUploads/noMixedBoundary" $
 ------------------------------------------------------------------------------
 testWrongContentType :: Test
 testWrongContentType = testCase "fileUploads/wrongContentType" $
-                       expectException $
+                       expectExceptionH $
                        harness' goWrongContentType tmpdir hndl mixedTestBody
   where
     tmpdir = "tempdir_noboundary"
@@ -378,9 +378,9 @@ mkDamagedRequest :: ByteString -> IO Request
 mkDamagedRequest body = do
     enum <- newIORef $ SomeEnumerator $ enum
 
-    let hdrs = Map.fromList [
-                 ("Content-type", [S.append "multipart/form-data; boundary="
-                                            boundaryValue])
+    let hdrs = H.fromList [
+                 ("Content-type", S.append "multipart/form-data; boundary="
+                                            boundaryValue)
                 ]
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
@@ -599,12 +599,3 @@ bigHeadersBody =
          , boundaryValue
          , "--\r\n"
          ])
-
-
-------------------------------------------------------------------------------
-expectException :: IO a -> IO ()
-expectException m = do
-    e <- try m
-    case e of
-      Left (z::SomeException)  -> (show z) `deepseq` return ()
-      Right _ -> assertFailure "expected exception, didn't get one"
