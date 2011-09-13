@@ -19,7 +19,7 @@ import           Control.Monad.State
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
-import           Data.CaseInsensitive (CI) 
+import           Data.CaseInsensitive (CI)
 import           Data.Int
 import           Data.IORef
 import           Data.Maybe
