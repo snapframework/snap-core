@@ -46,6 +46,7 @@ tests = [ testFail
         , testEarlyTermination
         , testCatchFinishWith
         , testRqBody
+        , testRqBodyTooLong
         , testRqBodyException
         , testRqBodyTermination
         , testTrivials
@@ -335,6 +336,19 @@ testRqBody = testCase "types/requestBodies" $ do
         getRequestBody >>= liftIO . putMVar mvar2
 
     g = transformRequestBody returnI
+
+
+testRqBodyTooLong :: Test
+testRqBodyTooLong = testCase "types/requestBodyTooLong" $ do
+    expectExceptionH $ goBody $ f 2
+    (_, rsp) <- goBody $ f 200000
+    bd       <- getBody rsp
+
+    assertEqual "detached rq body" "zazzle" bd
+
+
+  where
+    f sz = readRequestBody sz >>= writeLBS
 
 
 testRqBodyException :: Test

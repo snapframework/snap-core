@@ -301,10 +301,29 @@ runRequestBody iter = do
 
 
 ------------------------------------------------------------------------------
--- | Returns the request body as a bytestring.
+-- | Returns the request body as a lazy bytestring.
+--
+-- This function is deprecated as of 0.6; it places no limits on the size of
+-- the request being read, and as such, if used, can result in a
+-- denial-of-service attack on your server. Please use 'readRequestBody'
+-- instead.
 getRequestBody :: MonadSnap m => m L.ByteString
 getRequestBody = liftM L.fromChunks $ runRequestBody consume
 {-# INLINE getRequestBody #-}
+{-# DEPRECATED getRequestBody
+    "As of 0.6, please use 'readRequestBody' instead" #-}
+
+
+------------------------------------------------------------------------------
+-- | Returns the request body as a lazy bytestring. /New in 0.6./
+readRequestBody :: MonadSnap m =>
+                   Int64  -- ^ size of the largest request body we're willing
+                          -- to accept. If a request body longer than this is
+                          -- received, a 'TooManyBytesReadException' is thrown.
+                          -- See 'takeNoMoreThan'.
+                -> m L.ByteString
+readRequestBody sz = liftM L.fromChunks $ runRequestBody $
+                     joinI $ takeNoMoreThan sz $$ consume
 
 
 ------------------------------------------------------------------------------
