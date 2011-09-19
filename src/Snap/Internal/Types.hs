@@ -89,10 +89,22 @@ import           Snap.Iteratee
    > a = liftIO fireTheMissiles
 
 7. the ability to set a timeout which will kill the handler thread after @N@
-   seconds of inactivity:
+   seconds of inactivity (the default is 20 seconds):
 
    > a :: Snap ()
    > a = setTimeout 30
+
+8. throw and catch exceptions using a 'MonadCatchIO' instance:
+
+   > foo :: Snap ()
+   > foo = bar `catch` \(e::SomeException) -> baz
+   >   where
+   >     bar = throw FooException
+
+9. log a message to the error log:
+
+   > foo :: Snap ()
+   > foo = logError "grumble."
 
 You may notice that most of the type signatures in this module contain a
 @(MonadSnap m) => ...@ typeclass constraint. 'MonadSnap' is a typeclass which,
