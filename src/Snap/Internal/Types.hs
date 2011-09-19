@@ -69,6 +69,7 @@ import           Snap.Iteratee
    > a someEnumerator = do
    >     writeBS "I'm a strict bytestring"
    >     writeLBS "I'm a lazy bytestring"
+   >     writeText "I'm strict text"
    >     addToOutput someEnumerator
 
 5. early termination: if you call 'finishWith':
