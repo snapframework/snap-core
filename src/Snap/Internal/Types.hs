@@ -63,7 +63,7 @@ import           Snap.Iteratee
    > c = a <|> b             -- try running a, if it fails then try b
 
 4. convenience functions ('writeBS', 'writeLBS', 'writeText', 'writeLazyText',
-   'addToOutput') for writing output to the 'Response':
+   'addToOutput') for queueing output to be written to the 'Response':
 
    > a :: (forall a . Enumerator a) -> Snap ()
    > a someEnumerator = do
