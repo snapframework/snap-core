@@ -114,6 +114,7 @@ type MimeMap = Map FilePath ByteString
 -- >   ( ".jpeg"    , "image/jpeg"                        ),
 -- >   ( ".jpg"     , "image/jpeg"                        ),
 -- >   ( ".js"      , "text/javascript"                   ),
+-- >   ( ".json"    , "application/json"                  ),
 -- >   ( ".log"     , "text/plain"                        ),
 -- >   ( ".m3u"     , "audio/x-mpegurl"                   ),
 -- >   ( ".mov"     , "video/quicktime"                   ),
