@@ -126,9 +126,9 @@ class (Monad m, MonadIO m, MonadCatchIO m, MonadPlus m, Functor m,
 
 
 ------------------------------------------------------------------------------
-data SnapResult a = PassOnProcessing
+data SnapResult a = SnapValue a
+                  | PassOnProcessing
                   | EarlyTermination Response
-                  | SnapValue a
 
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
