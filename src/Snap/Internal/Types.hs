@@ -869,6 +869,33 @@ terminateConnection :: (Exception e, MonadCatchIO m) => e -> m a
 terminateConnection = throw . ConnectionTerminatedException . toException
 
 
+-- | This is exception is thrown if the handler chooses to escape regular HTTP
+-- traffic.
+data EscapeHttpException = EscapeHttpException
+    (Iteratee ByteString IO () -> Iteratee ByteString IO ())
+        deriving (Typeable)
+
+
+------------------------------------------------------------------------------
+instance Show EscapeHttpException where
+    show = const "HTTP traffic was escaped"
+
+
+------------------------------------------------------------------------------
+instance Exception EscapeHttpException where
+    toException   = uncatchableExceptionToException
+    fromException = uncatchableExceptionFromException
+
+
+------------------------------------------------------------------------------
+-- | Terminate the HTTP session and hand control to some external handler,
+-- escaping all further HTTP traffic.
+escapeHttp :: MonadCatchIO m
+           => (Iteratee ByteString IO () -> Iteratee ByteString IO ())
+           -> m ()
+escapeHttp = throw . EscapeHttpException
+
+
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
 runSnap :: Snap a

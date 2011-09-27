@@ -18,6 +18,7 @@ module Snap.Core
   , catchFinishWith
   , pass
   , terminateConnection
+  , escapeHttp
 
     -- ** Routing
   , method
