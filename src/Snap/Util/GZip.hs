@@ -9,8 +9,7 @@ module Snap.Util.GZip
 , withCompression' ) where
 
 import           Blaze.ByteString.Builder
-import qualified Codec.Compression.GZip as GZip
-import qualified Codec.Compression.Zlib as Zlib
+import qualified Codec.Zlib.Enum as Z
 import           Control.Concurrent
 import           Control.Applicative hiding (many)
 import           Control.Exception
@@ -26,6 +25,7 @@ import qualified Data.Set as Set
 import           Data.Set (Set)
 import           Data.Typeable
 import           Prelude hiding (catch, takeWhile)
+
 
 ----------------------------------------------------------------------------
 import           Snap.Core
@@ -160,117 +160,21 @@ compressCompression ce = modifyResponse f
 
 
 ------------------------------------------------------------------------------
--- FIXME: use zlib-bindings
 gcompress :: forall a . Enumerator Builder IO a
           -> Enumerator Builder IO  a
-gcompress = compressEnumerator GZip.compress
+gcompress e = mapEnum toByteString fromByteString $ \step ->
+              mapEnum fromByteString toByteString e $$
+              joinI $
+              Z.gzip step
 
 
 ------------------------------------------------------------------------------
 ccompress :: forall a . Enumerator Builder IO a
           -> Enumerator Builder IO a
-ccompress = compressEnumerator Zlib.compress
-
-
-------------------------------------------------------------------------------
-compressEnumerator :: forall a .
-                      (L.ByteString -> L.ByteString)
-                   -> Enumerator Builder IO a
-                   -> Enumerator Builder IO a
-compressEnumerator compFunc enum' origStep = do
-    let iter = joinI $ I.map fromByteString origStep
-    step <- lift $ runIteratee iter
-    writeEnd <- liftIO $ newChan
-    readEnd  <- liftIO $ newChan
-    tid      <- liftIO $ forkIO $ threadProc readEnd writeEnd
-
-    let enum = mapEnum fromByteString toByteString enum'
-    let outEnum = enum (f readEnd writeEnd tid step)
-    mapIter toByteString fromByteString outEnum
-
-  where
-    --------------------------------------------------------------------------
-    streamFinished :: Stream ByteString -> Bool
-    streamFinished EOF        = True
-    streamFinished (Chunks _) = False
-
-
-    --------------------------------------------------------------------------
-    consumeSomeOutput :: Chan (Either SomeException (Stream ByteString))
-                      -> Step ByteString IO a
-                      -> Iteratee ByteString IO (Step ByteString IO a)
-    consumeSomeOutput writeEnd step = do
-        e <- lift $ isEmptyChan writeEnd
-        if e
-          then return step
-          else do
-            ech <- lift $ readChan writeEnd
-            either throwError
-                   (\ch -> do
-                        step' <- checkDone (\k -> lift $ runIteratee $ k ch)
-                                           step
-                        consumeSomeOutput writeEnd step')
-                   ech
-
-    --------------------------------------------------------------------------
-    consumeRest :: Chan (Either SomeException (Stream ByteString))
-                -> Step ByteString IO a
-                -> Iteratee ByteString IO a
-    consumeRest writeEnd step = do
-        ech <- lift $ readChan writeEnd
-        either throwError
-               (\ch -> do
-                   step' <- checkDone (\k -> lift $ runIteratee $ k ch) step
-                   if (streamFinished ch)
-                      then returnI step'
-                      else consumeRest writeEnd step')
-               ech
-
-    --------------------------------------------------------------------------
-    f _ _ _ (Error e) = Error e
-    f _ _ _ (Yield x _) = Yield x EOF
-    f readEnd writeEnd tid st@(Continue k) = Continue $ \ch ->
-        case ch of
-          EOF -> do
-            lift $ writeChan readEnd Nothing
-            x <- consumeRest writeEnd st
-            lift $ killThread tid
-            return x
-
-          (Chunks xs) -> do
-            mapM_ (lift . writeChan readEnd . Just) xs
-            step' <- consumeSomeOutput writeEnd (Continue k)
-            returnI $ f readEnd writeEnd tid step'
-
-
-    --------------------------------------------------------------------------
-    threadProc :: Chan (Maybe ByteString)
-               -> Chan (Either SomeException (Stream ByteString))
-               -> IO ()
-    threadProc readEnd writeEnd = do
-        stream <- getChanContents readEnd
-
-        let bs = L.fromChunks $ streamToChunks stream
-        let output = L.toChunks $ compFunc bs
-
-        runIt output `catch` \(e::SomeException) ->
-            writeChan writeEnd $ Left e
-
-      where
-        runIt (x:xs) = do
-            writeChan writeEnd (toChunk x) >> runIt xs
-
-        runIt []     = do
-            writeChan writeEnd $ Right EOF
-
-    --------------------------------------------------------------------------
-    streamToChunks []            = []
-    streamToChunks (Nothing:_)   = []
-    streamToChunks ((Just x):xs) = x:(streamToChunks xs)
-
-
-    --------------------------------------------------------------------------
-    toChunk = Right . Chunks . (:[])
+ccompress e = mapEnum toByteString fromByteString $ \step ->
+              mapEnum fromByteString toByteString e $$
+              joinI $
+              Z.compress 5 Z.defaultWindowBits step
 
 
 ------------------------------------------------------------------------------
