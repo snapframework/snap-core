@@ -1,10 +1,11 @@
-{-# LANGUAGE DeriveDataTypeable  #-}
-{-# LANGUAGE EmptyDataDecls      #-}
-{-# LANGUAGE FlexibleInstances   #-}
-{-# LANGUAGE OverloadedStrings   #-}
-{-# LANGUAGE PackageImports      #-}
-{-# LANGUAGE RankNTypes          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable        #-}
+{-# LANGUAGE EmptyDataDecls            #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE PackageImports            #-}
+{-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
 
 module Snap.Internal.Types where
 
@@ -195,7 +196,7 @@ instance MonadCatchIO Snap where
         x <- try m
         case x of
           (Left e)  -> do
-              rethrowIfTermination $ fromException e
+              rethrowIfUncatchable $ fromException e
               maybe (throw e)
                     (\e' -> let (Snap z) = handler e' in z)
                     (fromException e)
@@ -206,11 +207,11 @@ instance MonadCatchIO Snap where
 
 
 ------------------------------------------------------------------------------
-rethrowIfTermination :: (MonadCatchIO m) =>
-                        Maybe ConnectionTerminatedException ->
+rethrowIfUncatchable :: (MonadCatchIO m) =>
+                        Maybe UncatchableException ->
                         m ()
-rethrowIfTermination Nothing  = return ()
-rethrowIfTermination (Just e) = throw e
+rethrowIfUncatchable Nothing  = return ()
+rethrowIfUncatchable (Just e) = throw e
 
 
 ------------------------------------------------------------------------------
@@ -818,6 +819,34 @@ instance Exception NoHandlerException
 
 
 ------------------------------------------------------------------------------
+-- | An exception hierarchy for exceptions that cannot be caught by
+-- user-defined error handlers
+data UncatchableException = forall e. Exception e => UncatchableException e
+  deriving (Typeable)
+
+
+------------------------------------------------------------------------------
+instance Show UncatchableException where
+    show (UncatchableException e) = "Uncatchable exception: " ++ show e
+
+
+------------------------------------------------------------------------------
+instance Exception UncatchableException
+
+
+------------------------------------------------------------------------------
+uncatchableExceptionToException :: Exception e => e -> SomeException
+uncatchableExceptionToException = toException . UncatchableException
+
+
+------------------------------------------------------------------------------
+uncatchableExceptionFromException :: Exception e => SomeException -> Maybe e
+uncatchableExceptionFromException e = do
+    UncatchableException ue <- fromException e
+    cast ue
+
+
+------------------------------------------------------------------------------
 data ConnectionTerminatedException = ConnectionTerminatedException SomeException
   deriving (Typeable)
 
@@ -829,7 +858,9 @@ instance Show ConnectionTerminatedException where
 
 
 ------------------------------------------------------------------------------
-instance Exception ConnectionTerminatedException
+instance Exception ConnectionTerminatedException where
+    toException   = uncatchableExceptionToException
+    fromException = uncatchableExceptionFromException
 
 
 ------------------------------------------------------------------------------
