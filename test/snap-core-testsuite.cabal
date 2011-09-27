@@ -55,7 +55,8 @@ Executable testsuite
     transformers,
     unix-compat >= 0.2 && <0.4,
     vector >= 0.6 && <0.10,
-    zlib
+    zlib,
+    zlib-enum >= 0.2.1 && <0.3
     
   ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
                -fno-warn-unused-do-bind

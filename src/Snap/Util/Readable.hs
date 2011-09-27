@@ -11,7 +11,7 @@ import           Data.Text.Read
 
 
 ------------------------------------------------------------------------------
--- | Runs a 'Snap' monad action only when 'rqPathInfo' is empty.
+-- | Monadic analog to Read that uses ByteString instead of String.
 class Readable a where
     fromBS :: Monad m => ByteString -> m a
 

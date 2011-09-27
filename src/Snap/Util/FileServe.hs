@@ -1,6 +1,6 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Contains web handlers to serve files from a directory.
@@ -28,7 +28,9 @@ module Snap.Util.FileServe
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
+import           Control.Exception (SomeException, evaluate)
 import           Control.Monad
+import           Control.Monad.CatchIO
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8 hiding (Done)
 import qualified Data.ByteString.Char8 as S
@@ -40,7 +42,9 @@ import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe (fromMaybe, isNothing)
 import           Data.Monoid
-import           Prelude hiding (show, Show)
+import qualified Data.Text as T
+import qualified Data.Text.Encoding as T
+import           Prelude hiding (catch, show, Show)
 import qualified Prelude
 import           System.Directory
 import           System.FilePath
@@ -233,38 +237,41 @@ data DirectoryConfig m = DirectoryConfig {
 -- | Style information for the default directory index generator.
 snapIndexStyles :: ByteString
 snapIndexStyles =
-    "body { margin: 0px 0px 0px 0px; font-family: sans-serif }"
-    `S.append` "div.header {"
-    `S.append`     "padding: 40px 40px 0px 40px; height:35px;"
-    `S.append`     "background:rgb(25,50,87);"
-    `S.append`     "background-image:-webkit-gradient("
-    `S.append`         "linear,left bottom,left top,"
-    `S.append`         "color-stop(0.00, rgb(31,62,108)),"
-    `S.append`         "color-stop(1.00, rgb(19,38,66)));"
-    `S.append`     "background-image:-moz-linear-gradient("
-    `S.append`         "center bottom,rgb(31,62,108) 0%,rgb(19,38,66) 100%);"
-    `S.append`     "text-shadow:-1px 3px 1px rgb(16,33,57);"
-    `S.append`     "font-size:16pt; letter-spacing: 2pt; color:white;"
-    `S.append`     "border-bottom:10px solid rgb(46,93,156) }"
-    `S.append` "div.content {"
-    `S.append`     "background:rgb(255,255,255);"
-    `S.append`     "background-image:-webkit-gradient("
-    `S.append`         "linear,left bottom, left top,"
-    `S.append`         "color-stop(0.50, rgb(255,255,255)),"
-    `S.append`         "color-stop(1.00, rgb(224,234,247)));"
-    `S.append`     "background-image:-moz-linear-gradient("
-    `S.append`         "center bottom, white 50%, rgb(224,234,247) 100%);"
-    `S.append`     "padding: 40px 40px 40px 40px }"
-    `S.append` "div.footer {"
-    `S.append`     "padding: 16px 0px 10px 10px; height:31px;"
-    `S.append`     "border-top: 1px solid rgb(194,209,225);"
-    `S.append`     "color: rgb(160,172,186); font-size:10pt;"
-    `S.append`     "background: rgb(245,249,255) }"
-    `S.append` "table { width:100% }"
-    `S.append` "tr:hover { background:rgb(256,256,224) }"
-    `S.append` "td { border:dotted thin black; font-family:monospace }"
-    `S.append` "th { border:solid thin black; background:rgb(28,56,97);"
-    `S.append`      "text-shadow:-1px 3px 1px rgb(16,33,57); color: white}"
+    S.intercalate "\n"
+        [ "body { margin: 0px 0px 0px 0px; font-family: sans-serif }"
+        , "div.header {"
+        ,     "padding: 40px 40px 0px 40px; height:35px;"
+        ,     "background:rgb(25,50,87);"
+        ,     "background-image:-webkit-gradient("
+        ,         "linear,left bottom,left top,"
+        ,         "color-stop(0.00, rgb(31,62,108)),"
+        ,         "color-stop(1.00, rgb(19,38,66)));"
+        ,     "background-image:-moz-linear-gradient("
+        ,         "center bottom,rgb(31,62,108) 0%,rgb(19,38,66) 100%);"
+        ,     "text-shadow:-1px 3px 1px rgb(16,33,57);"
+        ,     "font-size:16pt; letter-spacing: 2pt; color:white;"
+        ,     "border-bottom:10px solid rgb(46,93,156) }"
+        , "div.content {"
+        ,     "background:rgb(255,255,255);"
+        ,     "background-image:-webkit-gradient("
+        ,         "linear,left bottom, left top,"
+        ,         "color-stop(0.50, rgb(255,255,255)),"
+        ,         "color-stop(1.00, rgb(224,234,247)));"
+        ,     "background-image:-moz-linear-gradient("
+        ,         "center bottom, white 50%, rgb(224,234,247) 100%);"
+        ,     "padding: 40px 40px 40px 40px }"
+        , "div.footer {"
+        ,     "padding: 16px 0px 10px 10px; height:31px;"
+        ,     "border-top: 1px solid rgb(194,209,225);"
+        ,     "color: rgb(160,172,186); font-size:10pt;"
+        ,     "background: rgb(245,249,255) }"
+        , "table { max-width:100%; margin: 0 auto; border-collapse: collapse; }"
+        , "tr:hover { background:rgb(256,256,224) }"
+        , "td { border:0; font-family:monospace; padding: 2px 0; }"
+        , "td.filename, td.type { padding-right: 2em; }"
+        , "th { border:0; background:rgb(28,56,97);"
+        ,      "text-shadow:-1px 3px 1px rgb(16,33,57); color: white}"
+        ]
 
 
 ------------------------------------------------------------------------------
@@ -286,49 +293,71 @@ defaultIndexGenerator :: MonadSnap m
                       -> FilePath   -- ^ Directory to generate index for
                       -> m ()
 defaultIndexGenerator mm styles d = do
-    modifyResponse $ setContentType "text/html"
+    modifyResponse $ setContentType "text/html; charset=utf-8"
     rq      <- getRequest
 
-    let uri = uriWithoutQueryString rq
+    let uri   = uriWithoutQueryString rq
+    let pInfo = rqPathInfo rq
 
+    writeBS "<!DOCTYPE html>\n<html>\n<head>"
+    writeBS "<title>Directory Listing: "
+    writeBS uri
+    writeBS "</title>"
     writeBS "<style type='text/css'>"
     writeBS styles
-    writeBS "</style><div class=\"header\">Directory Listing: "
+    writeBS "</style></head><body>"
+    writeBS "<div class=\"header\">Directory Listing: "
     writeBS uri
     writeBS "</div><div class=\"content\">"
     writeBS "<table><tr><th>File Name</th><th>Type</th><th>Last Modified"
     writeBS "</th></tr>"
 
-    when (uri /= "/") $
+    when (pInfo /= "") $
         writeBS "<tr><td><a href='../'>..</a></td><td colspan=2>DIR</td></tr>"
 
     entries <- liftIO $ getDirectoryContents d
     dirs    <- liftIO $ filterM (doesDirectoryExist . (d </>)) entries
     files   <- liftIO $ filterM (doesFileExist . (d </>)) entries
 
-    forM_ (sort $ filter (not . (`elem` ["..", "."])) dirs) $ \f -> do
-        writeBS "<tr><td><a href='"
-        writeBS (S.pack f)
+    forM_ (sort $ filter (not . (`elem` ["..", "."])) dirs) $ \f0 -> do
+        f <- liftIO $ liftM (\s -> T.encodeUtf8 s `mappend` "/") $ packFn f0
+        writeBS "<tr><td class='filename'><a href='"
+        writeBS f
         writeBS "/'>"
-        writeBS (S.pack f)
-        writeBS "</a></td><td colspan=2>DIR</td></tr>"
+        writeBS f
+        writeBS "</a></td><td class='type' colspan=2>DIR</td></tr>"
 
-    forM_ (sort files) $ \f -> do
-        stat <- liftIO $ getFileStatus (d </> f)
+    forM_ (sort files) $ \f0 -> do
+        f <- liftIO $ liftM T.encodeUtf8 $ packFn f0
+        stat <- liftIO $ getFileStatus (d </> f0)
         tm   <- liftIO $ formatHttpTime (modificationTime stat)
-        writeBS "<tr><td><a href='"
-        writeBS (S.pack f)
+        writeBS "<tr><td class='filename'><a href='"
+        writeBS f
         writeBS "'>"
-        writeBS (S.pack f)
-        writeBS "</a></td><td>"
-        writeBS (fileType mm f)
+        writeBS f
+        writeBS "</a></td><td class='type'>"
+        writeBS (fileType mm f0)
         writeBS "</td><td>"
         writeBS tm
         writeBS "</tr>"
 
     writeBS "</table></div><div class=\"footer\">Powered by "
     writeBS "<b><a href=\"http://snapframework.com\">Snap</a></b></div>"
+    writeBS "</body>"
+  where
+    packFn fp = do
+        tryFirst [ T.decodeUtf8
+                 , T.decodeUtf16LE
+                 , T.decodeUtf16BE
+                 , T.decodeUtf32LE
+                 , T.decodeUtf32BE
+                 , const (T.pack fp) ]
+      where
+        tryFirst []     = error "No valid decoding"
+        tryFirst (f:fs) =
+            evaluate (f bs) `catch` \(_::SomeException) -> tryFirst fs
 
+        bs = S.pack fp
 
 ------------------------------------------------------------------------------
 -- | A very simple configuration for directory serving.  This configuration
@@ -669,10 +698,9 @@ dbg s = debug $ "FileServe:" ++ s
 
 ------------------------------------------------------------------------------
 uriWithoutQueryString :: Request -> ByteString
-uriWithoutQueryString rq = S.concat [ cp, pinfo ]
+uriWithoutQueryString rq = S.takeWhile (/= '?') uri
   where
-    cp    = rqContextPath rq
-    pinfo = rqPathInfo rq
+    uri   = rqURI rq
 
 
 ------------------------------------------------------------------------------
