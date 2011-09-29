@@ -24,6 +24,7 @@ import           Data.Int
 import           Data.IORef
 import           Data.Maybe
 import           Data.Monoid
+import           Data.Time
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import           Data.Typeable
@@ -927,6 +928,19 @@ readCookie :: (MonadSnap m, Readable a)
            => ByteString
            -> m a
 readCookie name = maybe pass (fromBS . cookieValue) =<< getCookie name
+
+
+------------------------------------------------------------------------------
+-- | Expire the given 'Cookie' in client's browser.
+expireCookie :: (MonadSnap m) 
+             => ByteString 
+             -- ^ Cookie name
+             -> Maybe ByteString 
+             -- ^ Cookie domain
+             -> m ()
+expireCookie nm dm = do
+  let old = UTCTime (ModifiedJulianDay 0) 0
+  modifyResponse $ addResponseCookie (Cookie nm "" (Just old) Nothing dm False False)
 
 
 ------------------------------------------------------------------------------

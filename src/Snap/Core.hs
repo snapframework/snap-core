@@ -104,6 +104,7 @@ module Snap.Core
   , getResponseCookies
   , deleteResponseCookie
   , modifyResponseCookie
+  , expireCookie
   , getCookie
   , readCookie
   , setContentLength
