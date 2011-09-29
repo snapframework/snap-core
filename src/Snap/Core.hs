@@ -11,6 +11,7 @@ module Snap.Core
   , runSnap
   , MonadSnap(..)
   , NoHandlerException(..)
+  , EscapeHttpException(..)
 
     -- ** Functions for control flow and early termination
   , bracketSnap
@@ -18,6 +19,7 @@ module Snap.Core
   , catchFinishWith
   , pass
   , terminateConnection
+  , escapeHttp
 
     -- ** Routing
   , method
