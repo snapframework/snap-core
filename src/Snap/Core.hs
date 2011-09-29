@@ -99,7 +99,6 @@ module Snap.Core
   , rspStatus
   , rspStatusReason
   , setContentType
-  , addCookie
   , addResponseCookie
   , getResponseCookie
   , getResponseCookies
