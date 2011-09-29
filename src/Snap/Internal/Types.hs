@@ -872,7 +872,7 @@ terminateConnection = throw . ConnectionTerminatedException . toException
 -- | This is exception is thrown if the handler chooses to escape regular HTTP
 -- traffic.
 data EscapeHttpException = EscapeHttpException
-    (Iteratee ByteString IO () -> Iteratee ByteString IO ())
+    ((Int -> IO ()) -> Iteratee ByteString IO () -> Iteratee ByteString IO ())
         deriving (Typeable)
 
 
@@ -890,8 +890,12 @@ instance Exception EscapeHttpException where
 ------------------------------------------------------------------------------
 -- | Terminate the HTTP session and hand control to some external handler,
 -- escaping all further HTTP traffic.
+--
+-- The external handler takes two arguments: a function to tickle the timeout
+-- manager, and a write end to the socket.
 escapeHttp :: MonadCatchIO m
-           => (Iteratee ByteString IO () -> Iteratee ByteString IO ())
+           => ((Int -> IO ()) -> Iteratee ByteString IO () ->
+                Iteratee ByteString IO ())
            -> m ()
 escapeHttp = throw . EscapeHttpException
 
