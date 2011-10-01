@@ -155,7 +155,7 @@ testCatchIO = testCase "types/catchIO" $ do
 
   where
     f :: Snap ()
-    f = (block $ unblock $ throw NoHandlerException) `catch` h
+    f = (block $ unblock $ throw $ NoHandlerException "") `catch` h
 
     g :: Snap ()
     g = return () `catch` h
@@ -268,7 +268,7 @@ testBracketSnap = testCase "types/bracketSnap" $ do
 
     ref <- newIORef 0
 
-    expectSpecificException NoHandlerException $
+    expectSpecificException (NoHandlerException "") $
         run_ $ evalSnap (act ref) (const $ return ()) (const $ return ()) rq
 
     y <- readIORef ref
@@ -408,11 +408,11 @@ testTrivials = testCase "types/trivials" $ do
 
     b <- getBody rsp
     coverShowInstance b
-    coverShowInstance NoHandlerException
+    coverShowInstance $ NoHandlerException ""
     coverShowInstance GET
     coverReadInstance GET
     coverEqInstance GET
-    coverEqInstance NoHandlerException
+    coverEqInstance $ NoHandlerException ""
     coverOrdInstance GET
 
     Prelude.map (\(x,y) -> (x,show y)) (IM.toList statusReasonMap)
