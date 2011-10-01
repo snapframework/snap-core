@@ -1,11 +1,14 @@
+{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE EmptyDataDecls            #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE PackageImports            #-}
 {-# LANGUAGE RankNTypes                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
 
 module Snap.Internal.Types where
 
@@ -16,6 +19,7 @@ import           Control.Applicative
 import           Control.Exception (SomeException, throwIO, ErrorCall(..))
 import           Control.Monad
 import           Control.Monad.CatchIO
+import qualified Control.Monad.Error.Class as EC
 import           Control.Monad.State
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -25,6 +29,7 @@ import           Data.Int
 import           Data.IORef
 import           Data.Maybe
 import           Data.Monoid
+import           Data.Time
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import           Data.Typeable
@@ -128,7 +133,7 @@ class (Monad m, MonadIO m, MonadCatchIO m, MonadPlus m, Functor m,
 
 ------------------------------------------------------------------------------
 data SnapResult a = SnapValue a
-                  | PassOnProcessing
+                  | PassOnProcessing String
                   | EarlyTermination Response
 
 ------------------------------------------------------------------------------
@@ -150,18 +155,7 @@ instance Monad Snap where
     (>>=)  = snapBind
     return = snapReturn
     fail   = snapFail
-{-
-    (Snap m) >>= f =
-        Snap $ do
-            eth <- m
-            maybe (return Nothing)
-                  (either (return . Just . Left)
-                          (unSnap . f))
-                  eth
 
-    return = Snap . return . Just . Right
-    fail   = const $ Snap $ return Nothing
--}
 
 ------------------------------------------------------------------------------
 snapBind :: Snap a -> (a -> Snap b) -> Snap b
@@ -169,8 +163,8 @@ snapBind (Snap m) f = Snap $ do
     res <- m
 
     case res of
-      SnapValue a        -> unSnap $ f a
-      PassOnProcessing   -> return PassOnProcessing
+      SnapValue a        -> unSnap $! f a
+      PassOnProcessing r -> return $! PassOnProcessing r
       EarlyTermination r -> return $! EarlyTermination r
 {-# INLINE snapBind #-}
 
@@ -181,7 +175,7 @@ snapReturn = Snap . return . SnapValue
 
 
 snapFail :: String -> Snap a
-snapFail _ = Snap $ return PassOnProcessing
+snapFail !m = Snap $! return $! PassOnProcessing m
 {-# INLINE snapFail #-}
 
 
@@ -192,15 +186,13 @@ instance MonadIO Snap where
 
 ------------------------------------------------------------------------------
 instance MonadCatchIO Snap where
-    catch (Snap m) handler = Snap $ do
-        x <- try m
-        case x of
-          (Left e)  -> do
-              rethrowIfUncatchable $ fromException e
-              maybe (throw e)
-                    (\e' -> let (Snap z) = handler e' in z)
-                    (fromException e)
-          (Right y) -> return y
+    catch (Snap m) handler = Snap $ m `catch` h
+      where
+        h e = do
+            rethrowIfUncatchable $ fromException e
+            maybe (throw e)
+                  (\e' -> let (Snap z) = handler e' in z)
+                  (fromException e)
 
     block (Snap m) = Snap $ block m
     unblock (Snap m) = Snap $ unblock m
@@ -216,14 +208,28 @@ rethrowIfUncatchable (Just e) = throw e
 
 ------------------------------------------------------------------------------
 instance MonadPlus Snap where
-    mzero = Snap $ return PassOnProcessing
+    mzero = Snap $ return $ PassOnProcessing ""
 
     a `mplus` b =
         Snap $ do
             r <- unSnap a
+            -- redundant just in case ordering by frequency helps here.
             case r of
-              PassOnProcessing -> unSnap b
-              _                -> return r
+              SnapValue _        -> return r
+              PassOnProcessing _ -> unSnap b
+              _                  -> return r
+
+
+------------------------------------------------------------------------------
+instance (EC.MonadError String) Snap where
+    throwError = fail
+    catchError act hndl = Snap $ do
+        r <- unSnap act
+        -- redundant just in case ordering by frequency helps here.
+        case r of
+          SnapValue _        -> return r
+          PassOnProcessing m -> unSnap $ hndl m
+          _                  -> return r
 
 
 ------------------------------------------------------------------------------
@@ -396,9 +402,9 @@ catchFinishWith :: Snap a -> Snap (Either Response a)
 catchFinishWith (Snap m) = Snap $ do
     r <- m
     case r of
-      PassOnProcessing      -> return PassOnProcessing
-      EarlyTermination resp -> return $! SnapValue $! Left resp
       SnapValue a           -> return $! SnapValue $! Right a
+      PassOnProcessing e    -> return $! PassOnProcessing e
+      EarlyTermination resp -> return $! SnapValue $! Left resp
 {-# INLINE catchFinishWith #-}
 
 
@@ -805,13 +811,13 @@ bracketSnap before after thing = block . Snap $ do
 
 ------------------------------------------------------------------------------
 -- | This exception is thrown if the handler you supply to 'runSnap' fails.
-data NoHandlerException = NoHandlerException
+data NoHandlerException = NoHandlerException String
    deriving (Eq, Typeable)
 
 
 ------------------------------------------------------------------------------
 instance Show NoHandlerException where
-    show NoHandlerException = "No handler for request"
+    show (NoHandlerException e) = "No handler for request: failure was " ++ e
 
 
 ------------------------------------------------------------------------------
@@ -911,9 +917,9 @@ runSnap (Snap m) logerr timeoutAction req = do
     (r, ss') <- runStateT m ss
 
     let resp = case r of
-                 PassOnProcessing   -> fourohfour
-                 EarlyTermination x -> x
                  SnapValue _        -> _snapResponse ss'
+                 PassOnProcessing _ -> fourohfour
+                 EarlyTermination x -> x
 
     return (_snapRequest ss', resp)
 
@@ -940,9 +946,9 @@ evalSnap (Snap m) logerr timeoutAction req = do
     (r, _) <- runStateT m ss
 
     case r of
-      PassOnProcessing   -> liftIO $ throwIO NoHandlerException
-      EarlyTermination _ -> liftIO $ throwIO $ ErrorCall "no value"
       SnapValue x        -> return x
+      PassOnProcessing e -> liftIO $ throwIO $ NoHandlerException e
+      EarlyTermination _ -> liftIO $ throwIO $ ErrorCall "no value"
 
   where
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
@@ -989,6 +995,19 @@ readCookie :: (MonadSnap m, Readable a)
            => ByteString
            -> m a
 readCookie name = maybe pass (fromBS . cookieValue) =<< getCookie name
+
+
+------------------------------------------------------------------------------
+-- | Expire the given 'Cookie' in client's browser.
+expireCookie :: (MonadSnap m) 
+             => ByteString 
+             -- ^ Cookie name
+             -> Maybe ByteString 
+             -- ^ Cookie domain
+             -> m ()
+expireCookie nm dm = do
+  let old = UTCTime (ModifiedJulianDay 0) 0
+  modifyResponse $ addResponseCookie (Cookie nm "" (Just old) Nothing dm False False)
 
 
 ------------------------------------------------------------------------------

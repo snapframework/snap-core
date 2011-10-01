@@ -101,12 +101,12 @@ module Snap.Core
   , rspStatus
   , rspStatusReason
   , setContentType
-  , addCookie
   , addResponseCookie
   , getResponseCookie
   , getResponseCookies
   , deleteResponseCookie
   , modifyResponseCookie
+  , expireCookie
   , getCookie
   , readCookie
   , setContentLength
