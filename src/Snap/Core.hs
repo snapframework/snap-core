@@ -65,6 +65,7 @@ module Snap.Core
   , setHeader
   , getHeader
   , getHeaders
+  , listHeaders
   , deleteHeader
   , ipHeaderFilter
   , ipHeaderFilter'

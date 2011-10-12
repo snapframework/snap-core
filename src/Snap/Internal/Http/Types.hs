@@ -117,6 +117,13 @@ getHeader k a = liftM (S.intercalate " ") (H.lookup k $ headers a)
 
 
 ------------------------------------------------------------------------------
+-- | Lists all the headers out of a 'HasHeaders' datatype. If many
+-- headers came in with the same name, they will be catenated together.
+listHeaders :: (HasHeaders a) => a -> [(CI ByteString, ByteString)]
+listHeaders = H.toList . headers
+
+
+------------------------------------------------------------------------------
 -- | Clears a header value from a 'HasHeaders' datatype.
 deleteHeader :: (HasHeaders a) => CI ByteString -> a -> a
 deleteHeader k = updateHeaders $ H.delete k
