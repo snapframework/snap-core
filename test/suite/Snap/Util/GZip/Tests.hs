@@ -51,6 +51,7 @@ tests = [ testIdentity1
         , testNopWhenContentEncodingSet
         , testCompositionDoesn'tExplode
         , testGzipLotsaChunks
+        , testNoCompression
         , testBadHeaders ]
 
 
@@ -401,4 +402,25 @@ testGzipLotsaChunks = testCase "gzip/lotsOfChunks" prop
     -- string
     frobnicate s = let s' = encode $ md5 $ L.fromChunks [s]
                    in (s:frobnicate s')
+
+
+------------------------------------------------------------------------------
+testNoCompression :: Test
+testNoCompression = testProperty "gzip/noCompression" $
+                    monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = do
+        (!_,!rsp) <- liftQ $ goGZip (seqSnap $ withCompression $
+                                     (noCompression >> textPlain s))
+        assert $ getHeader "Content-Encoding" rsp == Just "identity"
+        let body = rspBodyToEnum $ rspBody rsp
+
+        s1 <- liftQ $
+             runIteratee stream2stream >>= run_ . body
+
+        assert $ s == s1
+
+
+
 

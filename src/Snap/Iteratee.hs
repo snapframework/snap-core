@@ -37,6 +37,9 @@ module Snap.Iteratee
   , skipToEof
   , mapEnum
   , mapIter
+  , enumBuilderToByteString
+  , unsafeEnumBuilderToByteString
+  , enumByteStringToBuilder
   , killIfTooSlow
 
   , TooManyBytesReadException
@@ -65,6 +68,8 @@ module Snap.Iteratee
   , ($$)
   , (>==>)
   , (<==<)
+  , ($=)
+  , (=$)
 
     -- *** Iteratees
   , run
@@ -100,6 +105,7 @@ module Snap.Iteratee
 ------------------------------------------------------------------------------
 
 import           Blaze.ByteString.Builder
+import           Blaze.ByteString.Builder.Enumerator
 import           Control.DeepSeq
 import           Control.Exception (SomeException, assert)
 import           Control.Monad
@@ -671,6 +677,21 @@ mapIter f g iter = do
       where
         streamIn = fmap f streamOut
         iterIn   = k streamIn
+
+
+------------------------------------------------------------------------------
+enumBuilderToByteString :: MonadIO m => Enumeratee Builder ByteString m a
+enumBuilderToByteString = builderToByteString
+
+------------------------------------------------------------------------------
+unsafeEnumBuilderToByteString :: MonadIO m => Enumeratee Builder ByteString m a
+unsafeEnumBuilderToByteString =
+    builderToByteStringWith (reuseBufferStrategy (allocBuffer 65536))
+    
+
+------------------------------------------------------------------------------
+enumByteStringToBuilder :: MonadIO m => Enumeratee ByteString Builder m a
+enumByteStringToBuilder = IL.map fromByteString
 
 
 ------------------------------------------------------------------------------
