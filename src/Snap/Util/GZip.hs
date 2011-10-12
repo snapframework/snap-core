@@ -6,7 +6,8 @@
 
 module Snap.Util.GZip
 ( withCompression
-, withCompression' ) where
+, withCompression'
+, noCompression ) where
 
 import           Blaze.ByteString.Builder
 import qualified Codec.Zlib.Enum as Z
@@ -120,6 +121,13 @@ withCompression' mimeTable action = do
     chooseType ("x-gzip":_)     = gzipCompression "x-gzip"
     chooseType ("x-compress":_) = compressCompression "x-compress"
     chooseType (_:xs)           = chooseType xs
+
+
+------------------------------------------------------------------------------
+-- | Turn off compression by setting \"Content-Encoding: identity\" in the
+-- response headers.
+noCompression :: MonadSnap m => m ()
+noCompression = modifyResponse $ setHeader "Content-Encoding" "identity"
 
 
 ------------------------------------------------------------------------------
