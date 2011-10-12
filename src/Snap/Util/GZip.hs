@@ -21,6 +21,7 @@ import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.Char as Char
 import           Data.Maybe
+import           Data.Monoid
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import           Data.Typeable
@@ -161,20 +162,30 @@ compressCompression ce = modifyResponse f
 
 ------------------------------------------------------------------------------
 gcompress :: forall a . Enumerator Builder IO a
-          -> Enumerator Builder IO  a
-gcompress e = mapEnum toByteString fromByteString $ \step ->
-              mapEnum fromByteString toByteString e $$
-              joinI $
-              Z.gzip step
+          -> Enumerator Builder IO a
+gcompress e st = e $$ iFinal
+  where
+    i0     = returnI st
+    iB     = mapFlush                =$ i0
+    iZ     = Z.gzip                  =$ iB
+    iFinal = enumBuilderToByteString =$ iZ
+
+    mapFlush :: Monad m => Enumeratee ByteString Builder m b
+    mapFlush = I.map ((`mappend` flush) . fromByteString)
 
 
 ------------------------------------------------------------------------------
 ccompress :: forall a . Enumerator Builder IO a
           -> Enumerator Builder IO a
-ccompress e = mapEnum toByteString fromByteString $ \step ->
-              mapEnum fromByteString toByteString e $$
-              joinI $
-              Z.compress 5 Z.defaultWindowBits step
+ccompress e st = e $$ iFinal
+  where
+    i0     = returnI st
+    iB     = mapFlush                         =$ i0
+    iZ     = Z.compress 5 Z.defaultWindowBits =$ iB
+    iFinal = enumBuilderToByteString          =$ iZ
+
+    mapFlush :: Monad m => Enumeratee ByteString Builder m b
+    mapFlush = I.map ((`mappend` flush) . fromByteString)
 
 
 ------------------------------------------------------------------------------

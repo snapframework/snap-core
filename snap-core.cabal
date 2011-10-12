@@ -133,6 +133,7 @@ Library
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
     blaze-builder >= 0.2.1.4 && <0.4,
+    blaze-builder-enumerator >= 0.2 && <0.3,
     bytestring,
     bytestring-nums,
     case-insensitive >= 0.2 && < 0.4,
