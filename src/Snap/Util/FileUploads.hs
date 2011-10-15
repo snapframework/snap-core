@@ -67,9 +67,9 @@ module Snap.Util.FileUploads
 import           Control.Arrow
 import           Control.Applicative
 import           Control.Concurrent.MVar
-import           Control.Exception (SomeException(..))
+import           Control.Exception.Control
 import           Control.Monad
-import           Control.Monad.CatchIO
+import           Control.Monad.IO.Control
 import           Control.Monad.Trans
 import qualified Data.Attoparsec.Char8 as Atto
 import           Data.Attoparsec.Char8 hiding (many, Result(..))
@@ -924,7 +924,7 @@ closeActiveFile (UploadedFiles stateRef _) = liftIO $ do
 
 
 ------------------------------------------------------------------------------
-eatException :: (MonadCatchIO m) => m a -> m ()
+eatException :: (MonadControlIO m) => m a -> m ()
 eatException m =
     (m >> return ()) `catch` (\(_ :: SomeException) -> return ())
 

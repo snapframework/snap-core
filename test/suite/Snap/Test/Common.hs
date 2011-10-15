@@ -19,7 +19,7 @@ module Snap.Test.Common
 import           Control.DeepSeq
 import           Control.Exception (SomeException(..), evaluate)
 import           Control.Monad
-import           Control.Monad.CatchIO
+import           Control.Exception.Control
 import           Control.Monad.Trans
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -50,10 +50,10 @@ coverShowInstance x = a `deepseq` b `deepseq` c `deepseq` return ()
     c = showList [x] ""
 
 
-eatException :: (MonadCatchIO m) => m a -> m ()
+eatException :: (MonadControlIO m) => m a -> m ()
 eatException a = (a >> return ()) `catch` handler
   where
-    handler :: (MonadCatchIO m) => SomeException -> m ()
+    handler :: (MonadControlIO m) => SomeException -> m ()
     handler _ = return ()
 
 

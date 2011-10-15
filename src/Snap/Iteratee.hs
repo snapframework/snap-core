@@ -107,10 +107,11 @@ module Snap.Iteratee
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Enumerator
 import           Control.DeepSeq
-import           Control.Exception (SomeException, assert)
+import           Control.Exception.Control
 import           Control.Monad
-import           Control.Monad.CatchIO
+import           Control.Monad.IO.Control
 import           Control.Monad.Trans (MonadIO, lift, liftIO)
+import           Control.Monad.Trans.Control
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Unsafe as S
@@ -121,7 +122,7 @@ import           Data.Enumerator.Binary (enumHandle)
 import           Data.Enumerator.List hiding (take, drop)
 import qualified Data.Enumerator.List as IL
 import qualified Data.List as List
-import           Data.Monoid (mappend)
+import           Data.Monoid (mappend )
 import           Data.Time.Clock.POSIX (getPOSIXTime)
 import           Data.Typeable
 import           Foreign hiding (peek)
@@ -137,39 +138,17 @@ import           System.PosixCompat.Types
 #endif
 
 ------------------------------------------------------------------------------
-instance (Functor m, MonadCatchIO m) =>
-         MonadCatchIO (Iteratee s m) where
-    --catch  :: Exception  e => m a -> (e -> m a) -> m a
-    catch m handler = insideCatch (m `catchError` h)
-      where
-        insideCatch !mm = Iteratee $ do
-            ee <- try $ runIteratee mm
-            case ee of
-                (Left e)  -> runIteratee $ handler e
-                (Right v) -> step v
+instance (Functor m, MonadControlIO m) => MonadControlIO (Iteratee s m) where
+  liftControlIO = liftLiftControlBase liftControlIO
 
-        step (Continue !k)  = do
-            return $ Continue (\s -> insideCatch $ k s)
-        -- don't worry about Error here because the error had to come from the
-        -- handler (because of 'catchError' above)
-        step y             = return y
-
-        -- we can only catch iteratee errors if "e" matches "SomeException"
-        h e = maybe (throwError e)
-                    (handler)
-                    (fromException e)
-
-    --block :: m a -> m a
-    block m = Iteratee $ block $ (runIteratee m >>= step)
-      where
-        step (Continue k) = return $ Continue (\s -> block (k s))
-        step y            = return y
-
-    unblock m = Iteratee $ unblock $ (runIteratee m >>= step)
-      where
-        step (Continue k) = return $ Continue (\s -> unblock (k s))
-        step y            = return y
-
+instance MonadTransControl (Iteratee s) where
+-- liftControl :: Monad m => (Run (Iteratee s) -> m α) -> Iteratee s m α
+-- type Run t = forall n o β. (Monad n, Monad o, Monad ((Iteratee s) o)) =>
+--              (Iteratee s) n β -> n ((Iteratee s) o β)
+  liftControl f = Iteratee $ undefined --return (f run) -- undefined
+    where run i = undefined -- do
+                     {- step <- runIteratee i-}
+                     {- return undefined-}
 
 ------------------------------------------------------------------------------
 -- | Get the length of a bytestring Stream

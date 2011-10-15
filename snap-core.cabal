@@ -152,7 +152,7 @@ Library
     enumerator >= 0.4.13.1 && < 0.5,
     filepath,
     HUnit >= 1.2 && < 2,
-    MonadCatchIO-transformers >= 0.2.1 && < 0.3,
+    monad-control >= 0.2,
     mtl == 2.0.*,
     mwc-random >= 0.10 && <0.11,
     old-locale,

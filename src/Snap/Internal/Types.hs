@@ -15,11 +15,12 @@ module Snap.Internal.Types where
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception (SomeException, throwIO, ErrorCall(..))
+import           Control.Exception.Control
 import           Control.Monad
-import           Control.Monad.CatchIO
+import           Control.Monad.IO.Control
 import qualified Control.Monad.Error.Class as EC
 import           Control.Monad.State
+import           Control.Monad.Trans.Control
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -100,7 +101,7 @@ import           Snap.Iteratee
    > a :: Snap ()
    > a = setTimeout 30
 
-8. throw and catch exceptions using a 'MonadCatchIO' instance:
+8. throw and catch exceptions using a 'MonadControlIO' instance:
 
    > foo :: Snap ()
    > foo = bar `catch` \(e::SomeException) -> baz
@@ -125,7 +126,7 @@ transformers ('ReaderT', 'WriterT', 'StateT', etc.).
 ------------------------------------------------------------------------------
 -- | 'MonadSnap' is a type class, analogous to 'MonadIO' for 'IO', that makes
 -- it easy to wrap 'Snap' inside monad transformers.
-class (Monad m, MonadIO m, MonadCatchIO m, MonadPlus m, Functor m,
+class (Monad m, MonadIO m, MonadControlIO m, MonadPlus m, Functor m,
        Applicative m, Alternative m) => MonadSnap m where
     liftSnap :: Snap a -> m a
 
@@ -184,21 +185,11 @@ instance MonadIO Snap where
 
 
 ------------------------------------------------------------------------------
-instance MonadCatchIO Snap where
-    catch (Snap m) handler = Snap $ m `catch` h
-      where
-        h e = do
-            rethrowIfTermination $ fromException e
-            maybe (throw e)
-                  (\e' -> let (Snap z) = handler e' in z)
-                  (fromException e)
-
-    block (Snap m) = Snap $ block m
-    unblock (Snap m) = Snap $ unblock m
-
+instance MonadControlIO Snap where
+  liftControlIO f = liftIO (f return)
 
 ------------------------------------------------------------------------------
-rethrowIfTermination :: (MonadCatchIO m) =>
+rethrowIfTermination :: (MonadControlIO m) =>
                         Maybe ConnectionTerminatedException ->
                         m ()
 rethrowIfTermination Nothing  = return ()
@@ -286,8 +277,8 @@ runRequestBody iter = do
     let (SomeEnumerator enum) = senum
 
     -- make sure the iteratee consumes all of the output
-    let iter' = handle bumpTimeout req
-                       (iter >>= \a -> skipToEnd bumpTimeout >> return a)
+    let iter' = handle' bumpTimeout req
+                        (iter >>= \a -> skipToEnd bumpTimeout >> return a)
 
     -- run the iteratee
     step   <- liftIO $ runIteratee iter'
@@ -306,7 +297,7 @@ runRequestBody iter = do
     skipToEnd bump = killIfTooSlow bump 500 5 skipToEof `catchError` \e ->
                      throwError $ ConnectionTerminatedException e
 
-    handle bump req =
+    handle' bump req =
         (`catches` [
           Handler $ \(e :: ConnectionTerminatedException) -> do
               let en = SomeEnumerator $ const $ throwError e
@@ -781,7 +772,7 @@ ipHeaderFilter' header = do
 
 ------------------------------------------------------------------------------
 -- | This function brackets a Snap action in resource acquisition and
--- release. This is provided because MonadCatchIO's 'bracket' function
+-- release. This is provided because MonadControlIO's 'bracket' function
 -- doesn't work properly in the case of a short-circuit return from
 -- the action being bracketed.
 --
@@ -798,14 +789,15 @@ ipHeaderFilter' header = do
 -- 2. Short-circuit completion, either from calling 'fail' or 'finishWith'
 --
 -- 3. An exception being thrown.
-bracketSnap :: IO a -> (a -> IO b) -> (a -> Snap c) -> Snap c
-bracketSnap before after thing = block . Snap $ do
-    a <- liftIO before
-    let after' = liftIO $ after a
-        (Snap thing') = thing a
-    r <- unblock thing' `onException` after'
-    _ <- after'
-    return r
+-- TODO: Remove
+{- bracketSnap :: IO a -> (a -> IO b) -> (a -> Snap c) -> Snap c-}
+{- bracketSnap before after thing = block . Snap $ do-}
+{-     a <- liftIO before-}
+{-     let after' = liftIO $ after a-}
+{-         (Snap thing') = thing a-}
+{-     r <- unblock thing' `onException` after'-}
+{-     _ <- after'-}
+{-     return r-}
 
 
 ------------------------------------------------------------------------------
@@ -840,7 +832,7 @@ instance Exception ConnectionTerminatedException
 
 ------------------------------------------------------------------------------
 -- | Terminate the HTTP session with the given exception.
-terminateConnection :: (Exception e, MonadCatchIO m) => e -> m a
+terminateConnection :: (Exception e, MonadControlIO m) => e -> m a
 terminateConnection = throw . ConnectionTerminatedException . toException
 
 

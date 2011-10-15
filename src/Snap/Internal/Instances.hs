@@ -4,7 +4,7 @@
 module Snap.Internal.Instances where
 
 import           Control.Applicative
-import           Control.Monad.CatchIO ()
+import           Control.Exception.Control ()
 import           Control.Monad.Cont
 import           Control.Monad.Error
 import           Control.Monad.List
@@ -34,9 +34,9 @@ instance MonadPlus m => Alternative (ContT c m) where
 
 
 ------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (ContT c m) where
-    liftSnap = lift . liftSnap
-
+{- instance MonadSnap m => MonadSnap (ContT c m) where-}
+    {- liftSnap = lift . liftSnap-}
+ -- TODO: Re-enable
 
 ------------------------------------------------------------------------------
 instance (MonadSnap m, Error e) => MonadSnap (ErrorT e m) where

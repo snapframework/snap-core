@@ -12,7 +12,7 @@ import           Control.Concurrent (threadDelay)
 import           Control.DeepSeq
 import           Control.Exception (Exception(..), SomeException(..))
 import           Control.Monad
-import           Control.Monad.CatchIO
+import           Control.Exception.Control
 import           Control.Monad.Trans
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S

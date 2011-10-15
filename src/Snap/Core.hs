@@ -13,7 +13,6 @@ module Snap.Core
   , NoHandlerException(..)
 
     -- ** Functions for control flow and early termination
-  , bracketSnap
   , finishWith
   , catchFinishWith
   , pass

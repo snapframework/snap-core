@@ -10,7 +10,7 @@ import           Control.Concurrent (threadDelay)
 import qualified Control.Exception as E
 import           Control.Exception hiding (try, assert, throw, catch)
 import           Control.Monad
-import           Control.Monad.CatchIO
+import           Control.Exception.Control
 import           Control.Monad.Identity
 import           Control.Monad.Trans
 import qualified Data.ByteString.Base16 as B16

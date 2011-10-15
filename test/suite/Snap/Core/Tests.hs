@@ -12,7 +12,7 @@ import           Control.Concurrent.MVar
 import           Control.DeepSeq
 import           Control.Exception (ErrorCall(..), SomeException, throwIO)
 import           Control.Monad
-import           Control.Monad.CatchIO
+import           Control.Exception.Control
 import           Control.Monad.Trans (liftIO)
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8 (ByteString)
@@ -30,7 +30,7 @@ import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit hiding (Test, path)
-                 
+
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types
