@@ -23,7 +23,6 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString as S
-import           Data.Char
 import           Data.Int
 import qualified Data.IntMap as IM
 import           Data.IORef

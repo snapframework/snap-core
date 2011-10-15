@@ -20,7 +20,6 @@ import           Control.Monad
 import           Control.Monad.IO.Control
 import qualified Control.Monad.Error.Class as EC
 import           Control.Monad.State
-import           Control.Monad.Trans.Control
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
