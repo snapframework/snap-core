@@ -188,6 +188,7 @@ instance MonadIO Snap where
 instance MonadControlIO Snap where
   liftControlIO f = liftIO (f return)
 
+
 ------------------------------------------------------------------------------
 rethrowIfTermination :: (MonadControlIO m) =>
                         Maybe ConnectionTerminatedException ->

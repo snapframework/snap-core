@@ -111,7 +111,6 @@ import           Control.Exception.Control
 import           Control.Monad
 import           Control.Monad.IO.Control
 import           Control.Monad.Trans (MonadIO, lift, liftIO)
-import           Control.Monad.Trans.Control
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Unsafe as S
@@ -139,16 +138,8 @@ import           System.PosixCompat.Types
 
 ------------------------------------------------------------------------------
 instance (Functor m, MonadControlIO m) => MonadControlIO (Iteratee s m) where
-  liftControlIO = liftLiftControlBase liftControlIO
+  liftControlIO f = liftIO (f return)
 
-instance MonadTransControl (Iteratee s) where
--- liftControl :: Monad m => (Run (Iteratee s) -> m α) -> Iteratee s m α
--- type Run t = forall n o β. (Monad n, Monad o, Monad ((Iteratee s) o)) =>
---              (Iteratee s) n β -> n ((Iteratee s) o β)
-  liftControl f = Iteratee $ undefined --return (f run) -- undefined
-    where run i = undefined -- do
-                     {- step <- runIteratee i-}
-                     {- return undefined-}
 
 ------------------------------------------------------------------------------
 -- | Get the length of a bytestring Stream
