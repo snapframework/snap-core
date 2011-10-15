@@ -10,7 +10,6 @@ import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
-import           Control.Exception (ErrorCall(..), SomeException, throwIO)
 import           Control.Monad
 import           Control.Exception.Control
 import           Control.Monad.Trans (liftIO)
@@ -53,7 +52,6 @@ tests = [ testFail
         , testMethod
         , testMethods
         , testDir
-        , testCatchIO
         , testWrites
         , testParam
         , testURLEncode1
@@ -63,8 +61,7 @@ tests = [ testFail
         , testMZero404
         , testEvalSnap
         , testLocalRequest
-        , testRedirect
-        , testBracketSnap ]
+        , testRedirect ]
 
 
 expectSpecificException :: Exception e => e -> IO a -> IO ()
@@ -138,23 +135,6 @@ mkRqWithEnum e = do
                  enum Nothing GET (1,1) [] "" "/" "/" "/" ""
                  Map.empty
 
-testCatchIO :: Test
-testCatchIO = testCase "types/catchIO" $ do
-    (_,rsp)  <- go f
-    (_,rsp2) <- go g
-
-    assertEqual "catchIO 1" (Just "bar") $ getHeader "foo" rsp
-    assertEqual "catchIO 2" Nothing $ getHeader "foo" rsp2
-
-  where
-    f :: Snap ()
-    f = (block $ unblock $ throw $ NoHandlerException "") `catch` h
-
-    g :: Snap ()
-    g = return () `catch` h
-
-    h :: SomeException -> Snap ()
-    h e = e `seq` modifyResponse $ addHeader "foo" "bar"
 
 go :: Snap a -> IO (Request,Response)
 go m = do
@@ -253,47 +233,6 @@ isLeft _        = False
 isRight :: Either a b -> Bool
 isRight (Right _) = True
 isRight _         = False
-
-
-testBracketSnap :: Test
-testBracketSnap = testCase "types/bracketSnap" $ do
-    rq <- mkZomgRq
-
-    ref <- newIORef 0
-
-    expectSpecificException (NoHandlerException "") $
-        run_ $ evalSnap (act ref) (const $ return ()) (const $ return ()) rq
-
-    y <- readIORef ref
-    assertEqual "bracketSnap/after1" (1::Int) y
-
-    expectSpecificException (ErrorCall "no value") $
-        run_ $ evalSnap (act ref <|> finishWith emptyResponse)
-                        (const $ return ())
-                        (const $ return ())
-                        rq
-                         
-    y' <- readIORef ref
-    assertEqual "bracketSnap/after" 2 y'
-
-
-    expectSpecificException (ErrorCall "foo") $
-        run_ $ evalSnap (act2 ref)
-                        (const $ return ())
-                        (const $ return ())
-                        rq
-                         
-    y'' <- readIORef ref
-    assertEqual "bracketSnap/after" 3 y''
-
-  where
-    act ref = bracketSnap (liftIO $ readIORef ref)
-                          (\z -> liftIO $ writeIORef ref $! z+1)
-                          (\z -> z `seq` mzero)
-
-    act2 ref = bracketSnap (liftIO $ readIORef ref)
-                           (\z -> liftIO $ writeIORef ref $! z+1)
-                           (\z -> z `seq` liftIO $ throwIO $ ErrorCall "foo")
 
 
 testCatchFinishWith :: Test

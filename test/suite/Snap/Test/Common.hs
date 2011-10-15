@@ -17,10 +17,10 @@ module Snap.Test.Common
   ) where
 
 import           Control.DeepSeq
-import           Control.Exception (SomeException(..), evaluate)
 import           Control.Monad
 import           Control.Exception.Control
 import           Control.Monad.Trans
+import           Control.Monad.IO.Control
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Internal (c2w)
