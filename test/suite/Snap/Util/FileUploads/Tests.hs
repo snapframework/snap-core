@@ -10,7 +10,6 @@ module Snap.Util.FileUploads.Tests
 import           Control.Applicative
 import           Control.Concurrent (threadDelay)
 import           Control.DeepSeq
-import           Control.Exception (Exception(..), SomeException(..))
 import           Control.Monad
 import           Control.Exception.Control
 import           Control.Monad.Trans

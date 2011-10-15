@@ -7,8 +7,6 @@ module Snap.Iteratee.Tests
   ( tests ) where
 
 import           Control.Concurrent (threadDelay)
-import qualified Control.Exception as E
-import           Control.Exception hiding (try, assert, throw, catch)
 import           Control.Monad
 import           Control.Exception.Control hiding (assert)
 import           Control.Monad.Identity
@@ -24,7 +22,6 @@ import           System.Timeout
 import           Test.Framework
 import           Test.Framework.Providers.QuickCheck2
 import           Test.QuickCheck
-import           Test.QuickCheck.Gen
 import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic hiding (run)
 import           Test.Framework.Providers.HUnit
