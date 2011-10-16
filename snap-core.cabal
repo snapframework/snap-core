@@ -107,7 +107,6 @@ Library
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
     build-depends: bytestring-mmap >= 0.2.2 && <0.3,
-                   regex-posix <= 0.94.4,
                    unix >= 2.4 && <3.0
     cpp-options: -DUSE_UNIX
 
@@ -157,6 +156,7 @@ Library
     mwc-random >= 0.10 && <0.11,
     old-locale,
     old-time,
+    regex-posix <= 0.94.4,
     text >= 0.11 && <0.12,
     time >= 1.0 && < 1.4,
     transformers == 0.2.*,
