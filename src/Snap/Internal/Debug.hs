@@ -21,7 +21,7 @@ import             Control.Monad.Trans
 #ifndef NODEBUG
 import             Control.Concurrent
 import             Control.DeepSeq
-import             Control.Exception
+import             Control.Exception.Control
 import             Data.Char
 import             Data.List
 import             Data.Maybe

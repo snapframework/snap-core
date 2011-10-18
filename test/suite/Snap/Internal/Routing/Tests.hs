@@ -5,7 +5,7 @@
 module Snap.Internal.Routing.Tests
   ( tests ) where
 
-import           Control.Exception
+import           Control.Exception.Control
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as B

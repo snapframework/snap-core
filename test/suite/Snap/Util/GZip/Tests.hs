@@ -9,7 +9,7 @@ module Snap.Util.GZip.Tests
 import           Blaze.ByteString.Builder
 import qualified Codec.Compression.GZip as GZip
 import qualified Codec.Compression.Zlib as Zlib
-import           Control.Exception hiding (assert)
+import           Control.Exception.Control hiding (assert)
 import           Control.Monad (liftM)
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as L

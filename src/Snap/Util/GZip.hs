@@ -12,7 +12,7 @@ module Snap.Util.GZip
 import           Blaze.ByteString.Builder
 import qualified Codec.Zlib.Enum as Z
 import           Control.Applicative hiding (many)
-import           Control.Exception
+import           Control.Exception.Control
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8 hiding (Done)
