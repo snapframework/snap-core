@@ -28,7 +28,7 @@ module Snap.Util.FileServe
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
-import           Control.Exception.Control
+import           Control.Exception.Control hiding (catch)
 import           Control.Monad
 import           Control.Monad.IO.Control ()
 import           Control.Monad.Trans

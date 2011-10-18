@@ -11,7 +11,7 @@ import           Control.Applicative
 import           Control.Concurrent (threadDelay)
 import           Control.DeepSeq
 import           Control.Monad
-import           Control.Exception.Control
+import           Control.Exception.Control hiding (catch)
 import           Control.Monad.Trans
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S

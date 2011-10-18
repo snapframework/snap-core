@@ -11,7 +11,7 @@ import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
 import           Control.Monad
-import           Control.Exception.Control
+import           Control.Exception.Control hiding (catch)
 import           Control.Monad.Trans (liftIO)
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8 (ByteString)

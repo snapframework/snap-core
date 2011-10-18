@@ -18,7 +18,7 @@ module Snap.Test.Common
 
 import           Control.DeepSeq
 import           Control.Monad
-import           Control.Exception.Control
+import           Control.Exception.Control hiding (catch)
 import           Control.Monad.Trans
 import           Control.Monad.IO.Control
 import qualified Data.ByteString as S
@@ -26,6 +26,7 @@ import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Internal (c2w)
 import           Data.Typeable
 import           Prelude hiding (catch)
+import           Snap.Core
 import           Test.QuickCheck
 import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic
@@ -50,7 +51,7 @@ coverShowInstance x = a `deepseq` b `deepseq` c `deepseq` return ()
     c = showList [x] ""
 
 
-eatException :: (MonadControlIO m) => m a -> m ()
+eatException :: (MonadCatchControl m, MonadControlIO m) => m a -> m ()
 eatException a = (a >> return ()) `catch` handler
   where
     handler :: (MonadIO m) => SomeException -> m ()

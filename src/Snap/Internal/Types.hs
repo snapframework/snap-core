@@ -15,7 +15,8 @@ module Snap.Internal.Types where
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception.Control
+import           Control.Exception.Control hiding (catch)
+import qualified Control.Exception.Control as CEC
 import           Control.Monad
 import           Control.Monad.IO.Control
 import qualified Control.Monad.Error.Class as EC
@@ -185,7 +186,28 @@ instance MonadIO Snap where
 
 ------------------------------------------------------------------------------
 instance MonadControlIO Snap where
-  liftControlIO f = liftIO (f return)
+    liftControlIO f = liftIO (f return)
+
+
+class (MonadControlIO m) => MonadCatchControl m where
+    catch :: (Exception e)
+          => m a        -- ^ The computation to run
+          -> (e -> m a) -- ^ Handler to invoke if an exception is raised
+          -> m a
+    catch = CEC.catch
+
+instance (MonadCatchControl m) => MonadCatchControl (StateT s m)
+instance (MonadCatchControl m) => MonadCatchControl (Iteratee a m)
+instance MonadCatchControl IO
+
+instance MonadCatchControl Snap where
+    catch (Snap m) handler = Snap $ m `catch` h
+        where
+          h e = do
+              rethrowIfTermination $ fromException e
+              maybe (throw e)
+                    (\e' -> let (Snap z) = handler e' in z)
+                    (fromException e)
 
 
 ------------------------------------------------------------------------------
