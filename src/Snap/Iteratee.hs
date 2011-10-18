@@ -137,7 +137,7 @@ import           System.PosixCompat.Types
 #endif
 
 ------------------------------------------------------------------------------
-instance (Functor m, MonadControlIO m) => MonadControlIO (Iteratee s m) where
+instance (MonadControlIO m) => MonadControlIO (Iteratee s m) where
   liftControlIO f = liftIO (f return)
 
 
