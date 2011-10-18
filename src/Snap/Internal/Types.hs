@@ -189,7 +189,7 @@ instance MonadControlIO Snap where
 
 
 ------------------------------------------------------------------------------
-rethrowIfTermination :: (MonadControlIO m) =>
+rethrowIfTermination :: (MonadIO m) =>
                         Maybe ConnectionTerminatedException ->
                         m ()
 rethrowIfTermination Nothing  = return ()
@@ -832,7 +832,7 @@ instance Exception ConnectionTerminatedException
 
 ------------------------------------------------------------------------------
 -- | Terminate the HTTP session with the given exception.
-terminateConnection :: (Exception e, MonadControlIO m) => e -> m a
+terminateConnection :: (Exception e, MonadIO m) => e -> m a
 terminateConnection = throw . ConnectionTerminatedException . toException
 
 

@@ -53,7 +53,7 @@ coverShowInstance x = a `deepseq` b `deepseq` c `deepseq` return ()
 eatException :: (MonadControlIO m) => m a -> m ()
 eatException a = (a >> return ()) `catch` handler
   where
-    handler :: (MonadControlIO m) => SomeException -> m ()
+    handler :: (MonadIO m) => SomeException -> m ()
     handler _ = return ()
 
 
