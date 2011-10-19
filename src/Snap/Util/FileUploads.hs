@@ -67,7 +67,7 @@ module Snap.Util.FileUploads
 import           Control.Arrow
 import           Control.Applicative
 import           Control.Concurrent.MVar
-import           Control.Exception.Control hiding (catch)
+import           Control.Exception.Control hiding (catch, catches)
 import           Control.Monad
 import           Control.Monad.IO.Control
 import           Control.Monad.Trans

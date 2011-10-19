@@ -15,7 +15,7 @@ module Snap.Internal.Types where
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception.Control hiding (catch)
+import           Control.Exception.Control hiding (catch, catches)
 import qualified Control.Exception.Control as CEC
 import           Control.Monad
 import           Control.Monad.IO.Control
@@ -126,8 +126,8 @@ transformers ('ReaderT', 'WriterT', 'StateT', etc.).
 ------------------------------------------------------------------------------
 -- | 'MonadSnap' is a type class, analogous to 'MonadIO' for 'IO', that makes
 -- it easy to wrap 'Snap' inside monad transformers.
-class (Monad m, MonadIO m, MonadControlIO m, MonadPlus m, Functor m,
-       Applicative m, Alternative m) => MonadSnap m where
+class (Monad m, MonadIO m, MonadCatchControl m, MonadControlIO m, MonadPlus m,
+       Functor m, Applicative m, Alternative m) => MonadSnap m where
     liftSnap :: Snap a -> m a
 
 
@@ -196,8 +196,12 @@ class (MonadControlIO m) => MonadCatchControl m where
           -> m a
     catch = CEC.catch
 
-instance (MonadCatchControl m) => MonadCatchControl (StateT s m)
+    catches :: m a -> [CEC.Handler m a] -> m a
+    catches = CEC.catches
+
 instance (MonadCatchControl m) => MonadCatchControl (Iteratee a m)
+instance (MonadCatchControl m) => MonadCatchControl (StateT s m)
+
 instance MonadCatchControl IO
 
 instance MonadCatchControl Snap where
@@ -208,7 +212,9 @@ instance MonadCatchControl Snap where
               maybe (throw e)
                     (\e' -> let (Snap z) = handler e' in z)
                     (fromException e)
-
+    catches a handlers = a `catch` handler where
+        handler e = foldr tryH (throw e) handlers where
+            tryH (CEC.Handler h) res = maybe res h $ fromException e
 
 ------------------------------------------------------------------------------
 rethrowIfTermination :: (MonadIO m) =>

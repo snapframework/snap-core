@@ -81,3 +81,14 @@ instance (MonadSnap m, Monoid w) => MonadSnap (WriterT w m) where
 ------------------------------------------------------------------------------
 instance (MonadSnap m, Monoid w) => MonadSnap (LWriter.WriterT w m) where
     liftSnap = lift . liftSnap
+
+
+instance (Error e, MonadCatchControl m) => MonadCatchControl (ErrorT e m)
+instance (MonadCatchControl m) => MonadCatchControl (ListT m)
+instance (MonadCatchControl m) => MonadCatchControl (StateT s m)
+instance (MonadCatchControl m) => MonadCatchControl (ReaderT r m)
+instance (Monoid w, MonadCatchControl m) => MonadCatchControl (RWST r w s m)
+instance (Monoid w, MonadCatchControl m) => MonadCatchControl (LRWS.RWST r w s m)
+instance (Monoid w, MonadCatchControl m) => MonadCatchControl (WriterT w m)
+instance (Monoid w, MonadCatchControl m) => MonadCatchControl (LWriter.WriterT w m)
+
