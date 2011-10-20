@@ -46,6 +46,7 @@ module Snap.Core
     -- ** Grabbing/transforming request bodies
   , runRequestBody
   , getRequestBody
+  , readRequestBody
   , transformRequestBody
 
     -- * HTTP Datatypes and Functions
