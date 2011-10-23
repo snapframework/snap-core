@@ -43,13 +43,15 @@ module Snap.Types.Headers
 import           Data.ByteString.Char8 (ByteString)
 import           Data.CaseInsensitive   (CI)
 import           Data.List (foldl')
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as Map
+import           Data.Maybe (isJust)
 import           Prelude hiding (null, lookup)
 
 ------------------------------------------------------------------------------
-newtype Headers = H { unH :: Map (CI ByteString) [ByteString] }
+newtype Headers = H { unH :: HashMap (CI ByteString) [ByteString] }
   deriving (Show)
+
 
 ------------------------------------------------------------------------------
 empty :: Headers
@@ -64,7 +66,9 @@ null = Map.null . unH
 
 ------------------------------------------------------------------------------
 member :: CI ByteString -> Headers -> Bool
-member k = Map.member k . unH
+member k = f . unH
+  where
+    f m = isJust $ Map.lookup k m
 {-# INLINE member #-}
 
 
@@ -76,12 +80,12 @@ lookup k (H m) = Map.lookup k m
 
 ------------------------------------------------------------------------------
 lookupWithDefault :: ByteString -> CI ByteString -> Headers -> [ByteString]
-lookupWithDefault d k (H m) = Map.findWithDefault [d] k m
+lookupWithDefault d k (H m) = Map.lookupDefault [d] k m
 
 
 ------------------------------------------------------------------------------
 insert :: CI ByteString -> ByteString -> Headers -> Headers
-insert k v (H m) = H $ Map.insertWith' (flip (++)) k [v] m
+insert k v (H m) = H $ Map.insertWith (flip (++)) k [v] m
 
 
 ------------------------------------------------------------------------------
@@ -99,12 +103,12 @@ fold :: (a -> CI ByteString -> [ByteString] -> a)
      -> a
      -> Headers
      -> a
-fold f a (H m) = Map.foldlWithKey f a m
+fold f a (H m) = Map.foldlWithKey' f a m
 
 
 ------------------------------------------------------------------------------
 toList :: Headers -> [(CI ByteString, ByteString)]
-toList (H m) = (Map.foldlWithKey f id m) []
+toList (H m) = (Map.foldlWithKey' f id m) []
   where
     f !dl k vs = dl . ((map (\v -> (k,v)) vs) ++)
 
