@@ -1,6 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
-{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE Rank2Types                 #-}
 
 module Snap.Internal.Test.RequestBuilder
   ( RequestBuilder

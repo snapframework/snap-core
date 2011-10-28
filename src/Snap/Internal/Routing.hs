@@ -1,4 +1,4 @@
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE Rank2Types #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Snap.Internal.Routing where
 

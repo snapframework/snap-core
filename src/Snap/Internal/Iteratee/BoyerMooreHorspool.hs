@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes        #-}
+{-# LANGUAGE Rank2Types        #-}
 
 module Snap.Internal.Iteratee.BoyerMooreHorspool
   ( bmhEnumeratee

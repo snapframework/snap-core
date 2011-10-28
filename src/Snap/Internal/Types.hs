@@ -6,7 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE PackageImports            #-}
-{-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE Rank2Types                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 

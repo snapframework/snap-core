@@ -173,7 +173,7 @@ Library
     EmptyDataDecls,
     ForeignFunctionInterface,
     OverloadedStrings,
-    RankNTypes,
+    Rank2Types,
     TypeSynonymInstances,
     FlexibleInstances,
     ExistentialQuantification,
