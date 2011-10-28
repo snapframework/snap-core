@@ -11,13 +11,11 @@ module Snap.Util.GZip
 
 import           Blaze.ByteString.Builder
 import qualified Codec.Zlib.Enum as Z
-import           Control.Concurrent
 import           Control.Applicative hiding (many)
 import           Control.Exception
 import           Control.Monad
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8 hiding (Done)
-import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.Char as Char

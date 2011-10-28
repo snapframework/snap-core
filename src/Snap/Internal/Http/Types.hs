@@ -23,7 +23,6 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString as S
-import           Data.Char
 import           Data.Int
 import qualified Data.IntMap as IM
 import           Data.IORef
@@ -253,11 +252,11 @@ data Request = Request
       -- value of 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
-      -- | The \"context path\" of the request; catenating 'rqContextPath', and
-      -- 'rqPathInfo' should get you back to the original 'rqURI' (ignoring
-      -- query strings). The 'rqContextPath' always begins and ends with a
-      -- slash (@\"\/\"@) character, and represents the path (relative to your
-      -- component\/snaplet) you took to get to your handler.
+      -- | The \"context path\" of the request; catenating 'rqContextPath',
+      -- and 'rqPathInfo' should get you back to the original 'rqURI'
+      -- (ignoring query strings). The 'rqContextPath' always begins and ends
+      -- with a slash (@\"\/\"@) character, and represents the path (relative
+      -- to your component\/snaplet) you took to get to your handler.
     , rqContextPath    :: !ByteString
 
       -- | Returns the @URI@ requested by the client.
@@ -424,7 +423,7 @@ instance Show Response where
 
       statusline = concat [ "HTTP/"
                           , show v1
-                          , "." 
+                          , "."
                           , show v2
                           , " "
                           , show $ rspStatus r

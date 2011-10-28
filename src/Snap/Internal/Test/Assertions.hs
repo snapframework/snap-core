@@ -39,9 +39,9 @@ assert404 rsp = assertEqual message 404 status
 
 
 ------------------------------------------------------------------------------
--- | Given a Response, asserts that its HTTP status code is between 300 and 399
--- (a redirect), and that the Location header of the Response points to the
--- specified URI.
+-- | Given a Response, asserts that its HTTP status code is between 300 and
+-- 399 (a redirect), and that the Location header of the Response points to
+-- the specified URI.
 assertRedirectTo :: ByteString     -- ^ The Response should redirect to this
                                    -- URI
                  -> Response
@@ -58,8 +58,8 @@ assertRedirectTo uri rsp = do
 
 
 ------------------------------------------------------------------------------
--- | Given a Response, asserts that its HTTP status code is between 300 and 399
--- (a redirect).
+-- | Given a Response, asserts that its HTTP status code is between 300 and
+-- 399 (a redirect).
 assertRedirect :: Response -> Assertion
 assertRedirect rsp = assertBool message (300 <= status && status <= 399)
   where
@@ -71,7 +71,7 @@ assertRedirect rsp = assertBool message (300 <= status && status <= 399)
 ------------------------------------------------------------------------------
 -- | Given a Response, asserts that its body matches the given regular
 -- expression.
-assertBodyContains :: ByteString   -- ^ Regexp that will match the body content
+assertBodyContains :: ByteString  -- ^ Regexp that will match the body content
                    -> Response
                    -> Assertion
 assertBodyContains match rsp = do

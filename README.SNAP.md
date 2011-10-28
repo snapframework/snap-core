@@ -16,11 +16,11 @@ The Snap core system consists of:
 
   * a sensible and clean monad for web programming
 
-  * an xml-based templating system for generating HTML based on
-    [expat](http://expat.sourceforge.net/) (via
-    [hexpat](http://hackage.haskell.org/package/hexpat)) that allows you to
-    bind Haskell functionality to XML tags without getting PHP-style tag soup
-    all over your pants
+  * an xml-based templating system for generating HTML that allows you to bind
+    Haskell functionality to XML tags without getting PHP-style tag soup all
+    over your pants
+
+  * a "snaplet" system for building web sites from composable pieces.
 
 Snap is currently only officially supported on Unix platforms; it has been
 tested on Linux and Mac OSX Snow Leopard, and is reported to work on Windows.

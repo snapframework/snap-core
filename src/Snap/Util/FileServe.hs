@@ -265,7 +265,8 @@ snapIndexStyles =
         ,     "border-top: 1px solid rgb(194,209,225);"
         ,     "color: rgb(160,172,186); font-size:10pt;"
         ,     "background: rgb(245,249,255) }"
-        , "table { max-width:100%; margin: 0 auto; border-collapse: collapse; }"
+        , "table { max-width:100%; margin: 0 auto;" `S.append`
+          " border-collapse: collapse; }"
         , "tr:hover { background:rgb(256,256,224) }"
         , "td { border:0; font-family:monospace; padding: 2px 0; }"
         , "td.filename, td.type { padding-right: 2em; }"

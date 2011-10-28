@@ -339,8 +339,8 @@ getRequestBody = liftM L.fromChunks $ runRequestBody consume
 readRequestBody :: MonadSnap m =>
                    Int64  -- ^ size of the largest request body we're willing
                           -- to accept. If a request body longer than this is
-                          -- received, a 'TooManyBytesReadException' is thrown.
-                          -- See 'takeNoMoreThan'.
+                          -- received, a 'TooManyBytesReadException' is
+                          -- thrown. See 'takeNoMoreThan'.
                 -> m L.ByteString
 readRequestBody sz = liftM L.fromChunks $ runRequestBody $
                      joinI $ takeNoMoreThan sz $$ consume
@@ -509,7 +509,7 @@ pathArg f = do
     let (p,_) = S.break (=='/') (rqPathInfo req)
     a <- fromBS p
     localRequest (updateContextPath $ S.length p) (f a)
-    
+
 
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only when 'rqPathInfo' is empty.
@@ -853,7 +853,8 @@ uncatchableExceptionFromException e = do
 
 
 ------------------------------------------------------------------------------
-data ConnectionTerminatedException = ConnectionTerminatedException SomeException
+data ConnectionTerminatedException =
+    ConnectionTerminatedException SomeException
   deriving (Typeable)
 
 
@@ -999,15 +1000,16 @@ readCookie name = maybe pass (fromBS . cookieValue) =<< getCookie name
 
 ------------------------------------------------------------------------------
 -- | Expire the given 'Cookie' in client's browser.
-expireCookie :: (MonadSnap m) 
-             => ByteString 
+expireCookie :: (MonadSnap m)
+             => ByteString
              -- ^ Cookie name
-             -> Maybe ByteString 
+             -> Maybe ByteString
              -- ^ Cookie domain
              -> m ()
 expireCookie nm dm = do
   let old = UTCTime (ModifiedJulianDay 0) 0
-  modifyResponse $ addResponseCookie (Cookie nm "" (Just old) Nothing dm False False)
+  modifyResponse $ addResponseCookie
+                 $ Cookie nm "" (Just old) Nothing dm False False
 
 
 ------------------------------------------------------------------------------

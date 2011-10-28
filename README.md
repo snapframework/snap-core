@@ -1,14 +1,10 @@
 Snap Framework Core
 ===================
 
-This is the first developer prerelease of the Snap Framework Core library.  For
-more information about Snap, read the `README.SNAP.md` or visit the Snap
-project website at http://www.snapframework.com/.
-
-Snap is a nascent web framework for Haskell, based on iteratee I/O (as
-[popularized by Oleg
-Kiselyov](http://okmij.org/ftp/Streams.html#iteratee)).
-
+Snap is a web framework for Haskell, based on iteratee I/O (as [popularized by
+Oleg Kiselyov](http://okmij.org/ftp/Streams.html#iteratee)).  For more
+information about Snap, read the `README.SNAP.md` or visit the Snap project
+website at http://www.snapframework.com/.
 
 ## Library contents
 

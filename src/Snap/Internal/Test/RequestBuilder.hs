@@ -105,7 +105,8 @@ buildRequest mm = do
 
     fixupMethod = do
         rq <- rGet
-        if (rqMethod rq == GET || rqMethod rq == DELETE || rqMethod rq == HEAD)
+        if (rqMethod rq == GET || rqMethod rq == DELETE ||
+            rqMethod rq == HEAD)
           then do
               -- These requests are not permitted to have bodies
               let rq' = deleteHeader "Content-Type" rq
@@ -116,7 +117,8 @@ buildRequest mm = do
     fixupCL = do
         rq <- rGet
         maybe (rPut $ deleteHeader "Content-Length" rq)
-              (\cl -> rPut $ H.setHeader "Content-Length" (S.pack (show cl)) rq)
+              (\cl -> rPut $ H.setHeader "Content-Length"
+                                         (S.pack (show cl)) rq)
               (rqContentLength rq)
 
     fixupParams = do
@@ -134,7 +136,7 @@ buildRequest mm = do
 
         rPut $ rq { rqParams = Map.unionWith (++) pms post }
 
--------------------------------------------------------------------------------
+------------------------------------------------------------------------------
 -- | A request body of type \"@multipart/form-data@\" consists of a set of
 -- named form parameters, each of which can by either a list of regular form
 -- values or a set of file uploads.
@@ -160,10 +162,10 @@ data FileData = FileData {
 
 
 ------------------------------------------------------------------------------
--- | The 'RequestType' datatype enumerates the different kinds of HTTP requests
--- you can generate using the testing interface. Most users will prefer to use
--- the 'get', 'postUrlEncoded', 'postMultipart', 'put', and 'delete'
--- convenience functions.
+-- | The 'RequestType' datatype enumerates the different kinds of HTTP
+-- requests you can generate using the testing interface. Most users will
+-- prefer to use the 'get', 'postUrlEncoded', 'postMultipart', 'put', and
+-- 'delete' convenience functions.
 data RequestType
     = GetRequest
     | RequestWithRawBody Method ByteString
@@ -357,9 +359,9 @@ fixupURI = do
 
 
 ------------------------------------------------------------------------------
--- | Sets the request's query string to be the raw bytestring provided, without
--- any escaping or other interpretation. Most users should instead choose the
--- 'setQueryString' function, which takes a parameter mapping.
+-- | Sets the request's query string to be the raw bytestring provided,
+-- without any escaping or other interpretation. Most users should instead
+-- choose the 'setQueryString' function, which takes a parameter mapping.
 setQueryStringRaw :: Monad m => ByteString -> RequestBuilder m ()
 setQueryStringRaw r = do
     rq <- rGet
@@ -408,8 +410,8 @@ setHttpVersion v = rModify $ \rq -> rq { rqVersion = v }
 
 ------------------------------------------------------------------------------
 -- | Sets the request's path. The path provided must begin with a \"@/@\" and
--- must /not/ contain a query string; if you want to provide a query string in
--- your test request, you must use 'setQueryString' or 'setQueryStringRaw'.
+-- must /not/ contain a query string; if you want to provide a query string
+-- in your test request, you must use 'setQueryString' or 'setQueryStringRaw'.
 -- Note that 'rqContextPath' is never set by any 'RequestBuilder' function.
 setRequestPath :: Monad m => ByteString -> RequestBuilder m ()
 setRequestPath p = do
@@ -499,11 +501,11 @@ postRaw uri contentType postData = do
 -- defining a test request, runs the handler, producing an HTTP 'Response'.
 runHandler' :: (MonadIO m, MonadSnap n) =>
                (forall a . Request -> n a -> m Response)
-               -- ^ a function defining how the 'MonadSnap' monad should be run
+            -- ^ a function defining how the 'MonadSnap' monad should be run
             -> RequestBuilder m ()
-               -- ^ a request builder
+            -- ^ a request builder
             -> n b
-               -- ^ a web handler
+            -- ^ a web handler
             -> m Response
 runHandler' rSnap rBuilder snap = do
     rq  <- buildRequest rBuilder
@@ -513,8 +515,8 @@ runHandler' rSnap rBuilder snap = do
 
 
 ------------------------------------------------------------------------------
--- | Given a web handler in the 'Snap' monad, and a 'RequestBuilder' defining a
--- test request, runs the handler, producing an HTTP 'Response'.
+-- | Given a web handler in the 'Snap' monad, and a 'RequestBuilder' defining
+-- a test request, runs the handler, producing an HTTP 'Response'.
 runHandler :: MonadIO m =>
               RequestBuilder m ()   -- ^ a request builder
            -> Snap a                -- ^ a web handler
