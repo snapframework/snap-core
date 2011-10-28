@@ -44,6 +44,7 @@ tests :: [Test]
 tests = [ testFail
         , testAlternative
         , testEarlyTermination
+        , testEscapeHttp
         , testCatchFinishWith
         , testRqBody
         , testRqBodyTooLong
@@ -244,6 +245,17 @@ testEarlyTermination :: Test
 testEarlyTermination = testCase "types/earlyTermination" $ do
     (_,resp) <- go (finishWith sampleResponse >>= \_ -> setFoo "Bar")
     assertEqual "foo" (Just ["Quux"]) $ getHeaders "Foo" resp
+
+
+testEscapeHttp :: Test
+testEscapeHttp = testCase "types/escapeHttp" $ flip catch catchEscape $ do
+    (_, _) <- go (escapeHttp escaper)
+    assertFailure "HTTP escape was ignored"
+  where
+    escaper _ _ = liftIO $ assert True
+    tickle _    = return ()
+
+    catchEscape (EscapeHttpException iter) = run_ $ iter tickle (return ())
 
 
 isLeft :: Either a b -> Bool

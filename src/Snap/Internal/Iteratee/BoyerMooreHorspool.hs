@@ -127,7 +127,8 @@ bmhEnumeratee needle _step = do
                   let !aftermatch = S.drop (hend+1) haystack
 
                   step <- if not $ S.null nomatch
-                            then lift $ runIteratee $ k $ Chunks [NoMatch nomatch]
+                            then lift $ runIteratee $ k
+                                      $ Chunks [NoMatch nomatch]
                             else return $ Continue k
 
                   cDone step $ \k' -> do
@@ -144,7 +145,7 @@ bmhEnumeratee needle _step = do
         mkCoeff hidx = let !ll = hlen - hidx
                            !nm = nlen - ll
                        in (ll,nm)
-                                        
+
         crossBound !hidx0 = {-# SCC "crossBound" #-} do
             let (!leftLen, needMore) = mkCoeff hidx0
 

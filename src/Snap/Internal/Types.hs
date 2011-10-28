@@ -1,13 +1,14 @@
-{-# LANGUAGE BangPatterns          #-}
-{-# LANGUAGE DeriveDataTypeable    #-}
-{-# LANGUAGE EmptyDataDecls        #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings     #-}
-{-# LANGUAGE PackageImports        #-}
-{-# LANGUAGE RankNTypes            #-}
-{-# LANGUAGE ScopedTypeVariables   #-}
-{-# LANGUAGE TypeSynonymInstances  #-}
+{-# LANGUAGE BangPatterns              #-}
+{-# LANGUAGE DeriveDataTypeable        #-}
+{-# LANGUAGE EmptyDataDecls            #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE PackageImports            #-}
+{-# LANGUAGE RankNTypes                #-}
+{-# LANGUAGE ScopedTypeVariables       #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
 
 module Snap.Internal.Types where
 
@@ -188,7 +189,7 @@ instance MonadCatchIO Snap where
     catch (Snap m) handler = Snap $ m `catch` h
       where
         h e = do
-            rethrowIfTermination $ fromException e
+            rethrowIfUncatchable $ fromException e
             maybe (throw e)
                   (\e' -> let (Snap z) = handler e' in z)
                   (fromException e)
@@ -198,11 +199,11 @@ instance MonadCatchIO Snap where
 
 
 ------------------------------------------------------------------------------
-rethrowIfTermination :: (MonadCatchIO m) =>
-                        Maybe ConnectionTerminatedException ->
+rethrowIfUncatchable :: (MonadCatchIO m) =>
+                        Maybe UncatchableException ->
                         m ()
-rethrowIfTermination Nothing  = return ()
-rethrowIfTermination (Just e) = throw e
+rethrowIfUncatchable Nothing  = return ()
+rethrowIfUncatchable (Just e) = throw e
 
 
 ------------------------------------------------------------------------------
@@ -338,8 +339,8 @@ getRequestBody = liftM L.fromChunks $ runRequestBody consume
 readRequestBody :: MonadSnap m =>
                    Int64  -- ^ size of the largest request body we're willing
                           -- to accept. If a request body longer than this is
-                          -- received, a 'TooManyBytesReadException' is thrown.
-                          -- See 'takeNoMoreThan'.
+                          -- received, a 'TooManyBytesReadException' is
+                          -- thrown. See 'takeNoMoreThan'.
                 -> m L.ByteString
 readRequestBody sz = liftM L.fromChunks $ runRequestBody $
                      joinI $ takeNoMoreThan sz $$ consume
@@ -508,7 +509,7 @@ pathArg f = do
     let (p,_) = S.break (=='/') (rqPathInfo req)
     a <- fromBS p
     localRequest (updateContextPath $ S.length p) (f a)
-    
+
 
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only when 'rqPathInfo' is empty.
@@ -824,7 +825,36 @@ instance Exception NoHandlerException
 
 
 ------------------------------------------------------------------------------
-data ConnectionTerminatedException = ConnectionTerminatedException SomeException
+-- | An exception hierarchy for exceptions that cannot be caught by
+-- user-defined error handlers
+data UncatchableException = forall e. Exception e => UncatchableException e
+  deriving (Typeable)
+
+
+------------------------------------------------------------------------------
+instance Show UncatchableException where
+    show (UncatchableException e) = "Uncatchable exception: " ++ show e
+
+
+------------------------------------------------------------------------------
+instance Exception UncatchableException
+
+
+------------------------------------------------------------------------------
+uncatchableExceptionToException :: Exception e => e -> SomeException
+uncatchableExceptionToException = toException . UncatchableException
+
+
+------------------------------------------------------------------------------
+uncatchableExceptionFromException :: Exception e => SomeException -> Maybe e
+uncatchableExceptionFromException e = do
+    UncatchableException ue <- fromException e
+    cast ue
+
+
+------------------------------------------------------------------------------
+data ConnectionTerminatedException =
+    ConnectionTerminatedException SomeException
   deriving (Typeable)
 
 
@@ -835,13 +865,46 @@ instance Show ConnectionTerminatedException where
 
 
 ------------------------------------------------------------------------------
-instance Exception ConnectionTerminatedException
+instance Exception ConnectionTerminatedException where
+    toException   = uncatchableExceptionToException
+    fromException = uncatchableExceptionFromException
 
 
 ------------------------------------------------------------------------------
 -- | Terminate the HTTP session with the given exception.
 terminateConnection :: (Exception e, MonadCatchIO m) => e -> m a
 terminateConnection = throw . ConnectionTerminatedException . toException
+
+
+-- | This is exception is thrown if the handler chooses to escape regular HTTP
+-- traffic.
+data EscapeHttpException = EscapeHttpException
+    ((Int -> IO ()) -> Iteratee ByteString IO () -> Iteratee ByteString IO ())
+        deriving (Typeable)
+
+
+------------------------------------------------------------------------------
+instance Show EscapeHttpException where
+    show = const "HTTP traffic was escaped"
+
+
+------------------------------------------------------------------------------
+instance Exception EscapeHttpException where
+    toException   = uncatchableExceptionToException
+    fromException = uncatchableExceptionFromException
+
+
+------------------------------------------------------------------------------
+-- | Terminate the HTTP session and hand control to some external handler,
+-- escaping all further HTTP traffic.
+--
+-- The external handler takes two arguments: a function to tickle the timeout
+-- manager, and a write end to the socket.
+escapeHttp :: MonadCatchIO m
+           => ((Int -> IO ()) -> Iteratee ByteString IO () ->
+                Iteratee ByteString IO ())
+           -> m ()
+escapeHttp = throw . EscapeHttpException
 
 
 ------------------------------------------------------------------------------
@@ -937,15 +1000,16 @@ readCookie name = maybe pass (fromBS . cookieValue) =<< getCookie name
 
 ------------------------------------------------------------------------------
 -- | Expire the given 'Cookie' in client's browser.
-expireCookie :: (MonadSnap m) 
-             => ByteString 
+expireCookie :: (MonadSnap m)
+             => ByteString
              -- ^ Cookie name
-             -> Maybe ByteString 
+             -> Maybe ByteString
              -- ^ Cookie domain
              -> m ()
 expireCookie nm dm = do
   let old = UTCTime (ModifiedJulianDay 0) 0
-  modifyResponse $ addResponseCookie (Cookie nm "" (Just old) Nothing dm False False)
+  modifyResponse $ addResponseCookie
+                 $ Cookie nm "" (Just old) Nothing dm False False
 
 
 ------------------------------------------------------------------------------

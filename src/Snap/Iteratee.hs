@@ -684,10 +684,11 @@ enumBuilderToByteString :: MonadIO m => Enumeratee Builder ByteString m a
 enumBuilderToByteString = builderToByteString
 
 ------------------------------------------------------------------------------
-unsafeEnumBuilderToByteString :: MonadIO m => Enumeratee Builder ByteString m a
+unsafeEnumBuilderToByteString :: MonadIO m
+                              => Enumeratee Builder ByteString m a
 unsafeEnumBuilderToByteString =
     builderToByteStringWith (reuseBufferStrategy (allocBuffer 65536))
-    
+
 
 ------------------------------------------------------------------------------
 enumByteStringToBuilder :: MonadIO m => Enumeratee ByteString Builder m a
