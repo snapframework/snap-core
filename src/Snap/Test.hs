@@ -1,6 +1,6 @@
 -- | The Snap.Test module contains primitives and combinators for testing Snap
 -- applications.
-module Snap.Test 
+module Snap.Test
   ( -- * Combinators and types for testing Snap handlers.
 
     -- ** Types
@@ -52,4 +52,4 @@ module Snap.Test
 import           Snap.Internal.Test.Assertions
 import           Snap.Internal.Test.RequestBuilder
 
-  
+
