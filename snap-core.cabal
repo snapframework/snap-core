@@ -1,5 +1,5 @@
 name:           snap-core
-version:        0.6.0
+version:        0.6.0.1
 synopsis:       Snap: A Haskell Web Framework (Core)
 
 description:
@@ -164,6 +164,24 @@ Library
     unordered-containers >= 0.1.4.3 && <0.2,
     vector >= 0.6 && <0.10,
     zlib-enum >= 0.2.1 && <0.3
+
+  extensions:
+    BangPatterns,
+    CPP,
+    PackageImports,
+    ScopedTypeVariables,
+    EmptyDataDecls,
+    ForeignFunctionInterface,
+    OverloadedStrings,
+    RankNTypes,
+    TypeSynonymInstances,
+    FlexibleInstances,
+    ExistentialQuantification,
+    OverloadedStrings,
+    FlexibleContexts,
+    GeneralizedNewtypeDeriving,
+    DeriveDataTypeable,
+    MultiParamTypeClasses
 
   ghc-prof-options: -prof -auto-all
 
