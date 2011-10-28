@@ -179,7 +179,7 @@ type Params = Map ByteString [ByteString]
 ------------------------------------------------------------------------------
 
 -- | An existential wrapper for the 'Enumerator ByteString IO a' type
-data SomeEnumerator = SomeEnumerator (forall a . Enumerator ByteString IO a)
+newtype SomeEnumerator = SomeEnumerator (forall a . Enumerator ByteString IO a)
 
 
 ------------------------------------------------------------------------------
