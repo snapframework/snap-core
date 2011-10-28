@@ -59,6 +59,24 @@ Executable testsuite
     vector >= 0.6 && <0.10,
     zlib,
     zlib-enum >= 0.2.1 && <0.3
-    
+
+  extensions:
+    BangPatterns,
+    CPP,
+    PackageImports,
+    ScopedTypeVariables,
+    EmptyDataDecls,
+    ForeignFunctionInterface,
+    OverloadedStrings,
+    Rank2Types,
+    TypeSynonymInstances,
+    FlexibleInstances,
+    ExistentialQuantification,
+    OverloadedStrings,
+    FlexibleContexts,
+    GeneralizedNewtypeDeriving,
+    DeriveDataTypeable,
+    MultiParamTypeClasses
+
   ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
                -fno-warn-unused-do-bind
