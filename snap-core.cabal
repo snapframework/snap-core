@@ -158,7 +158,7 @@ Library
     old-time,
     regex-posix <= 0.94.4,
     text >= 0.11 && <0.12,
-    time >= 1.0 && < 1.4,
+    time >= 1.0 && < 1.5,
     transformers == 0.2.*,
     unix-compat >= 0.2 && <0.4,
     unordered-containers >= 0.1.4.3 && <0.2,
