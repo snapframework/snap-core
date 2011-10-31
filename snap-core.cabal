@@ -156,7 +156,7 @@ Library
     mwc-random >= 0.10 && <0.11,
     old-locale,
     old-time,
-    regex-posix <= 0.94.4,
+    regex-posix <= 0.95.2,
     text >= 0.11 && <0.12,
     time >= 1.0 && < 1.5,
     transformers == 0.2.*,
