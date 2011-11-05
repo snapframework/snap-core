@@ -689,7 +689,7 @@ unsafeEnumBuilderToByteString :: MonadIO m
 unsafeEnumBuilderToByteString =
     builderToByteStringWith (reuseBufferStrategy (allocBuffer bufsize))
   where
-    bufsize = 2::Int ^ 14::Int
+    bufsize = (2::Int) ^ (14::Int)
 
 ------------------------------------------------------------------------------
 enumByteStringToBuilder :: MonadIO m => Enumeratee ByteString Builder m a
