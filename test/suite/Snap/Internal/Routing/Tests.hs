@@ -51,7 +51,9 @@ tests = [ testRouting1
         , testRouting26
         , testRouting27
         , testRouting28
-        , testRouteLocal ]
+        , testRouteLocal
+        , testRouteUrlDecode
+        ]
 
 expectException :: IO a -> IO ()
 expectException m = do
@@ -77,18 +79,19 @@ go m s = do
     dummy = const $ return ()
 
 routes :: Snap ByteString
-routes = route [ ("foo"          , topFoo    )
-               , ("foo/bar"      , fooBar    )
-               , ("foo/bar/baz"  , fooBarBaz )
-               , ("foo/:id"      , fooCapture)
-               , ("bar/:id"      , fooCapture)
-               , ("bar/quux"     , barQuux   )
-               , ("bar"          , bar       )
-               , ("z/:a/:b/:c/d" , zabc      ) ]
+routes = route [ ("foo"          , topFoo        )
+               , ("foo/bar"      , fooBar        )
+               , ("foo/bar/baz"  , getRqPathInfo )
+               , ("foo/:id"      , fooCapture    )
+               , ("bar/:id"      , fooCapture    )
+               , ("herp/:derp/"  , getRqPathInfo )
+               , ("bar/quux"     , barQuux       )
+               , ("bar"          , bar           )
+               , ("z/:a/:b/:c/d" , zabc          ) ]
 
 routesLocal :: Snap ByteString
-routesLocal = routeLocal [ ("foo/bar/baz"  , fooBarBaz )
-                         , ("bar"          , pass ) ]
+routesLocal = routeLocal [ ("foo/bar/baz"  , getRqPathInfo )
+                         , ("bar"          , pass          ) ]
 
 routes2 :: Snap ByteString
 routes2 = route [ (""    , topTop )
@@ -119,7 +122,7 @@ routes7 = route [ ("foo/:id"       , fooCapture )
                 , (""              , topTop     ) ]
 
 
-topTop, topFoo, fooBar, fooCapture, fooBarBaz, bar, barQuux :: Snap ByteString
+topTop, topFoo, fooBar, fooCapture, getRqPathInfo, bar, barQuux :: Snap ByteString
 dblA, zabc, topCapture, fooCapture2 :: Snap ByteString
 
 dblA = do
@@ -145,158 +148,163 @@ topCapture = do
     mp <- getParam "foo"
     maybe pass return mp
 
-topTop = return "topTop"
-topFoo = return "topFoo"
-fooBar = return "fooBar"
-fooCapture = liftM (head . fromJust . rqParam "id") getRequest
-fooCapture2 = liftM (head . fromJust . rqParam "id2") getRequest
-fooBarBaz = liftM rqPathInfo getRequest
-barQuux = return "barQuux"
-bar     = return "bar"
+topTop        = return "topTop"
+topFoo        = return "topFoo"
+fooBar        = return "fooBar"
+fooCapture    = liftM (head . fromJust . rqParam "id") getRequest
+fooCapture2   = liftM (head . fromJust . rqParam "id2") getRequest
+getRqPathInfo = liftM rqPathInfo getRequest
+barQuux       = return "barQuux"
+bar           = return "bar"
 
 -- TODO more useful test names
 
 testRouting1 :: Test
-testRouting1 = testCase "routing1" $ do
+testRouting1 = testCase "route/1" $ do
     r1 <- go routes "foo"
     assertEqual "/foo" "topFoo" r1
 
 testRouting2 :: Test
-testRouting2 = testCase "routing2" $ do
+testRouting2 = testCase "route/2" $ do
     r2 <- go routes "foo/baz"
     assertEqual "/foo/baz" "baz" r2
 
 testRouting3 :: Test
-testRouting3 = testCase "routing3" $ do
+testRouting3 = testCase "route/3" $ do
     expectException $ go routes "/xsaxsaxsax"
 
 testRouting4 :: Test
-testRouting4 = testCase "routing4" $ do
+testRouting4 = testCase "route/4" $ do
     r3 <- go routes "foo/bar"
     assertEqual "/foo/bar" "fooBar" r3
 
 testRouting5 :: Test
-testRouting5 = testCase "routing5" $ do
+testRouting5 = testCase "route/5" $ do
     r4 <- go routes "foo/bar/baz/quux"
     assertEqual "/foo/bar/baz/quux" "quux" r4
 
 testRouting6 :: Test
-testRouting6 = testCase "routing6" $ do
+testRouting6 = testCase "route/6" $ do
     r5 <- go routes "foo/bar/sproing"
     assertEqual "/foo/bar/sproing" "fooBar" r5
 
 testRouting7 :: Test
-testRouting7 = testCase "routing7" $ do
+testRouting7 = testCase "route/7" $ do
     r <- go routes "bar"
     assertEqual "/bar" "bar" r
 
 testRouting8 :: Test
-testRouting8 = testCase "routing8" $ do
+testRouting8 = testCase "route/8" $ do
     r2 <- go routes "bar/quux"
     assertEqual "/bar/quux" "barQuux" r2
 
 testRouting9 :: Test
-testRouting9 = testCase "routing9" $ do
+testRouting9 = testCase "route/9" $ do
     r3 <- go routes "bar/whatever"
     assertEqual "/bar/whatever" "whatever" r3
 
 testRouting10 :: Test
-testRouting10 = testCase "routing10" $ do
+testRouting10 = testCase "route/10" $ do
     r4 <- go routes "bar/quux/whatever"
     assertEqual "/bar/quux/whatever" "barQuux" r4
 
 testRouting11 :: Test
-testRouting11 = testCase "routing11" $ do
+testRouting11 = testCase "route/11" $ do
     r1 <- go routes2 ""
     assertEqual "/" "topTop" r1
 
 testRouting12 :: Test
-testRouting12 = testCase "routing12" $ do
+testRouting12 = testCase "route/12" $ do
     r1 <- go routes2 "foo"
     assertEqual "/foo" "topFoo" r1
 
 testRouting13 :: Test
-testRouting13 = testCase "routing13" $ do
+testRouting13 = testCase "route/13" $ do
     r1 <- go routes3 "zzzz"
     assertEqual "/zzzz" "zzzz" r1
 
 testRouting14 :: Test
-testRouting14 = testCase "routing14" $ do
+testRouting14 = testCase "route/14" $ do
     r1 <- go routes3 ""
     assertEqual "/" "topTop" r1
 
 testRouting15 :: Test
-testRouting15 = testCase "routing15" $ do
+testRouting15 = testCase "route/15" $ do
     r1 <- go routes4 "zzzz"
     assertEqual "/zzzz" "zzzz" r1
 
 testRouting16 :: Test
-testRouting16 = testCase "routing16" $ do
+testRouting16 = testCase "route/16" $ do
     r1 <- go routes5 ""
     assertEqual "/" "topTop" r1
 
 testRouting17 :: Test
-testRouting17 = testCase "routing17" $ do
+testRouting17 = testCase "route/17" $ do
     r1 <- go routes "z/a/b/c/d"
     assertEqual "/z/a/b/c/d" "ok" r1
 
 testRouting18 :: Test
-testRouting18 = testCase "routing18" $ do
+testRouting18 = testCase "route/18" $ do
     r1 <- go routes6 "a/a"
     assertEqual "/a/a" "ok" r1
 
 testRouting19 :: Test
-testRouting19 = testCase "routing19" $ do
+testRouting19 = testCase "route/19" $ do
     r1 <- go routes7 "foo"
     assertEqual "/foo" "topTop" r1
 
 testRouting20 :: Test
-testRouting20 = testCase "routing20" $ do
+testRouting20 = testCase "route/20" $ do
     r1 <- go routes7 "foo/baz"
     assertEqual "/foo/baz" "baz" r1
 
 testRouting21 :: Test
-testRouting21 = testCase "routing21" $ do
+testRouting21 = testCase "route/21" $ do
     r1 <- go routes7 "foo/baz/quux"
     assertEqual "/foo/baz/quux" "quux" r1
 
 testRouting22 :: Test
-testRouting22 = testCase "routing22" $ do
+testRouting22 = testCase "route/22" $ do
     r1 <- go routes7 "fooo/baz"
     assertEqual "/fooo/baz" "topTop" r1
 
 testRouting23 :: Test
-testRouting23 = testCase "routing23" $ do
+testRouting23 = testCase "route/23" $ do
     r1 <- go routes7 "fooo/baz/quux"
     assertEqual "/fooo/baz/quux" "quux" r1
 
 testRouting24 :: Test
-testRouting24 = testCase "routing24" $ do
+testRouting24 = testCase "route/24" $ do
     r1 <- go routes7 "foooo/bar/bax"
     assertEqual "/foooo/bar/bax" "topTop" r1
 
 testRouting25 :: Test
-testRouting25 = testCase "routing25" $ do
+testRouting25 = testCase "route/25" $ do
     r1 <- go routes7 "foooo/bar/baz"
     assertEqual "/foooo/bar/baz" "bar" r1
 
 testRouting26 :: Test
-testRouting26 = testCase "routing26" $ do
+testRouting26 = testCase "route/26" $ do
     r1 <- go routes4 "foo/bar"
     assertEqual "capture union" "bar" r1
 
 testRouting27 :: Test
-testRouting27 = testCase "routing27" $ do
+testRouting27 = testCase "route/27" $ do
     r1 <- go routes4 "foo"
     assertEqual "capture union" "foo" r1
 
 testRouting28 :: Test
-testRouting28 = testCase "routing28" $ do
+testRouting28 = testCase "route/28" $ do
     r1 <- go routes4 "quux/baz"
     assertEqual "capture union" "quux" r1
 
+testRouteUrlDecode :: Test
+testRouteUrlDecode = testCase "route/urlDecode" $ do
+    r1 <- go routes "herp/%7Bderp%7D/"
+    assertEqual "rqPathInfo on urldecode" "/" r1
+
 testRouteLocal :: Test
-testRouteLocal = testCase "routeLocal" $ do
+testRouteLocal = testCase "route/routeLocal" $ do
     r4 <- go routesLocal "foo/bar/baz/quux"
     assertEqual "/foo/bar/baz/quux" "foo/bar/baz/quux" r4
     expectException $ go routesLocal "bar"
