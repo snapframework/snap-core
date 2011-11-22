@@ -33,7 +33,9 @@ module Snap.Core
 
     -- ** Access to state
   , getRequest
+  , getsRequest
   , getResponse
+  , getsResponse
   , putRequest
   , putResponse
   , modifyRequest

@@ -540,10 +540,26 @@ getRequest = liftSnap $ liftM _snapRequest sget
 
 
 ------------------------------------------------------------------------------
+-- | Grabs something out of the 'Request' object, using the given projection
+-- function. See 'gets'.
+getsRequest :: MonadSnap m => (Request -> a) -> m a
+getsRequest f = liftSnap $ liftM (f . _snapRequest) sget
+{-# INLINE getsRequest #-}
+
+
+------------------------------------------------------------------------------
 -- | Grabs the 'Response' object out of the 'Snap' monad.
 getResponse :: MonadSnap m => m Response
 getResponse = liftSnap $ liftM _snapResponse sget
 {-# INLINE getResponse #-}
+
+
+------------------------------------------------------------------------------
+-- | Grabs something out of the 'Response' object, using the given projection
+-- function. See 'gets'.
+getsResponse :: MonadSnap m => (Response -> a) -> m a
+getsResponse f = liftSnap $ liftM (f . _snapResponse) sget
+{-# INLINE getsResponse #-}
 
 
 ------------------------------------------------------------------------------
