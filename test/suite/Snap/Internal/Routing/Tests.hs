@@ -53,6 +53,7 @@ tests = [ testRouting1
         , testRouting28
         , testRouteLocal
         , testRouteUrlDecode
+        , testRouteUrlEncodedPath
         ]
 
 expectException :: IO a -> IO ()
@@ -79,15 +80,17 @@ go m s = do
     dummy = const $ return ()
 
 routes :: Snap ByteString
-routes = route [ ("foo"          , topFoo        )
-               , ("foo/bar"      , fooBar        )
-               , ("foo/bar/baz"  , getRqPathInfo )
-               , ("foo/:id"      , fooCapture    )
-               , ("bar/:id"      , fooCapture    )
-               , ("herp/:derp/"  , getRqPathInfo )
-               , ("bar/quux"     , barQuux       )
-               , ("bar"          , bar           )
-               , ("z/:a/:b/:c/d" , zabc          ) ]
+routes = route [ ("foo"          , topFoo          )
+               , ("foo/bar"      , fooBar          )
+               , ("foo/bar/baz"  , getRqPathInfo   )
+               , ("foo/:id"      , fooCapture      )
+               , ("bar/:id"      , fooCapture      )
+               , ("herp/:derp/"  , getRqPathInfo   )
+               , ("nerp/:derp/"  , getRqContextPath)
+               , ("a b c d"      , return "OK"     )
+               , ("bar/quux"     , barQuux         )
+               , ("bar"          , bar             )
+               , ("z/:a/:b/:c/d" , zabc            ) ]
 
 routesLocal :: Snap ByteString
 routesLocal = routeLocal [ ("foo/bar/baz"  , getRqPathInfo )
@@ -122,8 +125,9 @@ routes7 = route [ ("foo/:id"       , fooCapture )
                 , (""              , topTop     ) ]
 
 
-topTop, topFoo, fooBar, fooCapture, getRqPathInfo, bar, barQuux :: Snap ByteString
-dblA, zabc, topCapture, fooCapture2 :: Snap ByteString
+topTop, topFoo, fooBar, fooCapture, getRqPathInfo, bar,
+  getRqContextPath, barQuux, dblA, zabc, topCapture, 
+  fooCapture2 :: Snap ByteString
 
 dblA = do
     ma <- getParam "a"
@@ -148,14 +152,15 @@ topCapture = do
     mp <- getParam "foo"
     maybe pass return mp
 
-topTop        = return "topTop"
-topFoo        = return "topFoo"
-fooBar        = return "fooBar"
-fooCapture    = liftM (head . fromJust . rqParam "id") getRequest
-fooCapture2   = liftM (head . fromJust . rqParam "id2") getRequest
-getRqPathInfo = liftM rqPathInfo getRequest
-barQuux       = return "barQuux"
-bar           = return "bar"
+topTop           = return "topTop"
+topFoo           = return "topFoo"
+fooBar           = return "fooBar"
+fooCapture       = liftM (head . fromJust . rqParam "id") getRequest
+fooCapture2      = liftM (head . fromJust . rqParam "id2") getRequest
+getRqPathInfo    = liftM rqPathInfo getRequest
+getRqContextPath = liftM rqContextPath getRequest
+barQuux          = return "barQuux"
+bar              = return "bar"
 
 -- TODO more useful test names
 
@@ -301,7 +306,17 @@ testRouting28 = testCase "route/28" $ do
 testRouteUrlDecode :: Test
 testRouteUrlDecode = testCase "route/urlDecode" $ do
     r1 <- go routes "herp/%7Bderp%7D/"
-    assertEqual "rqPathInfo on urldecode" "/" r1
+    assertEqual "rqPathInfo on urldecode" "" r1
+    r2 <- go routes "foo/%7Bderp%7D/"
+    assertEqual "urldecoded capture" "{derp}" r2
+    r3 <- go routes "nerp/%7Bderp%7D/"
+    assertEqual "rqContextPath on urldecode" "/nerp/%7Bderp%7D/" r3
+
+testRouteUrlEncodedPath :: Test
+testRouteUrlEncodedPath = testCase "route/urlEncodedPath" $ do
+    -- make sure path search urlDecodes.
+    r1 <- go routes "a+b+c+d"
+    assertEqual "urlEncoded search works" "OK" r1
 
 testRouteLocal :: Test
 testRouteLocal = testCase "route/routeLocal" $ do

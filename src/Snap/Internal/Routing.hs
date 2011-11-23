@@ -1,5 +1,6 @@
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE Rank2Types       #-}
 module Snap.Internal.Routing where
 
 
@@ -90,15 +91,19 @@ routeHeight :: Route a m -> Int
 routeHeight r = case r of
   NoRoute          -> 1
   (Action _)       -> 1
-  (Capture _ r' _) -> 1+routeHeight r'
-  (Dir rm _)       -> 1+foldl max 1 (map routeHeight $ Map.elems rm)
+  (Capture _ r' _) -> 1 + routeHeight r'
+  (Dir rm _)       -> 1 + foldl max 1 (map routeHeight $ Map.elems rm)
+{-# INLINE routeHeight #-}
 
+
+------------------------------------------------------------------------------
 routeEarliestNC :: Route a m -> Int -> Int
 routeEarliestNC r n = case r of
   NoRoute           -> n
   (Action _)        -> n
   (Capture _ r' _)  -> routeEarliestNC r' n+1
   (Dir _ _)         -> n
+{-# INLINE routeEarliestNC #-}
 
 
 ------------------------------------------------------------------------------
@@ -150,12 +155,29 @@ routeEarliestNC r n = case r of
 -- >       , ("article/:id", renderArticle)
 -- >       , ("login",       method POST doLogin) ]
 --
+--
+-- /URL decoding/
+--
+-- A short note about URL decoding: path matching and variable capture are done
+-- on /decoded/ URLs, but the contents of 'rqContextPath' and 'rqPathInfo' will
+-- contain the original encoded URL, i.e. what the user entered. For example,
+-- in the following scenario:
+--
+-- > route [ ("a b c d/", foo ) ]
+--
+-- A request for \"@/a+b+c+d@\" will be sent to @foo@ with 'rqContextPath' set
+-- to \"/a+b+c+d/\".
+--
+-- This behaviour changed as of Snap 0.6.1; previous versions had unspecified
+-- (and buggy!) semantics here.
+--
 route :: MonadSnap m => [(ByteString, m a)] -> m a
 route rts = do
-  p <- getRequest >>= maybe pass return . urlDecode . rqPathInfo
-  route' (return ()) ([], splitPath p) Map.empty rts'
+  p <- getsRequest rqPathInfo
+  route' (return ()) [] (splitPath p) Map.empty rts'
   where
     rts' = mconcat (map pRoute rts)
+{-# INLINE route #-}
 
 
 ------------------------------------------------------------------------------
@@ -168,18 +190,19 @@ routeLocal rts = do
     req    <- getRequest
     let ctx = rqContextPath req
     let p   = rqPathInfo req
-    p' <- maybe pass return $ urlDecode p
     let md  = modifyRequest $ \r -> r {rqContextPath=ctx, rqPathInfo=p}
 
-    (route' md ([], splitPath p') Map.empty rts') <|> (md >> pass)
+    (route' md [] (splitPath p) Map.empty rts') <|> (md >> pass)
 
   where
     rts' = mconcat (map pRoute rts)
+{-# INLINE routeLocal #-}
 
 
 ------------------------------------------------------------------------------
 splitPath :: ByteString -> [ByteString]
 splitPath = B.splitWith (== (c2w '/'))
+{-# INLINE splitPath #-}
 
 
 ------------------------------------------------------------------------------
@@ -190,16 +213,19 @@ pRoute (r, a) = foldr f (Action a) hier
     f s rt = if B.head s == c2w ':'
         then Capture (B.tail s) rt NoRoute
         else Dir (Map.fromList [(s, rt)]) NoRoute
+{-# INLINE pRoute #-}
 
 
 ------------------------------------------------------------------------------
 route' :: MonadSnap m
-       => m ()
-       -> ([ByteString], [ByteString])
+       => m ()           -- ^ action to run before we call the user handler
+       -> [ByteString]   -- ^ the \"context\"; the list of path segments we've
+                         -- already successfully matched, in reverse order
+       -> [ByteString]   -- ^ the list of path segments we haven't yet matched
        -> Params
        -> Route a m
        -> m a
-route' pre (ctx, _) params (Action action) =
+route' pre !ctx _ !params (Action action) =
     localRequest (updateContextPath (B.length ctx') . updateParams)
                  (pre >> action)
   where
@@ -207,20 +233,26 @@ route' pre (ctx, _) params (Action action) =
     updateParams req = req
       { rqParams = Map.unionWith (++) params (rqParams req) }
 
-route' pre (ctx, [])       params (Capture _ _  fb) =
-    route' pre (ctx, []) params fb
-route' pre (ctx, cwd:rest) params (Capture p rt fb) =
-    (route' pre (cwd:ctx, rest) params' rt) <|>
-    (route' pre (ctx, cwd:rest) params  fb)
+route' pre !ctx [] !params (Capture _ _  fb) =
+    route' pre ctx [] params fb
+
+route' pre !ctx (cwd:rest) !params (Capture p rt fb) =
+    m <|> (route' pre ctx (cwd:rest) params fb)
   where
-    params' = Map.insertWith (++) p [cwd] params
+    m = do
+        maybe pass
+              (\cwd' -> let params' = Map.insertWith (++) p [cwd'] params
+                        in route' pre (cwd:ctx) rest params' rt)
+              (urlDecode cwd)
+    
 
-route' pre (ctx, [])       params (Dir _   fb) =
-    route' pre (ctx, []) params fb
-route' pre (ctx, cwd:rest) params (Dir rtm fb) =
-    case Map.lookup cwd rtm of
-      Just rt -> (route' pre (cwd:ctx, rest) params rt) <|>
-                 (route' pre (ctx, cwd:rest) params fb)
-      Nothing -> route' pre (ctx, cwd:rest) params fb
+route' pre !ctx [] !params (Dir _ fb) =
+    route' pre ctx [] params fb
+route' pre !ctx (cwd:rest) !params (Dir rtm fb) = do
+    cwd' <- maybe pass return $ urlDecode cwd
+    case Map.lookup cwd' rtm of
+      Just rt -> (route' pre (cwd:ctx) rest params rt) <|>
+                 (route' pre ctx (cwd:rest) params fb)
+      Nothing -> route' pre ctx (cwd:rest) params fb
 
-route' _ _ _ NoRoute = pass
+route' _ _ _ _ NoRoute = pass
