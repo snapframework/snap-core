@@ -128,6 +128,7 @@ Library
   other-modules:
     Snap.Internal.Instances,
     Snap.Internal.Iteratee.BoyerMooreHorspool,
+    Snap.Internal.Parsing.FastSet,
     Snap.Internal.Routing,
     Snap.Internal.Types,
     Snap.Internal.Test.RequestBuilder,
@@ -135,7 +136,7 @@ Library
 
 
   build-depends:
-    attoparsec >= 0.8.0.2 && < 0.10,
+    attoparsec >= 0.8.0.2 && < 0.11,
     attoparsec-enumerator >= 0.2.0.3,
     base >= 4 && < 5,
     base16-bytestring <= 0.2,
@@ -143,7 +144,7 @@ Library
     blaze-builder-enumerator >= 0.2 && <0.3,
     bytestring,
     bytestring-nums,
-    case-insensitive >= 0.3 && < 0.4,
+    case-insensitive >= 0.3 && < 0.5,
     containers,
     deepseq >= 1.1 && <1.3,
     directory,

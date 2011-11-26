@@ -9,8 +9,6 @@ import           Control.Arrow (first, second)
 import           Control.Monad
 import           Data.Attoparsec.Char8 hiding (Done, many)
 import qualified Data.Attoparsec.Char8 as Atto
-import           Data.Attoparsec.FastSet (FastSet)
-import qualified Data.Attoparsec.FastSet as FS
 import           Data.Bits
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -34,6 +32,8 @@ import           Prelude hiding (head, take, takeWhile)
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Parsing.FastSet (FastSet)
+import qualified Snap.Internal.Parsing.FastSet as FS
 
 
 ------------------------------------------------------------------------------
