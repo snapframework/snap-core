@@ -7,8 +7,8 @@ import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Arrow (first, second)
 import           Control.Monad
-import           Data.Attoparsec.Char8 hiding (Done, many)
-import qualified Data.Attoparsec.Char8 as Atto
+import           Data.Attoparsec.Types (IResult(..))
+import           Data.Attoparsec.Char8
 import           Data.Bits
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
@@ -40,9 +40,9 @@ import qualified Snap.Internal.Parsing.FastSet as FS
 fullyParse :: ByteString -> Parser a -> Either String a
 fullyParse s p =
     case r' of
-      (Fail _ _ e)    -> Left e
-      (Partial _)     -> Left "parse failed"
-      (Atto.Done _ x) -> Right x
+      (Fail _ _ e) -> Left e
+      (Partial _)  -> Left "parse failed"
+      (Done _ x)   -> Right x
   where
     r  = parse p s
     r' = feed r ""
@@ -50,7 +50,7 @@ fullyParse s p =
 
 ------------------------------------------------------------------------------
 parseNum :: Parser Int64
-parseNum = liftM int $ Atto.takeWhile1 Atto.isDigit
+parseNum = liftM int $ takeWhile1 isDigit
 
 
 ------------------------------------------------------------------------------
@@ -257,8 +257,8 @@ parseToCompletion p s = toResult $ finish r
   where
     r = parse p s
 
-    toResult (Atto.Done _ c) = Just c
-    toResult _               = Nothing
+    toResult (Done _ c) = Just c
+    toResult _          = Nothing
 
 
 ------------------------------------------------------------------------------
@@ -351,9 +351,9 @@ hexd c0 = fromWord8 (c2w '%') `mappend` fromWord8 hi `mappend` fromWord8 low
 
 
 ------------------------------------------------------------------------------
-finish :: Atto.Result a -> Atto.Result a
-finish (Atto.Partial f) = flip feed "" $ f ""
-finish x                = x
+finish :: Result a -> Result a
+finish (Partial f) = flip feed "" $ f ""
+finish x           = x
 
 
 

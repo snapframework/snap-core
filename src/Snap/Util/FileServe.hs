@@ -32,7 +32,7 @@ import           Control.Exception (SomeException, evaluate)
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
-import           Data.Attoparsec.Char8 hiding (Done)
+import           Data.Attoparsec.Char8
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Internal (c2w)

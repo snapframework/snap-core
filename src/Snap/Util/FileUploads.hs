@@ -72,7 +72,7 @@ import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
 import qualified Data.Attoparsec.Char8 as Atto
-import           Data.Attoparsec.Char8 hiding (many, Result(..))
+import           Data.Attoparsec.Char8
 import           Data.Attoparsec.Enumerator
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
