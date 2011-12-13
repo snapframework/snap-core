@@ -115,6 +115,7 @@ Library
     Snap.Types,
     Snap.Iteratee,
     Snap.Internal.Debug,
+    Snap.Internal.Exceptions,
     Snap.Internal.Http.Types,
     Snap.Internal.Iteratee.Debug,
     Snap.Internal.Parsing,

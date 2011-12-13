@@ -38,6 +38,7 @@ import           Prelude hiding (catch, take)
 
 ------------------------------------------------------------------
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Exceptions
 import           Snap.Internal.Iteratee.Debug
 import           Snap.Util.Readable
 import           Snap.Iteratee
@@ -841,73 +842,9 @@ instance Exception NoHandlerException
 
 
 ------------------------------------------------------------------------------
--- | An exception hierarchy for exceptions that cannot be caught by
--- user-defined error handlers
-data UncatchableException = forall e. Exception e => UncatchableException e
-  deriving (Typeable)
-
-
-------------------------------------------------------------------------------
-instance Show UncatchableException where
-    show (UncatchableException e) = "Uncatchable exception: " ++ show e
-
-
-------------------------------------------------------------------------------
-instance Exception UncatchableException
-
-
-------------------------------------------------------------------------------
-uncatchableExceptionToException :: Exception e => e -> SomeException
-uncatchableExceptionToException = toException . UncatchableException
-
-
-------------------------------------------------------------------------------
-uncatchableExceptionFromException :: Exception e => SomeException -> Maybe e
-uncatchableExceptionFromException e = do
-    UncatchableException ue <- fromException e
-    cast ue
-
-
-------------------------------------------------------------------------------
-data ConnectionTerminatedException =
-    ConnectionTerminatedException SomeException
-  deriving (Typeable)
-
-
-------------------------------------------------------------------------------
-instance Show ConnectionTerminatedException where
-    show (ConnectionTerminatedException e) =
-        "Connection terminated with exception: " ++ show e
-
-
-------------------------------------------------------------------------------
-instance Exception ConnectionTerminatedException where
-    toException   = uncatchableExceptionToException
-    fromException = uncatchableExceptionFromException
-
-
-------------------------------------------------------------------------------
 -- | Terminate the HTTP session with the given exception.
 terminateConnection :: (Exception e, MonadCatchIO m) => e -> m a
 terminateConnection = throw . ConnectionTerminatedException . toException
-
-
--- | This exception is thrown if the handler chooses to escape regular HTTP
--- traffic.
-data EscapeHttpException = EscapeHttpException
-    ((Int -> IO ()) -> Iteratee ByteString IO () -> Iteratee ByteString IO ())
-        deriving (Typeable)
-
-
-------------------------------------------------------------------------------
-instance Show EscapeHttpException where
-    show = const "HTTP traffic was escaped"
-
-
-------------------------------------------------------------------------------
-instance Exception EscapeHttpException where
-    toException   = uncatchableExceptionToException
-    fromException = uncatchableExceptionFromException
 
 
 ------------------------------------------------------------------------------
