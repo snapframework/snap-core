@@ -31,6 +31,7 @@ import           Test.HUnit hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Debug
+import           Snap.Internal.Exceptions
 import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Types
 import           Snap.Iteratee hiding (map)

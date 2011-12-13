@@ -30,7 +30,8 @@ import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit hiding (Test, path)
-                 
+
+import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types
@@ -284,7 +285,7 @@ testBracketSnap = testCase "types/bracketSnap" $ do
                         (const $ return ())
                         (const $ return ())
                         rq
-                         
+
     y' <- readIORef ref
     assertEqual "bracketSnap/after" 2 y'
 
@@ -294,7 +295,7 @@ testBracketSnap = testCase "types/bracketSnap" $ do
                         (const $ return ())
                         (const $ return ())
                         rq
-                         
+
     y'' <- readIORef ref
     assertEqual "bracketSnap/after" 3 y''
 
