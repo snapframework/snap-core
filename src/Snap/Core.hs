@@ -11,7 +11,6 @@ module Snap.Core
   , runSnap
   , MonadSnap(..)
   , NoHandlerException(..)
-  , EscapeHttpException(..)
 
     -- ** Functions for control flow and early termination
   , bracketSnap

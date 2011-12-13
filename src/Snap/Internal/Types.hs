@@ -892,7 +892,7 @@ terminateConnection :: (Exception e, MonadCatchIO m) => e -> m a
 terminateConnection = throw . ConnectionTerminatedException . toException
 
 
--- | This is exception is thrown if the handler chooses to escape regular HTTP
+-- | This exception is thrown if the handler chooses to escape regular HTTP
 -- traffic.
 data EscapeHttpException = EscapeHttpException
     ((Int -> IO ()) -> Iteratee ByteString IO () -> Iteratee ByteString IO ())
