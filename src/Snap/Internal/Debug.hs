@@ -16,20 +16,21 @@
 module Snap.Internal.Debug where
 
 ------------------------------------------------------------------------------
-import             Control.Monad.Trans
+import           Control.Monad.Trans
 
 #ifndef NODEBUG
-import             Control.Concurrent
-import             Control.DeepSeq
-import             Control.Exception
-import             Data.Char
-import             Data.List
-import             Data.Maybe
-import             Foreign.C.Error
-import             System.Environment
-import             System.IO
-import             System.IO.Unsafe
-import             Text.Printf
+import           Control.Concurrent
+import           Control.DeepSeq
+import           Data.Either
+import           Control.Exception
+import           Data.Char
+import           Data.List
+import           Data.Maybe
+import           Foreign.C.Error
+import           System.Environment
+import           System.IO
+import           System.IO.Unsafe
+import           Text.Printf
 #endif
 ------------------------------------------------------------------------------
 
@@ -43,12 +44,13 @@ debug = let !x = unsafePerformIO $! do
             !e <- try $ getEnv "DEBUG"
 
             !f <- either (\(_::SomeException) -> return debugIgnore)
-                         (\y -> if y == "1" || y == "on"
-                                  then return debugOn
-                                  else if y == "testsuite"
-                                         then return debugSeq
-                                         else return debugIgnore)
-                         (fmap (map toLower) e)
+                         (\y0 -> let y = map toLower y0
+                                 in if y == "1" || y == "on"
+                                   then return debugOn
+                                   else if y == "testsuite"
+                                          then return debugSeq
+                                          else return debugIgnore)
+                         e
             return $! f
         in x
 
@@ -58,12 +60,13 @@ debugErrno = let !x = unsafePerformIO $ do
                  e <- try $ getEnv "DEBUG"
 
                  !f <- either (\(_::SomeException) -> return debugErrnoIgnore)
-                              (\y -> if y == "1" || y == "on"
-                                       then return debugErrnoOn
-                                       else if y == "testsuite"
-                                              then return debugErrnoSeq
-                                              else return debugErrnoIgnore)
-                              (fmap (map toLower) e)
+                              (\y0 -> let y = map toLower y0
+                                      in if y == "1" || y == "on"
+                                        then return debugErrnoOn
+                                        else if y == "testsuite"
+                                               then return debugErrnoSeq
+                                               else return debugErrnoIgnore)
+                              e
                  return $! f
              in x
 
