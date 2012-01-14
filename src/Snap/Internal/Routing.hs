@@ -244,7 +244,7 @@ route' pre !ctx (cwd:rest) !params (Capture p rt fb) =
               (\cwd' -> let params' = Map.insertWith (++) p [cwd'] params
                         in route' pre (cwd:ctx) rest params' rt)
               (urlDecode cwd)
-    
+
 
 route' pre !ctx [] !params (Dir _ fb) =
     route' pre ctx [] params fb

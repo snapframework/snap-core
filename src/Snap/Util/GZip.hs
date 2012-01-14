@@ -202,7 +202,7 @@ acceptParser = do
     xs <- option [] $ (:[]) <$> encoding
     ys <- many (char ',' *> encoding)
     endOfInput
-    return $ xs ++ ys
+    return $! xs ++ ys
   where
     encoding = skipSpace *> c <* skipSpace
 

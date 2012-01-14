@@ -97,9 +97,9 @@ mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
 
-    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing GET (1,1) [] "" uri "/"
-                     (S.concat ["/",uri]) "" Map.empty
+    return $! Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
+                      enum Nothing GET (1,1) [] "" uri "/"
+                      (S.concat ["/",uri]) "" Map.empty
 
 mkRequestQuery :: ByteString -> ByteString -> [ByteString] -> IO Request
 mkRequestQuery uri k v = do

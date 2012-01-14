@@ -5,7 +5,7 @@
 -- Module      :  Snap.Internal.Parsing.FastSet
 -- Copyright   :  Bryan O'Sullivan 2008
 -- License     :  BSD3
--- 
+--
 -- Maintainer  :  bos@serpentine.com
 -- Stability   :  experimental
 -- Portability :  unknown
@@ -17,7 +17,7 @@
 --
 -- Note: this module copied here from the attoparsec source because it was made
 -- private in version 0.10.
--- 
+--
 -----------------------------------------------------------------------------
 module Snap.Internal.Parsing.FastSet
     (

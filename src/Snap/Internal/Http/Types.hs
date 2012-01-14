@@ -637,7 +637,7 @@ formatHttpTime = return . format . toUTCTime
 
 formatLogTime ctime = do
   t <- utcToLocalZonedTime $ toUTCTime ctime
-  return $ format t
+  return $! format t
 
   where
     format :: ZonedTime -> ByteString

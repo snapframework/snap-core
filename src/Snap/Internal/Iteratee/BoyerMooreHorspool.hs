@@ -44,7 +44,7 @@ lookahead n = go id n
                             -- debug $ "lookahead " ++ show n
                             --  ++ " failing, returning " ++ show ls
 
-                            return $ Left ls)
+                            return $! Left ls)
                         (\x -> do
                              let !l  = S.length x
                              let !r  = k - l
@@ -56,7 +56,7 @@ lookahead n = go id n
                                    -- debug $ "lookahead " ++ show n
                                    --  ++ " successfully returning "
                                    --  ++ show ls
-                                   return $ Right $ ls
+                                   return $! Right ls
                                else go d' r)
 {-# INLINE lookahead #-}
 
@@ -129,7 +129,7 @@ bmhEnumeratee needle _step = do
                   step <- if not $ S.null nomatch
                             then lift $ runIteratee $ k
                                       $ Chunks [NoMatch nomatch]
-                            else return $ Continue k
+                            else return $! Continue k
 
                   cDone step $ \k' -> do
                       step' <- lift $ runIteratee $ k' $ Chunks [Match needle]
@@ -171,7 +171,7 @@ bmhEnumeratee needle _step = do
                    step <- if not $ S.null nomatch
                              then lift $ runIteratee $ k $
                                   Chunks [NoMatch nomatch]
-                             else return $ Continue k
+                             else return $! Continue k
 
                    -- debug $ "matching"
                    cDone step $ \k' -> do

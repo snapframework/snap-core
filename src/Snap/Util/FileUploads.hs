@@ -297,7 +297,7 @@ handleMultipart uploadPolicy origPartHandler = do
 
     maxFormVars = maximumNumberOfFormInputs uploadPolicy
 
-    procCaptures l [] = return $ reverse l
+    procCaptures l [] = return $! reverse l
     procCaptures l ((File x):xs) = procCaptures (x:l) xs
     procCaptures l ((Capture k v):xs) = do
         rq <- getRequest
@@ -565,7 +565,7 @@ captureVariableOrReadFile maxSize fileHandler partInfo =
         var <- liftM S.concat $
                joinI' $
                takeNoMoreThan maxSize $$ consume
-        return $ Capture fieldName var
+        return $! Capture fieldName var
 
     handler e = do
         debug $ "captureVariableOrReadFile/handler: caught " ++ show e
@@ -781,15 +781,15 @@ processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
         if isLast
           then return Nothing
           else do
-            x <- partIter
+            !x <- partIter
             skipToEof
-            return $ Just x
+            return $! Just x
 
-    go soFar = {-# SCC "processParts/go" #-} do
+    go !soFar = {-# SCC "processParts/go" #-} do
       b <- isEOF
 
       if b
-        then return $ D.toList soFar
+        then return $! D.toList soFar
         else do
            -- processPart $$ iter
            --   :: Iteratee MatchInfo m (Step ByteString m a)
@@ -800,7 +800,7 @@ processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
 
            case output of
              Just x  -> go (D.append soFar $ D.singleton x)
-             Nothing -> return $ D.toList soFar
+             Nothing -> return $! D.toList soFar
 
     bParser = iterateeDebugWrapper "boundary debugger" $
                   iterParser $ pBoundaryEnd

@@ -209,10 +209,10 @@ rethrowIfUncatchable (Just e) = throw e
 
 ------------------------------------------------------------------------------
 instance MonadPlus Snap where
-    mzero = Snap $ return $ PassOnProcessing ""
+    mzero = Snap $! return $! PassOnProcessing ""
 
     a `mplus` b =
-        Snap $ do
+        Snap $! do
             r <- unSnap a
             -- redundant just in case ordering by frequency helps here.
             case r of
@@ -923,7 +923,7 @@ getParam :: MonadSnap m
          -> m (Maybe ByteString)
 getParam k = do
     rq <- getRequest
-    return $ liftM (S.intercalate " ") $ rqParam k rq
+    return $! liftM (S.intercalate " ") $ rqParam k rq
 
 
 ------------------------------------------------------------------------------

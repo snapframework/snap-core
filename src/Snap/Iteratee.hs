@@ -149,7 +149,7 @@ instance (Functor m, MonadCatchIO m) =>
                 (Right v) -> step v
 
         step (Continue !k)  = do
-            return $ Continue (\s -> insideCatch $ k s)
+            return $! Continue (\s -> insideCatch $ k s)
         -- don't worry about Error here because the error had to come from the
         -- handler (because of 'catchError' above)
         step y             = return y
@@ -162,12 +162,12 @@ instance (Functor m, MonadCatchIO m) =>
     --block :: m a -> m a
     block m = Iteratee $ block $ (runIteratee m >>= step)
       where
-        step (Continue k) = return $ Continue (\s -> block (k s))
+        step (Continue k) = return $! Continue (\s -> block (k s))
         step y            = return y
 
     unblock m = Iteratee $ unblock $ (runIteratee m >>= step)
       where
-        step (Continue k) = return $ Continue (\s -> unblock (k s))
+        step (Continue k) = return $! Continue (\s -> unblock (k s))
         step y            = return y
 
 
@@ -217,8 +217,8 @@ countBytes i = Iteratee $ do
     step <- runIteratee i
     case step of
       (Continue k) -> return (Continue $ go 0 k)
-      (Yield x s)  -> return $ Yield (x,0) s
-      (Error e)    -> return $ Error e
+      (Yield x s)  -> return $! Yield (x,0) s
+      (Error e)    -> return $! Error e
 
   where
     go !n k str = Iteratee $ do
@@ -252,7 +252,7 @@ unsafeBufferIteratee :: Iteratee ByteString IO a
                      -> IO (Iteratee ByteString IO a)
 unsafeBufferIteratee step = do
     buf <- mkIterateeBuffer
-    return $ unsafeBufferIterateeWithBuffer buf step
+    return $! unsafeBufferIterateeWithBuffer buf step
 
 
 ------------------------------------------------------------------------------
@@ -274,7 +274,7 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
   where
     --------------------------------------------------------------------------
     start :: Step ByteString IO a -> IO (Step ByteString IO a)
-    start (Continue k) = return $ Continue $ go 0 k
+    start (Continue k) = return $! Continue $ go 0 k
     start s@_          = return s
 
 
@@ -312,7 +312,7 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
 
               step  <- sendBuf n k
               step2 <- runIteratee $ enumEOF step
-              return $ copyStep step2
+              return $! copyStep step2
 
 
     go !n !k (Chunks xs) = Iteratee $ do
@@ -347,7 +347,7 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
             let b' = plusPtr bufp n
             copyBytes b' p sz
 
-        return $ Continue $ go (n+m) k
+        return $! Continue $! go (n+m) k
 
 
 
@@ -375,8 +375,8 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
             iv <- sendBuf bUFSIZ k
             case iv of
               (Yield x r)   -> let !z = copy r
-                               in return $ Yield x $ (z `mappend` Chunks [s2])
-              (Error e)     -> return $ Error e
+                               in return $! Yield x $! (z `mappend` Chunks [s2])
+              (Error e)     -> return $! Error e
               (Continue k') -> do
                   -- check the size of the remainder; if it's bigger than the
                   -- buffer size then just send it
@@ -386,8 +386,8 @@ unsafeBufferIterateeWithBuffer buf iter = Iteratee $ do
                         case step of
                           (Yield x r)    -> let !z = copy r
                                             in return $! Yield x z
-                          (Error e)      -> return $ Error e
-                          (Continue k'') -> return $ Continue $ go 0 k''
+                          (Error e)      -> return $! Error e
+                          (Continue k'') -> return $! Continue $! go 0 k''
 
                     else copyAndCont 0 k' s2 m2
 
@@ -600,7 +600,7 @@ maxMMapFileSize = 41943040
 tooBigForMMap :: FilePath -> IO Bool
 tooBigForMMap fp = do
     stat <- getFileStatus fp
-    return $ fileSize stat > maxMMapFileSize
+    return $! fileSize stat > maxMMapFileSize
 
 
 ------------------------------------------------------------------------------

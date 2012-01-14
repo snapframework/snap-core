@@ -74,7 +74,7 @@ getSafePath = do
     let dirs = splitDirectories p
     when (elem ".." dirs) pass
 
-    return $ joinPath dirs
+    return $! joinPath dirs
 
 
 ------------------------------------------------------------------------------
@@ -607,7 +607,7 @@ rangeParser = string "bytes=" *>
         char '-'
         end   <- option Nothing $ liftM Just parseNum
 
-        return $ RangeReq start end
+        return $! RangeReq start end
 
     suffixByteRangeSpec = liftM SuffixRangeReq $ char '-' *> parseNum
 
