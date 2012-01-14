@@ -10,6 +10,7 @@ import           Control.Applicative
 import           Control.Arrow (first, second)
 import           Control.Monad
 import           Data.Attoparsec.Char8
+import           Data.Attoparsec.Types (IResult(..))
 import           Data.Bits
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
