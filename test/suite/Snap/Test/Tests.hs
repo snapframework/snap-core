@@ -128,9 +128,9 @@ testMisc = testCase "test/requestBuilder/testMisc" $ do
         setRequestPath "/foo/bar"
 
     assertEqual "secure" True $ rqIsSecure request
-    assertEqual "rqPathInfo" "/foo/bar" $ rqPathInfo request
+    assertEqual "rqPathInfo" "foo/bar" $ rqPathInfo request
     assertEqual "rqURI" "/foo/bar" $ rqURI request
-    assertEqual "rqContextPath" "" $ rqContextPath request
+    assertEqual "rqContextPath" "/" $ rqContextPath request
     assertEqual "rqVersion" (1,1) $ rqVersion request
 
     body <- getRqBody request
@@ -155,9 +155,9 @@ testMisc = testCase "test/requestBuilder/testMisc" $ do
 
     assertEqual "secure" True $ rqIsSecure request3
     assertEqual "method" DELETE $ rqMethod request3
-    assertEqual "rqPathInfo" "/foo/bar" $ rqPathInfo request3
+    assertEqual "rqPathInfo" "foo/bar" $ rqPathInfo request3
     assertEqual "rqURI" "/foo/bar" $ rqURI request3
-    assertEqual "rqContextPath" "" $ rqContextPath request3
+    assertEqual "rqContextPath" "/" $ rqContextPath request3
     assertEqual "rqVersion" (1,1) $ rqVersion request3
 
 

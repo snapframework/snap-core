@@ -4,43 +4,45 @@
 
 module Snap.Internal.Test.RequestBuilder
   ( RequestBuilder
-  , buildRequest
   , MultipartParams
   , MultipartParam(..)
   , FileData      (..)
   , RequestType   (..)
-  , setQueryStringRaw
-  , setQueryString
-  , setRequestType
   , addHeader
-  , setHeader
-  , setContentType
-  , setSecure
-  , setHttpVersion
-  , setRequestPath
-  , get
-  , postUrlEncoded
-  , postMultipart
-  , put
-  , postRaw
+  , buildRequest
   , delete
-  , runHandler
-  , runHandler'
   , dumpResponse
+  , evalHandler
+  , evalHandlerM
+  , get
+  , postMultipart
+  , postRaw
+  , postUrlEncoded
+  , put
   , responseToString
+  , runHandler
+  , runHandlerM
+  , setContentType
+  , setHeader
+  , setHttpVersion
+  , setQueryString
+  , setQueryStringRaw
+  , setRequestPath
+  , setRequestType
+  , setSecure
   ) where
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
-import           Control.Monad.State hiding (get, put)
-import qualified Control.Monad.State as State
-import qualified Data.ByteString.Base16   as B16
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import           Data.CaseInsensitive   (CI)
+import           Control.Monad.State            hiding (get, put)
+import qualified Control.Monad.State            as State
+import qualified Data.ByteString.Base16         as B16
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import           Data.CaseInsensitive           (CI)
 import           Data.IORef
-import qualified Data.Map as Map
+import qualified Data.Map                       as Map
 import           Data.Monoid
 import           Data.Word
 import           System.PosixCompat.Time
@@ -49,11 +51,15 @@ import           System.Random.MWC
 import           Snap.Internal.Http.Types hiding (addHeader,
                                                   setContentType,
                                                   setHeader)
-import qualified Snap.Internal.Http.Types as H
+import qualified Snap.Internal.Http.Types       as H
 import           Snap.Internal.Parsing
-import           Snap.Iteratee hiding (map)
-import           Snap.Core hiding (addHeader, setContentType, setHeader)
-import qualified Snap.Types.Headers as H
+import           Snap.Internal.Types            (evalSnap)
+import           Snap.Iteratee                  hiding (map)
+import           Snap.Core                      hiding ( addHeader
+                                                       , setContentType
+                                                       , setHeader )
+import qualified Snap.Types.Headers             as H
+
 
 ------------------------------------------------------------------------------
 -- | RequestBuilder is a monad transformer that allows you to conveniently
@@ -414,11 +420,14 @@ setHttpVersion v = rModify $ \rq -> rq { rqVersion = v }
 -- in your test request, you must use 'setQueryString' or 'setQueryStringRaw'.
 -- Note that 'rqContextPath' is never set by any 'RequestBuilder' function.
 setRequestPath :: Monad m => ByteString -> RequestBuilder m ()
-setRequestPath p = do
+setRequestPath p0 = do
     rModify $ \rq -> rq { rqSnapletPath = ""
-                        , rqContextPath = ""
+                        , rqContextPath = "/"
                         , rqPathInfo    = p }
     fixupURI
+
+  where
+    p = if S.isPrefixOf "/" p0 then S.drop 1 p0 else p0
 
 
 ------------------------------------------------------------------------------
@@ -497,31 +506,14 @@ postRaw uri contentType postData = do
 
 
 ------------------------------------------------------------------------------
--- | Given a web handler in some 'MonadSnap' monad, and a 'RequestBuilder'
--- defining a test request, runs the handler, producing an HTTP 'Response'.
-runHandler' :: (MonadIO m, MonadSnap n) =>
-               (forall a . Request -> n a -> m Response)
-            -- ^ a function defining how the 'MonadSnap' monad should be run
-            -> RequestBuilder m ()
-            -- ^ a request builder
-            -> n b
-            -- ^ a web handler
-            -> m Response
-runHandler' rSnap rBuilder snap = do
-    rq  <- buildRequest rBuilder
-    rsp <- rSnap rq snap
-    t1  <- liftIO (epochTime >>= formatHttpTime)
-    return $ H.setHeader "Date" t1 rsp
-
-
-------------------------------------------------------------------------------
 -- | Given a web handler in the 'Snap' monad, and a 'RequestBuilder' defining
 -- a test request, runs the handler, producing an HTTP 'Response'.
+--
 runHandler :: MonadIO m =>
               RequestBuilder m ()   -- ^ a request builder
            -> Snap a                -- ^ a web handler
            -> m Response
-runHandler = runHandler' rs
+runHandler = runHandlerM rs
   where
     rs rq s = do
         (_,rsp) <- liftIO $ run_ $ runSnap s
@@ -529,6 +521,66 @@ runHandler = runHandler' rs
                                       (const $ return $! ())
                                       rq
         return rsp
+
+
+------------------------------------------------------------------------------
+-- | Given a web handler in some arbitrary 'MonadSnap' monad, a function
+-- specifying how to evaluate it within the context of the test monad, and a
+-- 'RequestBuilder' defining a test request, runs the handler, producing an
+-- HTTP 'Response'.
+runHandlerM :: (MonadIO m, MonadSnap n) =>
+               (forall a . Request -> n a -> m Response)
+            -- ^ a function defining how the 'MonadSnap' monad should be run
+            -> RequestBuilder m ()
+            -- ^ a request builder
+            -> n b
+            -- ^ a web handler
+            -> m Response
+runHandlerM rSnap rBuilder snap = do
+    rq  <- buildRequest rBuilder
+    rsp <- rSnap rq snap
+    t1  <- liftIO (epochTime >>= formatHttpTime)
+    return $ H.setHeader "Date" t1 rsp
+
+
+------------------------------------------------------------------------------
+-- | Given a web handler in the 'Snap' monad, and a 'RequestBuilder' defining a
+-- test request, runs the handler and returns the monadic value it produces.
+--
+-- Throws an exception if the 'Snap' handler early-terminates with 'finishWith'
+-- or 'mzero'.
+--
+evalHandler :: MonadIO m =>
+               RequestBuilder m ()
+            -> Snap a
+            -> m a
+evalHandler = evalHandlerM rs
+  where
+    rs rq s = liftIO $ run_
+                     $ evalSnap s (const $ return $! ())
+                                  (const $ return $! ())
+                                  rq
+
+
+------------------------------------------------------------------------------
+-- | Given a web handler in some arbitrary 'MonadSnap' monad, a function
+-- specifying how to evaluate it within the context of the test monad, and a
+-- 'RequestBuilder' defining a test request, runs the handler, returning the
+-- monadic value it produces.
+--
+-- Throws an exception if the 'Snap' handler early-terminates with 'finishWith'
+-- or 'mzero'.
+--
+evalHandlerM :: (MonadIO m, MonadSnap n) =>
+                (forall a . Request -> n a -> m a)  -- ^ a function defining
+                                                    -- how the 'MonadSnap'
+                                                    -- monad should be run
+             -> RequestBuilder m ()                 -- ^ a request builder
+             -> n b                                 -- ^ a web handler
+             -> m b
+evalHandlerM rSnap rBuilder snap = do
+    rq <- buildRequest rBuilder
+    rSnap rq snap
 
 
 ------------------------------------------------------------------------------
