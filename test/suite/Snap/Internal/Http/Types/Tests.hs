@@ -59,7 +59,7 @@ testAddHeader = testCase "addHeader" $ do
 
 
     let x = getHeader "foo" req
-    assertEqual "addHeader x 2" (Just "baz bar") x
+    assertEqual "addHeader x 2" (Just "baz,bar") x
 
 
 testUrlDecode :: Test
