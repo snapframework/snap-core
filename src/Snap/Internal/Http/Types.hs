@@ -246,10 +246,10 @@ data Request = Request
       -- be \"\"
     , rqSnapletPath    :: !ByteString
 
-      -- | Handlers can (/will be; --ed/) be hung on a @URI@ \"entry point\";
-      -- this is called the \"context path\". If a handler is hung on the
-      -- context path @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the
-      -- value of 'rqPathInfo' will be @\"bar\"@.
+      -- | Handlers can be hung on a @URI@ \"entry point\"; this is called the
+      -- \"context path\". If a handler is hung on the context path
+      -- @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the value of
+      -- 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
       -- | The \"context path\" of the request; catenating 'rqContextPath',
@@ -265,10 +265,19 @@ data Request = Request
       -- | Returns the HTTP query string for this 'Request'.
     , rqQueryString    :: !ByteString
 
-      -- | Returns the 'Params' mapping for this 'Request'. \"Parameters\" are
-      -- automatically decoded from the query string and @POST@ body and
-      -- entered into this mapping.
+      -- | Returns the parameters mapping for this 'Request'. \"Parameters\"
+      -- are automatically decoded from the URI's query string and @POST@ body
+      -- and entered into this mapping. The 'rqParams' value is thus a union of
+      -- 'rqQueryParams' and 'rqPostParams'.
     , rqParams         :: Params
+
+      -- | The parameter mapping decoded from the URI's query string.
+    , rqQueryParams    :: Params
+
+      -- | The parameter mapping decoded from the POST body. Note that Snap
+      -- only auto-decodes POST request bodies when the request's
+      -- @Content-Type@ is @application/x-www-form-urlencoded@.
+    , rqPostParams     :: Params
     }
 
 
@@ -458,6 +467,26 @@ rqParam :: ByteString           -- ^ parameter name to look up
         -> Maybe [ByteString]
 rqParam k rq = Map.lookup k $ rqParams rq
 {-# INLINE rqParam #-}
+
+
+------------------------------------------------------------------------------
+-- | Looks up the value(s) for the given named parameter in the POST parameters
+-- mapping.
+rqPostParam :: ByteString           -- ^ parameter name to look up
+            -> Request              -- ^ HTTP request
+            -> Maybe [ByteString]
+rqPostParam k rq = Map.lookup k $ rqPostParams rq
+{-# INLINE rqPostParam #-}
+
+
+------------------------------------------------------------------------------
+-- | Looks up the value(s) for the given named parameter in the query
+-- parameters mapping.
+rqQueryParam :: ByteString           -- ^ parameter name to look up
+             -> Request              -- ^ HTTP request
+             -> Maybe [ByteString]
+rqQueryParam k rq = Map.lookup k $ rqQueryParams rq
+{-# INLINE rqQueryParam #-}
 
 
 ------------------------------------------------------------------------------

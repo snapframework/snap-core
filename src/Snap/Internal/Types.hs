@@ -1,11 +1,8 @@
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
-{-# LANGUAGE EmptyDataDecls            #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE PackageImports            #-}
 {-# LANGUAGE Rank2Types                #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
@@ -34,20 +31,18 @@ import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import           Data.Typeable
 import           Prelude hiding (catch, take)
-
-
-------------------------------------------------------------------
+------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Exceptions
 import           Snap.Internal.Iteratee.Debug
 import           Snap.Util.Readable
 import           Snap.Iteratee
-
-
-------------------------------------------------------------------------------
--- The Snap Monad
 ------------------------------------------------------------------------------
 
+
+                             --------------------
+                             -- The Snap Monad --
+                             --------------------
 {-|
 
 'Snap' is the 'Monad' that user web handlers run in. 'Snap' gives you:
@@ -910,6 +905,16 @@ evalSnap (Snap m) logerr timeoutAction req = do
 {-# INLINE evalSnap #-}
 
 
+------------------------------------------------------------------------------
+getParamFrom :: MonadSnap m =>
+                (ByteString -> Request -> Maybe [ByteString])
+             -> ByteString
+             -> m (Maybe ByteString)
+getParamFrom f k = do
+    rq <- getRequest
+    return $! liftM (S.intercalate " ") $ f k rq
+{-# INLINE getParamFrom #-}
+
 
 ------------------------------------------------------------------------------
 -- | See 'rqParam'. Looks up a value for the given named parameter in the
@@ -921,9 +926,38 @@ evalSnap (Snap m) logerr timeoutAction req = do
 getParam :: MonadSnap m
          => ByteString          -- ^ parameter name to look up
          -> m (Maybe ByteString)
-getParam k = do
-    rq <- getRequest
-    return $! liftM (S.intercalate " ") $ rqParam k rq
+getParam = getParamFrom rqParam
+{-# INLINE getParam #-}
+
+
+------------------------------------------------------------------------------
+-- | See 'rqPostParam'. Looks up a value for the given named parameter in the
+-- POST form parameters mapping in 'Request'. If more than one value was
+-- entered for the given parameter name, 'getPostParam' gloms the values
+-- together with:
+--
+-- @    'S.intercalate' \" \"@
+--
+getPostParam :: MonadSnap m
+             => ByteString          -- ^ parameter name to look up
+             -> m (Maybe ByteString)
+getPostParam = getParamFrom rqPostParam
+{-# INLINE getPostParam #-}
+
+
+------------------------------------------------------------------------------
+-- | See 'rqQueryParam'. Looks up a value for the given named parameter in the
+-- query string parameters mapping in 'Request'. If more than one value was
+-- entered for the given parameter name, 'getQueryParam' gloms the values
+-- together with:
+--
+-- @    'S.intercalate' \" \"@
+--
+getQueryParam :: MonadSnap m
+              => ByteString          -- ^ parameter name to look up
+              -> m (Maybe ByteString)
+getQueryParam = getParamFrom rqQueryParam
+{-# INLINE getQueryParam #-}
 
 
 ------------------------------------------------------------------------------
@@ -931,6 +965,20 @@ getParam k = do
 -- 'Request' inside of a 'MonadSnap' instance.
 getParams :: MonadSnap m => m Params
 getParams = getRequest >>= return . rqParams
+
+
+------------------------------------------------------------------------------
+-- | See 'rqParams'. Convenience function to return 'Params' from the
+-- 'Request' inside of a 'MonadSnap' instance.
+getPostParams :: MonadSnap m => m Params
+getPostParams = getRequest >>= return . rqPostParams
+
+
+------------------------------------------------------------------------------
+-- | See 'rqParams'. Convenience function to return 'Params' from the
+-- 'Request' inside of a 'MonadSnap' instance.
+getQueryParams :: MonadSnap m => m Params
+getQueryParams = getRequest >>= return . rqQueryParams
 
 
 ------------------------------------------------------------------------------

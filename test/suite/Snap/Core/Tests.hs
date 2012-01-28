@@ -99,7 +99,8 @@ mkRequest uri = do
 
     return $! Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
                       enum Nothing GET (1,1) [] "" uri "/"
-                      (S.concat ["/",uri]) "" Map.empty
+                      (S.concat ["/",uri]) "" Map.empty Map.empty Map.empty
+
 
 mkRequestQuery :: ByteString -> ByteString -> [ByteString] -> IO Request
 mkRequestQuery uri k v = do
@@ -110,7 +111,7 @@ mkRequestQuery uri k v = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "" uri "/"
-                     (S.concat ["/",uri,"?",q]) q mp
+                     (S.concat ["/",uri,"?",q]) q mp mp Map.empty
 
 
 mkZomgRq :: IO Request
@@ -118,7 +119,8 @@ mkZomgRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing GET (1,1) [] "" "/" "/" "/" "" Map.empty
+                     enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                     Map.empty Map.empty Map.empty
 
 
 mkIpHeaderRq :: IO Request
@@ -138,7 +140,7 @@ mkRqWithEnum e = do
     enum <- newIORef $ SomeEnumerator e
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                  enum Nothing GET (1,1) [] "" "/" "/" "/" ""
-                 Map.empty
+                 Map.empty Map.empty Map.empty
 
 testCatchIO :: Test
 testCatchIO = testCase "types/catchIO" $ do
@@ -474,12 +476,19 @@ testParam :: Test
 testParam = testCase "types/getParam" $ do
     expect404 $ goPath "/foo" f
     expectNo404 $ goPathQuery "/foo" "param" ["foo"] f
+    expectNo404 $ goPathQuery "/foo" "param" ["foo"] fQ
+    expect404 $ goPathQuery "/foo" "param" ["foo"] fP
+
   where
-    f = do
-        mp <- getParam "param"
+    p gp = do
+        mp <- gp "param"
         maybe pass
               (\s -> if s == "foo" then return () else pass)
               mp
+
+    f  = p getParam
+    fQ = p getQueryParam
+    fP = p getPostParam
 
 
 getBody :: Response -> IO L.ByteString

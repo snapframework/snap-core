@@ -91,9 +91,17 @@ module Snap.Core
   , rqURI
   , rqQueryString
   , rqParams
+  , rqQueryParams
+  , rqPostParams
   , rqParam
+  , rqPostParam
+  , rqQueryParam
   , getParam
+  , getPostParam
+  , getQueryParam
   , getParams
+  , getPostParams
+  , getQueryParams
   , rqModifyParams
   , rqSetParam
 

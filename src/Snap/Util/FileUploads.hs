@@ -274,7 +274,11 @@ handleMultipart uploadPolicy origPartHandler = do
     let boundary = fromJust mbBoundary
     captures <- runRequestBody (iter bumpTimeout boundary partHandler)
 
-    procCaptures [] captures
+    xs <- procCaptures [] captures
+    modifyRequest $ \req ->
+        let pp = rqPostParams req
+        in rqModifyParams (\p -> Map.unionWith (++) p pp) req
+    return xs
 
   where
     rateLimit bump m =
@@ -297,16 +301,18 @@ handleMultipart uploadPolicy origPartHandler = do
 
     maxFormVars = maximumNumberOfFormInputs uploadPolicy
 
+    modifyParams f r = r { rqPostParams = f $ rqPostParams r }
+
     procCaptures l [] = return $! reverse l
     procCaptures l ((File x):xs) = procCaptures (x:l) xs
     procCaptures l ((Capture k v):xs) = do
         rq <- getRequest
-        let n = Map.size $ rqParams rq
+        let n = Map.size $ rqPostParams rq
         when (n >= maxFormVars) $
           throw $ PolicyViolationException $
           T.concat [ "number of form inputs exceeded maximum of "
                    , T.pack $ show maxFormVars ]
-        modifyRequest $ rqModifyParams (ins k v)
+        modifyRequest $ modifyParams (ins k v)
         procCaptures l xs
 
 
