@@ -42,7 +42,7 @@ Executable testsuite
     enumerator >= 0.4.13.1 && < 0.5,
     MonadCatchIO-transformers >= 0.2 && < 0.3,
     mtl >= 2 && <3,
-    mwc-random >= 0.10 && <0.11,
+    mwc-random >= 0.10 && <0.12,
     old-locale,
     old-time,
     parallel >= 3 && <4,
