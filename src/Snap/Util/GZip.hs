@@ -150,45 +150,55 @@ compressibleMimeTypes = Set.fromList [ "application/x-font-truetype"
 gzipCompression :: MonadSnap m => ByteString -> m ()
 gzipCompression ce = modifyResponse f
   where
-    f = setHeader "Content-Encoding" ce .
-        setHeader "Vary" "Accept-Encoding" .
-        clearContentLength .
-        modifyResponseBody gcompress
+    f r = setHeader "Content-Encoding" ce    $
+          setHeader "Vary" "Accept-Encoding" $
+          clearContentLength                 $
+          modifyResponseBody (gcompress (getBufferingMode r)) r
 
 
 ------------------------------------------------------------------------------
 compressCompression :: MonadSnap m => ByteString -> m ()
 compressCompression ce = modifyResponse f
   where
-    f = setHeader "Content-Encoding" ce .
-        setHeader "Vary" "Accept-Encoding" .
-        clearContentLength .
-        modifyResponseBody ccompress
+    f r = setHeader "Content-Encoding" ce    $
+          setHeader "Vary" "Accept-Encoding" $
+          clearContentLength                 $
+          modifyResponseBody (ccompress (getBufferingMode r)) r
 
 
 ------------------------------------------------------------------------------
-gcompress :: forall a . Enumerator Builder IO a
+gcompress :: Bool               -- ^ buffer?
+          -> forall a . Enumerator Builder IO a
           -> Enumerator Builder IO a
-gcompress e st = e $$ iFinal
+gcompress buffer e st = e $$ iFinal
   where
     i0     = returnI st
-    iB     = mapFlush                =$ i0
+    iNoB   = mapFlush                =$ i0
+    iZNoB  = Z.gzip                  =$ iNoB
+
+    iB     = I.map fromByteString    =$ i0
     iZ     = Z.gzip                  =$ iB
-    iFinal = enumBuilderToByteString =$ iZ
+
+    iFinal = enumBuilderToByteString =$ if buffer then iZ else iZNoB
 
     mapFlush :: Monad m => Enumeratee ByteString Builder m b
     mapFlush = I.map ((`mappend` flush) . fromByteString)
 
 
 ------------------------------------------------------------------------------
-ccompress :: forall a . Enumerator Builder IO a
+ccompress :: Bool               -- ^ buffer?
+          -> forall a . Enumerator Builder IO a
           -> Enumerator Builder IO a
-ccompress e st = e $$ iFinal
+ccompress buffer e st = e $$ iFinal
   where
     i0     = returnI st
-    iB     = mapFlush                         =$ i0
+    iNoB   = mapFlush                         =$ i0
+    iZNoB  = Z.compress 5 Z.defaultWindowBits =$ iNoB
+
+    iB     = I.map fromByteString             =$ i0
     iZ     = Z.compress 5 Z.defaultWindowBits =$ iB
-    iFinal = enumBuilderToByteString          =$ iZ
+
+    iFinal = enumBuilderToByteString =$ if buffer then iZ else iZNoB
 
     mapFlush :: Monad m => Enumeratee ByteString Builder m b
     mapFlush = I.map ((`mappend` flush) . fromByteString)

@@ -155,7 +155,7 @@ Library
     HUnit >= 1.2 && < 2,
     MonadCatchIO-transformers >= 0.2.1 && < 0.3,
     mtl == 2.0.*,
-    mwc-random >= 0.10 && <0.11,
+    mwc-random >= 0.10 && <0.12,
     old-locale,
     old-time,
     regex-posix <= 0.95.2,

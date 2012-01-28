@@ -116,6 +116,8 @@ module Snap.Core
   , clearContentLength
   , redirect
   , redirect'
+  , setBufferingMode
+  , getBufferingMode
 
     -- *** Response I/O
   , setResponseBody

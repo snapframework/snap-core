@@ -1,21 +1,21 @@
+{-# LANGUAGE BangPatterns              #-}
+{-# LANGUAGE CPP                       #-}
+{-# LANGUAGE EmptyDataDecls            #-}
+{-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE ForeignFunctionInterface  #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE Rank2Types                #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
+
+------------------------------------------------------------------------------
 -- | An internal Snap module containing HTTP types.
 --
 -- /N.B./ this is an internal interface, please don't write user code that
 -- depends on it. Most of these declarations (except for the
 -- unsafe/encapsulation-breaking ones) are re-exported from "Snap.Core".
-
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE EmptyDataDecls #-}
-{-# LANGUAGE ForeignFunctionInterface #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Rank2Types #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE ExistentialQuantification #-}
-
+--
 module Snap.Internal.Http.Types where
-
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
@@ -24,6 +24,8 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString as S
+import           Data.CaseInsensitive   (CI)
+import qualified Data.CaseInsensitive as CI
 import           Data.Int
 import qualified Data.IntMap as IM
 import           Data.IORef
@@ -36,7 +38,7 @@ import           Data.Time.Clock
 import           Foreign.C.Types
 import           Prelude hiding (take)
 
-
+------------------------------------------------------------------------------
 #ifdef PORTABLE
 import           Data.Time.Format
 import           Data.Time.LocalTime
@@ -50,18 +52,16 @@ import           Foreign.C.String
 #endif
 
 ------------------------------------------------------------------------------
-import           Data.CaseInsensitive   (CI)
-import qualified Data.CaseInsensitive as CI
 import           Snap.Iteratee (Enumerator)
 import qualified Snap.Iteratee as I
 import           Snap.Types.Headers (Headers)
 import qualified Snap.Types.Headers as H
 
+
 #ifndef PORTABLE
 
 ------------------------------------------------------------------------------
 -- foreign imports from cbits
-
 foreign import ccall unsafe "set_c_locale"
         set_c_locale :: IO ()
 
@@ -80,7 +80,6 @@ foreign import ccall unsafe "c_format_log_time"
 ------------------------------------------------------------------------------
 -- | A typeclass for datatypes which contain HTTP headers.
 class HasHeaders a where
-
     -- | Modify the datatype's headers.
     updateHeaders :: (Headers -> Headers) -> a -> a
 
@@ -113,7 +112,7 @@ getHeaders k a = H.lookup k $ headers a
 -- | Gets a header value out of a 'HasHeaders' datatype. If many headers came
 -- in with the same name, they will be catenated together.
 getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
-getHeader k a = liftM (S.intercalate " ") (H.lookup k $ headers a)
+getHeader k a = liftM (S.intercalate ",") (H.lookup k $ headers a)
 
 
 ------------------------------------------------------------------------------
@@ -410,6 +409,12 @@ data Response = Response
       -- | If true, we are transforming the request body with
       -- 'transformRequestBody'
     , rspTransformingRqBody :: !Bool
+
+      -- | Controls whether Snap will buffer the output or not. You may wish to
+      -- disable buffering when using Comet-like techniques which rely on the
+      -- immediate sending of output data in order to maintain interactive
+      -- semantics.
+    , rspOutputBuffering    :: !Bool
     }
 
 
@@ -475,15 +480,17 @@ rqSetParam :: ByteString        -- ^ parameter name
 rqSetParam k v = rqModifyParams $ Map.insert k v
 {-# INLINE rqSetParam #-}
 
-------------------------------------------------------------------------------
--- responses
-------------------------------------------------------------------------------
 
+                                ---------------
+                                -- responses --
+                                ---------------
+
+------------------------------------------------------------------------------
 -- | An empty 'Response'.
 emptyResponse :: Response
 emptyResponse = Response H.empty Map.empty (1,1) Nothing
                          (Enum (I.enumBuilder mempty))
-                         200 "OK" False
+                         200 "OK" False True
 
 
 ------------------------------------------------------------------------------
@@ -614,19 +621,49 @@ clearContentLength r = r { rspContentLength = Nothing }
 
 
 ------------------------------------------------------------------------------
--- HTTP dates
+-- | The buffering mode controls whether Snap will buffer the output or not.
+-- You may wish to disable buffering when using Comet-like techniques which
+-- rely on the immediate sending of output data in order to maintain
+-- interactive semantics.
+getBufferingMode :: Response -> Bool
+getBufferingMode = rspOutputBuffering
+{-# INLINE getBufferingMode #-}
 
+
+------------------------------------------------------------------------------
+-- | The buffering mode controls whether Snap will buffer the output or not.
+-- You may wish to disable buffering when using Comet-like techniques which
+-- rely on the immediate sending of output data in order to maintain
+-- interactive semantics.
+setBufferingMode :: Bool        -- ^ if True, buffer the output, if False, send
+                                -- output immediately
+                 -> Response
+                 -> Response
+setBufferingMode b r = r { rspOutputBuffering = b }
+{-# INLINE setBufferingMode #-}
+
+
+                               ----------------
+                               -- HTTP dates --
+                               ----------------
+
+------------------------------------------------------------------------------
 -- | Converts a 'CTime' into an HTTP timestamp.
 formatHttpTime :: CTime -> IO ByteString
 
+
+------------------------------------------------------------------------------
 -- | Converts a 'CTime' into common log entry format.
 formatLogTime :: CTime -> IO ByteString
 
+
+------------------------------------------------------------------------------
 -- | Converts an HTTP timestamp into a 'CTime'.
 parseHttpTime :: ByteString -> IO CTime
 
 #ifdef PORTABLE
 
+------------------------------------------------------------------------------
 formatHttpTime = return . format . toUTCTime
   where
     format :: UTCTime -> ByteString
@@ -635,6 +672,8 @@ formatHttpTime = return . format . toUTCTime
     toUTCTime :: CTime -> UTCTime
     toUTCTime = posixSecondsToUTCTime . realToFrac
 
+
+------------------------------------------------------------------------------
 formatLogTime ctime = do
   t <- utcToLocalZonedTime $ toUTCTime ctime
   return $! format t
@@ -647,6 +686,7 @@ formatLogTime ctime = do
     toUTCTime = posixSecondsToUTCTime . realToFrac
 
 
+------------------------------------------------------------------------------
 parseHttpTime = return . toCTime . prs . toStr
   where
     prs :: String -> Maybe UTCTime
@@ -658,16 +698,21 @@ parseHttpTime = return . toCTime . prs . toStr
 
 #else
 
+------------------------------------------------------------------------------
 formatLogTime t = do
     ptr <- mallocBytes 40
     c_format_log_time t ptr
     S.unsafePackMallocCString ptr
 
+
+------------------------------------------------------------------------------
 formatHttpTime t = do
     ptr <- mallocBytes 40
     c_format_http_time t ptr
     S.unsafePackMallocCString ptr
 
+
+------------------------------------------------------------------------------
 parseHttpTime s = S.unsafeUseAsCString s $ \ptr ->
     c_parse_http_time ptr
 
