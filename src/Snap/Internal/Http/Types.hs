@@ -112,7 +112,7 @@ getHeaders k a = H.lookup k $ headers a
 -- | Gets a header value out of a 'HasHeaders' datatype. If many headers came
 -- in with the same name, they will be catenated together.
 getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
-getHeader k a = liftM (S.intercalate " ") (H.lookup k $ headers a)
+getHeader k a = liftM (S.intercalate ",") (H.lookup k $ headers a)
 
 
 ------------------------------------------------------------------------------
