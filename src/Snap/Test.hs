@@ -13,6 +13,9 @@ module Snap.Test
     -- ** Building Requests and testing handlers
   , buildRequest
   , runHandler
+  , runHandlerM
+  , evalHandler
+  , evalHandlerM
 
     -- *** Convenience functions for generating common types of HTTP requests
   , get
