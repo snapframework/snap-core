@@ -1,6 +1,6 @@
 name:           snap-core
 version:        0.8.0
-synopsis:       Snap: A Haskell Web Framework (Core)
+synopsis:       Snap: A Haskell Web Framework (core interfaces and types)
 
 description:
   Snap is a simple and fast web development framework and server written in
@@ -15,8 +15,7 @@ description:
   .
     2. Type aliases and helper functions for Iteratee I/O
   .
-    3. A monad for programming web handlers called \"Snap\", inspired by
-       happstack's (<http://happstack.com/index.html>), which allows:
+    3. A monad for programming web handlers called \"Snap\", which allows:
   .
        * Stateful access to the HTTP request and response objects
   .
@@ -28,15 +27,6 @@ description:
   .
   /Quick start/: The 'Snap' monad and HTTP definitions are in "Snap.Core",
   some iteratee utilities are in "Snap.Iteratee".
-  .
-  Higher-level facilities for building web applications (like user/session
-  management, component interfaces, data modeling, etc.) are planned but not
-  yet implemented, so this release will mostly be of interest for those who:
-  .
-  * need a fast and minimal HTTP API at roughly the same level of abstraction
-    as Java servlets, or
-  .
-  * are interested in contributing to the Snap Framework project.
 
 license:        BSD3
 license-file:   LICENSE
