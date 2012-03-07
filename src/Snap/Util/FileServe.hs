@@ -2,6 +2,7 @@
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE NoMonomorphismRestriction #-}
 
 -- | Contains web handlers to serve files from a directory.
 module Snap.Util.FileServe
@@ -10,6 +11,10 @@ module Snap.Util.FileServe
   -- * Configuration for directory serving
 , MimeMap
 , HandlerMap
+, ServeStrategy
+, serveWithModifiedSince
+, serveWithEtag
+, getFileTimestamp
 , DirectoryConfig(..)
 , simpleDirectoryConfig
 , defaultDirectoryConfig
@@ -21,39 +26,44 @@ module Snap.Util.FileServe
 , serveDirectory
 , serveDirectoryWith
 , serveFile
-, serveFileAs
 ) where
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
-import           Control.Exception (SomeException, evaluate)
+import           Control.Exception              (SomeException, evaluate)
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Char8 (ByteString)
-import           Data.ByteString.Internal (c2w)
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import           Data.ByteString.Internal       (c2w)
 import           Data.Int
 import           Data.List
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.Maybe (fromMaybe, isNothing)
+import           Data.Map                       (Map)
+import qualified Data.Map                       as Map
+import           Data.Maybe                     (fromMaybe, isNothing)
 import           Data.Monoid
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
-import           Prelude hiding (catch, show, Show)
+import qualified Data.Text                      as T
+import qualified Data.Text.Encoding             as T
+import           Data.Time
+import           Data.Time.Clock.POSIX
+import           Foreign.C.Types                (CTime)
 import qualified Prelude
+import           Prelude                        hiding (catch, show, Show)
 import           System.Directory
 import           System.FilePath
+import           System.Locale
+import           System.Posix.Types             (EpochTime)
 import           System.PosixCompat.Files
 ------------------------------------------------------------------------------
 import           Snap.Core
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
-import           Snap.Iteratee hiding (drop)
+import           Snap.Iteratee                  hiding (drop)
+-------------------------------------------------------------------------------
 
 
 ------------------------------------------------------------------------------
@@ -210,6 +220,15 @@ defaultMimeTypes = Map.fromList [
   ( ".zip"     , "application/zip"                   ) ]
 
 
+
+
+
+-------------------------------------------------------------------------------
+-- | A Handler that does the final file serving to the client. The
+-- function is fed a MIME type and path to the file to be served. 
+type ServeStrategy m = ByteString -> FilePath -> m ()
+
+
 ------------------------------------------------------------------------------
 -- | A collection of options for serving static files out of a directory.
 data DirectoryConfig m = DirectoryConfig {
@@ -229,7 +248,12 @@ data DirectoryConfig m = DirectoryConfig {
 
     -- | Handler that is called before a file is served.  It will only be
     -- called when a file is actually found, not for generated index pages.
-    preServeHook    :: FilePath -> m ()
+    preServeHook    :: FilePath -> m (),
+    
+    -- | Handler that finally serves files to client. The choice here
+    -- can be used, for example, to implement different asset caching
+    -- strategies.
+    serveStrategy :: ServeStrategy m
     }
 
 
@@ -370,7 +394,8 @@ simpleDirectoryConfig = DirectoryConfig {
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
     mimeTypes = defaultMimeTypes,
-    preServeHook = const $ return ()
+    preServeHook = const $ return (),
+    serveStrategy = serveWithModifiedSince
     }
 
 
@@ -386,7 +411,8 @@ defaultDirectoryConfig = DirectoryConfig {
     indexGenerator = const pass,
     dynamicHandlers = Map.empty,
     mimeTypes = defaultMimeTypes,
-    preServeHook = const $ return ()
+    preServeHook = const $ return (),
+    serveStrategy = serveWithModifiedSince
     }
 
 
@@ -405,7 +431,8 @@ fancyDirectoryConfig = DirectoryConfig {
     indexGenerator = defaultIndexGenerator defaultMimeTypes snapIndexStyles,
     dynamicHandlers = Map.empty,
     mimeTypes = defaultMimeTypes,
-    preServeHook = const $ return ()
+    preServeHook = const $ return (),
+    serveStrategy = serveWithModifiedSince
     }
 
 
@@ -441,12 +468,13 @@ serveDirectoryWith cfg base = do
     mimes    = mimeTypes cfg
     dyns     = dynamicHandlers cfg
     pshook   = preServeHook cfg
+    server   = serveStrategy cfg
 
     -- Serves a file if it exists; passes if not
     serve f = do
         liftIO (doesFileExist f) >>= flip unless pass
         let fname          = takeFileName f
-        let staticServe f' = pshook f >> serveFileAs (fileType mimes fname) f'
+        let staticServe f' = pshook f >> server (fileType mimes fname) f'
         lookupExt staticServe dyns fname f >> return True <|> return False
 
     -- Serves a directory via indices if available.  Returns True on success,
@@ -487,24 +515,15 @@ serveDirectoryWith cfg base = do
 serveFile :: MonadSnap m
           => FilePath          -- ^ path to file
           -> m ()
-serveFile fp = serveFileAs (fileType defaultMimeTypes (takeFileName fp)) fp
+serveFile fp = serveWithModifiedSince (fileType defaultMimeTypes (takeFileName fp)) fp
 {-# INLINE serveFile #-}
 
 
 ------------------------------------------------------------------------------
 -- | Same as 'serveFile', with control over the MIME mapping used.
-serveFileAs :: MonadSnap m
-            => ByteString        -- ^ MIME type
-            -> FilePath          -- ^ path to file
-            -> m ()
-serveFileAs mime fp = do
-    reqOrig <- getRequest
-
-    -- If-Range header must be ignored if there is no Range: header in the
-    -- request (RFC 2616 section 14.27)
-    let req = if isNothing $ getHeader "range" reqOrig
-                then deleteHeader "if-range" reqOrig
-                else reqOrig
+serveWithModifiedSince :: MonadSnap m => ServeStrategy m
+serveWithModifiedSince mime fp = do
+    req <- sanitizedRequest
 
     -- check "If-Modified-Since" and "If-Range" headers
     let mbH = getHeader "if-modified-since" req
@@ -512,58 +531,153 @@ serveFileAs mime fp = do
                                Nothing  -> return Nothing
                                (Just s) -> liftM Just $ parseHttpTime s
 
+    dbg $ "mbIfModified: " ++ Prelude.show mbIfModified
+
+    -- TODO: a stat cache would be nice here, but it'd need the date thread
+    -- stuff from snap-server to be folded into snap-core
+    (mt, sz) <- getFileStats fp
+    
+    lm <- liftIO $ formatHttpTime mt
+    modifyResponse $ setHeader "Last-Modified" lm
+
+    -- set some common header properties we know about by now
+    setFileProps mime
+    
+    -- checkRangeReq checks for a Range: header in the request and sends a
+    -- partial response if it matches.
+    wasRange <- rangeServeTimed req mt sz fp
+
+    dbg $ "was this a range request? " ++ Prelude.show wasRange
+    
+    unless wasRange $
+      case mbIfModified of
+          Nothing -> pushFile sz fp
+          Just lt -> 
+            case mt <= lt of
+              True -> respondNotModified
+              False -> pushFile sz fp
+
+
+-------------------------------------------------------------------------------
+-- | Serve with ETag based asset caching strategy. Use given function
+-- to extract hash values from files being served.
+--
+-- TODO: Add support for Range & If-Range headers
+serveWithEtag 
+    :: MonadSnap m
+    => (FilePath -> m ByteString)
+    -- ^ A function implementing some ETag hashing strategy when given
+    -- a filename
+    -> ServeStrategy m
+serveWithEtag f mime fp = do
+    req <- sanitizedRequest
+    etag <- f fp
+    (_, size) <- getFileStats fp
+    let serve = do
+          modifyResponse $ setHeader "ETag" etag
+          pushFile size fp
+    let inm = getHeaders "if-none-match" req
+    dbg $ "were there if-none-match headers in request? " ++ Prelude.show inm
+
+    setFileProps mime
+
+    case inm of
+      Just xs ->
+        case checkEntityMatch etag xs of
+          True -> respondNotModified
+          False -> serve
+      Nothing -> serve
+
+
+-------------------------------------------------------------------------------
+-- | Get a given file's timestamp in seconds since epoch. This can be
+-- used as a simple hashing/fingerprinting strategy when using
+-- 'serveWithEtag'
+getFileTimestamp :: MonadIO m => FilePath -> m ByteString
+getFileTimestamp fp = do
+    (ts, _) <- getFileStats fp
+    return $ S.pack $ formatTime defaultTimeLocale "%s" $ toUTCTime ts
+    where 
+        toUTCTime :: CTime -> UTCTime
+        toUTCTime = posixSecondsToUTCTime . realToFrac
+
+
+-------------------------------------------------------------------------------
+-- | Respond to a range request in the header. Semantics as described
+-- in HTTP spec 14.27 are:
+--
+-- If modification time is later than remembered, serve the entire
+-- file. This maps to doing nothing within the body of this function
+-- and returning False.
+-- 
+-- If remembered time is after last modification, then take a look at
+-- the Range header and fill in the client's asset gap.
+--
+-- If there is no if-range header, then check to see if there is a
+-- Range header by itself.
+rangeServeTimed
+    :: MonadSnap m => Request -> CTime -> Int64 -> FilePath -> m Bool
+rangeServeTimed req mt size fp  = do
     -- If-Range header could contain an entity, but then parseHttpTime will
     -- fail and return 0 which means a 200 response will be generated anyways
     mbIfRange <- liftIO $ case getHeader "if-range" req of
                             Nothing  -> return Nothing
                             (Just s) -> liftM Just $ parseHttpTime s
 
-    dbg $ "mbIfModified: " ++ Prelude.show mbIfModified
     dbg $ "mbIfRange: " ++ Prelude.show mbIfRange
+    
+    let shouldSkip = case mbIfRange of
+                         Nothing -> False
+                         Just lt -> mt > lt
+    if shouldSkip
+      then return False
+      else checkRangeReq req fp size
 
-    -- check modification time and bug out early if the file is not modified.
-    --
-    -- TODO: a stat cache would be nice here, but it'd need the date thread
-    -- stuff from snap-server to be folded into snap-core
-    filestat <- liftIO $ getFileStatus fp
-    let mt = modificationTime filestat
-    maybe (return $! ()) (\lt -> when (mt <= lt) notModified) mbIfModified
 
-    let sz = fromIntegral $ fileSize filestat
-    lm <- liftIO $ formatHttpTime mt
+-------------------------------------------------------------------------------
+-- | Get request, removing if-range if range is not present per RFC
+-- 2616 section 14.27
+sanitizedRequest :: MonadSnap m => m Request
+sanitizedRequest = do
+    reqOrig <- getRequest
 
-    -- ok, at this point we know the last-modified time and the
-    -- content-type. set those.
-    modifyResponse $ setHeader "Last-Modified" lm
+    -- If-Range header must be ignored if there is no Range: header in the
+    -- request (RFC 2616 section 14.27)
+    return $ if isNothing $ getHeader "range" reqOrig
+               then deleteHeader "if-range" reqOrig
+               else reqOrig
+
+
+-------------------------------------------------------------------------------
+checkEntityMatch :: Eq a => a -> [a] -> Bool
+checkEntityMatch target opts = target `elem` opts
+
+
+-------------------------------------------------------------------------------
+-- | Set some properties commong to all 'ServeStrategy' alternatives
+setFileProps :: MonadSnap m => ByteString -> m ()
+setFileProps mime = 
+    modifyResponse $ setContentType mime
                    . setHeader "Accept-Ranges" "bytes"
-                   . setContentType mime
+
+-------------------------------------------------------------------------------
+pushFile :: MonadSnap m => Int64 -> FilePath -> m ()
+pushFile size fp = do
+    modifyResponse $ setResponseCode 200
+                   . setContentLength size
+    sendFile fp
 
 
-    -- now check: is this a range request? If there is an 'If-Range' header
-    -- with an old modification time we skip this check and send a 200
-    -- response
-    let skipRangeCheck = maybe (False)
-                               (\lt -> mt > lt)
-                               mbIfRange
+-------------------------------------------------------------------------------
+getFileStats :: MonadIO m => FilePath -> m (EpochTime, Int64)
+getFileStats fp = do
+    st <- liftIO $ getFileStatus fp
+    return (modificationTime st, fromIntegral (fileSize st))
 
-    -- checkRangeReq checks for a Range: header in the request and sends a
-    -- partial response if it matches.
-    wasRange <- if skipRangeCheck
-                  then return False
-                  else liftSnap $ checkRangeReq req fp sz
 
-    dbg $ "was this a range request? " ++ Prelude.show wasRange
-
-    -- if we didn't have a range request, we just do normal sendfile
-    unless wasRange $ do
-      modifyResponse $ setResponseCode 200
-                     . setContentLength sz
-      liftSnap $ sendFile fp
-
-  where
-    --------------------------------------------------------------------------
-    notModified = finishWith $
-                  setResponseCode 304 emptyResponse
+-------------------------------------------------------------------------------
+respondNotModified :: MonadSnap m => m a
+respondNotModified = finishWith $ setResponseCode 304 emptyResponse
 
 
 ------------------------------------------------------------------------------

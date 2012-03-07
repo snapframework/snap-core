@@ -299,6 +299,7 @@ cfgA = DirectoryConfig {
        , dynamicHandlers = Map.empty
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
+       , serveStrategy   = serveWithModifiedSince
        }
 
 cfgB = DirectoryConfig {
@@ -307,6 +308,7 @@ cfgB = DirectoryConfig {
        , dynamicHandlers = Map.empty
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
+       , serveStrategy   = serveWithModifiedSince
        }
 
 cfgC = DirectoryConfig {
@@ -315,6 +317,7 @@ cfgC = DirectoryConfig {
        , dynamicHandlers = Map.empty
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
+       , serveStrategy   = serveWithModifiedSince
        }
 
 cfgD = DirectoryConfig {
@@ -323,6 +326,7 @@ cfgD = DirectoryConfig {
        , dynamicHandlers = Map.fromList [ (".txt", printName) ]
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
+       , serveStrategy   = serveWithModifiedSince
        }
 
 
