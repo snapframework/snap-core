@@ -36,7 +36,7 @@ import           Snap.Internal.Http.Types
 import           Snap.Internal.Exceptions
 import           Snap.Internal.Iteratee.Debug
 import           Snap.Util.Readable
-import           Snap.Iteratee
+import           Snap.Iteratee hiding (map)
 ------------------------------------------------------------------------------
 
 
@@ -873,11 +873,25 @@ runSnap (Snap m) logerr timeoutAction req = do
     return (_snapRequest ss', resp)
 
   where
-    fourohfour =
-        setContentLength 3 $
-        setResponseStatus 404 "Not Found" $
-        modifyResponseBody (>==> enumBuilder (fromByteString "404")) $
-        emptyResponse
+    fourohfour = do
+        clearContentLength                  $
+          setResponseStatus 404 "Not Found" $
+          setResponseBody enum404           $
+          emptyResponse
+
+    enum404 = enumBuilder $ mconcat $ map fromByteString html
+
+    html = [ S.concat [ "<!DOCTYPE html>\n"
+                      , "<html>\n"
+                      , "<head>\n"
+                      , "<title>Not found</title>\n"
+                      , "</head>\n"
+                      , "<body>\n"
+                      , "<code>No handler accepted \""
+                      ]
+           , rqURI req
+           , "\"</code>\n</body></html>"
+           ]
 
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
 

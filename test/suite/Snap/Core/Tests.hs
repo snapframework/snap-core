@@ -558,8 +558,7 @@ testMZero404 = testCase "types/mzero404" $ do
     (_,r) <- go mzero
     let l = rspContentLength r
     b <- getBody r
-    assertEqual "mzero 404" "404" b
-    assertEqual "mzero 404 length" (Just 3) l
+    assertBool "mzero 404" ("<!DOCTYPE html" `L.isPrefixOf` b)
 
 
 testEvalSnap :: Test
