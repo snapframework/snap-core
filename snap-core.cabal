@@ -145,7 +145,7 @@ Library
     HUnit >= 1.2 && < 2,
     MonadCatchIO-transformers >= 0.2.1 && < 0.3,
     mtl == 2.0.*,
-    mwc-random >= 0.10 && <0.12,
+    mwc-random >= 0.10 && <0.13,
     old-locale,
     old-time,
     regex-posix <= 0.95.2,
@@ -153,7 +153,7 @@ Library
     time >= 1.0 && < 1.5,
     transformers == 0.2.*,
     unix-compat >= 0.2 && <0.4,
-    unordered-containers >= 0.1.4.3 && <0.2,
+    unordered-containers >= 0.1.4.3 && <0.3,
     vector >= 0.6 && <0.10,
     zlib-enum >= 0.2.1 && <0.3
 
