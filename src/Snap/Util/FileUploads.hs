@@ -252,7 +252,7 @@ handleMultipart uploadPolicy origPartHandler = do
     hdrs <- liftM headers getRequest
     let (ct, mbBoundary) = getContentType hdrs
 
-    tickleTimeout <- getTimeoutAction
+    tickleTimeout <- liftM (. max) getTimeoutModifier
     let bumpTimeout = tickleTimeout $ uploadTimeout uploadPolicy
 
     let partHandler = if doProcessFormInputs uploadPolicy

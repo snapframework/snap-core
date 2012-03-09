@@ -848,11 +848,10 @@ terminateConnection = throw . ConnectionTerminatedException . toException
 -- | Terminate the HTTP session and hand control to some external handler,
 -- escaping all further HTTP traffic.
 --
--- The external handler takes two arguments: a function to tickle the timeout
--- manager, and a write end to the socket.
-escapeHttp :: MonadCatchIO m
-           => ((Int -> IO ()) -> Iteratee ByteString IO () ->
-                Iteratee ByteString IO ())
+-- The external handler takes two arguments: a function to modify the thread's
+-- timeout, and a write end to the socket.
+escapeHttp :: MonadCatchIO m =>
+              EscapeHttpHandler
            -> m ()
 escapeHttp = throw . EscapeHttpException
 
@@ -1056,6 +1055,8 @@ getTimeoutAction :: MonadSnap m => m (Int -> IO ())
 getTimeoutAction = do
     modifier <- liftSnap $ liftM _snapModifyTimeout sget
     return $! modifier . const
+{-# DEPRECATED getTimeoutAction
+      "use getTimeoutModifier instead. Since 0.8." #-}
 
 
 ------------------------------------------------------------------------------

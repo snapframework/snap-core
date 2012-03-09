@@ -18,6 +18,9 @@ module Snap.Core
   , catchFinishWith
   , pass
   , terminateConnection
+
+    -- *** Escaping HTTP
+  , EscapeHttpHandler
   , escapeHttp
 
     -- ** Routing
@@ -141,7 +144,10 @@ module Snap.Core
 
     -- ** Timeouts
   , setTimeout
+  , extendTimeout
+  , modifyTimeout
   , getTimeoutAction
+  , getTimeoutModifier
 
     -- * Iteratee
   , Enumerator
@@ -159,6 +165,7 @@ module Snap.Core
   ) where
 
 ------------------------------------------------------------------------------
+import           Snap.Internal.Exceptions (EscapeHttpHandler)
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Instances ()
 import           Snap.Internal.Parsing
