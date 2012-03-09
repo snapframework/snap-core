@@ -452,7 +452,7 @@ seconds = (10::Int) ^ (6::Int)
 
 ------------------------------------------------------------------------------
 runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
-runIt m rq = iterateeDebugWrapper "test" $ runSnap m d d rq
+runIt m rq = iterateeDebugWrapper "test" $ runSnap m d (const $ return ()) rq
   where
     d :: forall a . Show a => a -> IO ()
     d = \x -> show x `deepseq` return ()

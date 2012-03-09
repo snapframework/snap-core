@@ -163,21 +163,21 @@ testCatchIO = testCase "types/catchIO" $ do
 go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
-    run_ $ runSnap m dummy dummy zomgRq
+    run_ $ runSnap m dummy (const (return ())) zomgRq
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
 goIP :: Snap a -> IO (Request,Response)
 goIP m = do
     rq <- mkIpHeaderRq
-    run_ $ runSnap m dummy dummy rq
+    run_ $ runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
-    run_ $ runSnap m dummy dummy rq
+    run_ $ runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
@@ -189,7 +189,7 @@ goPathQuery :: ByteString
             -> IO (Request,Response)
 goPathQuery s k v m = do
     rq <- mkRequestQuery s k v
-    run_ $ runSnap m dummy dummy rq
+    run_ $ runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
@@ -197,7 +197,7 @@ goPathQuery s k v m = do
 goBody :: Snap a -> IO (Request,Response)
 goBody m = do
     rq <- mkRqWithBody
-    run_ $ runSnap m dummy dummy rq
+    run_ $ runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
@@ -207,7 +207,7 @@ goEnum :: (forall a . Enumerator ByteString IO a)
        -> IO (Request,Response)
 goEnum enum m = do
     rq <- mkRqWithEnum enum
-    run_ $ runSnap m dummy dummy rq
+    run_ $ runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
@@ -556,7 +556,6 @@ testIpHeaderFilter = testCase "types/ipHeaderFilter" $ do
 testMZero404 :: Test
 testMZero404 = testCase "types/mzero404" $ do
     (_,r) <- go mzero
-    let l = rspContentLength r
     b <- getBody r
     assertBool "mzero 404" ("<!DOCTYPE html" `L.isPrefixOf` b)
 
