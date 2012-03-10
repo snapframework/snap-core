@@ -1,6 +1,7 @@
 {-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE FlexibleInstances         #-}
 {-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE Rank2Types                #-}
@@ -91,8 +92,8 @@ import           Snap.Iteratee hiding (map)
    > a :: Snap ()
    > a = liftIO fireTheMissiles
 
-7. the ability to set a timeout which will kill the handler thread after @N@
-   seconds of inactivity (the default is 20 seconds):
+7. the ability to set or extend a timeout which will kill the handler thread
+   after @N@ seconds of inactivity (the default is 20 seconds):
 
    > a :: Snap ()
    > a = setTimeout 30
@@ -140,10 +141,11 @@ newtype Snap a = Snap {
 
 ------------------------------------------------------------------------------
 data SnapState = SnapState
-    { _snapRequest    :: Request
-    , _snapResponse   :: Response
-    , _snapLogError   :: ByteString -> IO ()
-    , _snapSetTimeout :: Int -> IO () }
+    { _snapRequest       :: Request
+    , _snapResponse      :: Response
+    , _snapLogError      :: ByteString -> IO ()
+    , _snapModifyTimeout :: (Int -> Int) -> IO ()
+    }
 
 
 ------------------------------------------------------------------------------
@@ -177,12 +179,12 @@ snapFail !m = Snap $! return $! PassOnProcessing m
 
 ------------------------------------------------------------------------------
 instance MonadIO Snap where
-    liftIO m = Snap $ liftM SnapValue $ liftIO m
+    liftIO m = Snap $! liftM SnapValue $! liftIO m
 
 
 ------------------------------------------------------------------------------
 instance MonadCatchIO Snap where
-    catch (Snap m) handler = Snap $ m `catch` h
+    catch (Snap m) handler = Snap $! m `catch` h
       where
         h e = do
             rethrowIfUncatchable $ fromException e
@@ -277,7 +279,7 @@ liftIter i = liftSnap $ Snap (lift i >>= return . SnapValue)
 -- immediately close the socket.
 runRequestBody :: MonadSnap m => Iteratee ByteString IO a -> m a
 runRequestBody iter = do
-    bumpTimeout <- liftM ($ 5) getTimeoutAction
+    bumpTimeout <- liftM ($ max 5) getTimeoutModifier
     req         <- getRequest
     senum       <- liftIO $ readIORef $ rqBody req
     let (SomeEnumerator enum) = senum
@@ -846,11 +848,10 @@ terminateConnection = throw . ConnectionTerminatedException . toException
 -- | Terminate the HTTP session and hand control to some external handler,
 -- escaping all further HTTP traffic.
 --
--- The external handler takes two arguments: a function to tickle the timeout
--- manager, and a write end to the socket.
-escapeHttp :: MonadCatchIO m
-           => ((Int -> IO ()) -> Iteratee ByteString IO () ->
-                Iteratee ByteString IO ())
+-- The external handler takes two arguments: a function to modify the thread's
+-- timeout, and a write end to the socket.
+escapeHttp :: MonadCatchIO m =>
+              EscapeHttpHandler
            -> m ()
 escapeHttp = throw . EscapeHttpException
 
@@ -859,7 +860,7 @@ escapeHttp = throw . EscapeHttpException
 -- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
 runSnap :: Snap a
         -> (ByteString -> IO ())
-        -> (Int -> IO ())
+        -> ((Int -> Int) -> IO ())
         -> Request
         -> Iteratee ByteString IO (Request,Response)
 runSnap (Snap m) logerr timeoutAction req = do
@@ -902,7 +903,7 @@ runSnap (Snap m) logerr timeoutAction req = do
 ------------------------------------------------------------------------------
 evalSnap :: Snap a
          -> (ByteString -> IO ())
-         -> (Int -> IO ())
+         -> ((Int -> Int) -> IO ())
          -> Request
          -> Iteratee ByteString IO a
 evalSnap (Snap m) logerr timeoutAction req = do
@@ -1029,15 +1030,36 @@ expireCookie nm dm = do
 
 ------------------------------------------------------------------------------
 -- | Causes the handler thread to be killed @n@ seconds from now.
-setTimeout :: MonadSnap m
-           => Int -> m ()
-setTimeout n = do
-    t <- getTimeoutAction
-    liftIO $ t n
+setTimeout :: MonadSnap m => Int -> m ()
+setTimeout = modifyTimeout . const
 
 
 ------------------------------------------------------------------------------
--- | Returns an 'IO' action which you can use to reset the handling thread's
+-- | Causes the handler thread to be killed at least @n@ seconds from now.
+extendTimeout :: MonadSnap m => Int -> m ()
+extendTimeout = modifyTimeout . max
+
+
+------------------------------------------------------------------------------
+-- | Modifies the amount of time remaining before the request times out.
+modifyTimeout :: MonadSnap m => (Int -> Int) -> m ()
+modifyTimeout f = do
+    m <- getTimeoutModifier
+    liftIO $ m f
+
+
+------------------------------------------------------------------------------
+-- | Returns an 'IO' action which you can use to set the handling thread's
 -- timeout value.
 getTimeoutAction :: MonadSnap m => m (Int -> IO ())
-getTimeoutAction = liftSnap $ liftM _snapSetTimeout sget
+getTimeoutAction = do
+    modifier <- liftSnap $ liftM _snapModifyTimeout sget
+    return $! modifier . const
+{-# DEPRECATED getTimeoutAction
+      "use getTimeoutModifier instead. Since 0.8." #-}
+
+
+------------------------------------------------------------------------------
+-- | Returns an 'IO' action which you can use to modify the timeout value.
+getTimeoutModifier :: MonadSnap m => m ((Int -> Int) -> IO ())
+getTimeoutModifier = liftSnap $ liftM _snapModifyTimeout sget

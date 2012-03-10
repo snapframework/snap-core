@@ -63,9 +63,14 @@ instance Exception ConnectionTerminatedException where
 ------------------------------------------------------------------------------
 -- | This exception is thrown if the handler chooses to escape regular HTTP
 -- traffic.
-data EscapeHttpException = EscapeHttpException
-    ((Int -> IO ()) -> Iteratee ByteString IO () -> Iteratee ByteString IO ())
-        deriving (Typeable)
+data EscapeHttpException = EscapeHttpException EscapeHttpHandler
+  deriving (Typeable)
+
+
+------------------------------------------------------------------------------
+type EscapeHttpHandler =  ((Int -> Int) -> IO ())    -- ^ timeout modifier
+                       -> Iteratee ByteString IO ()  -- ^ socket write end
+                       -> Iteratee ByteString IO ()
 
 
 ------------------------------------------------------------------------------
