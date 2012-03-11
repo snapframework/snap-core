@@ -79,8 +79,10 @@ testSuccess1 = testCase "fileUploads/success1" $
     hndl' xs = do
         fileMap <- foldM f Map.empty xs
 
-        p1 <- getParam "field1"
-        p2 <- getParam "field2"
+        p1  <- getParam "field1"
+        p1P <- getPostParam "field1"
+        p1Q <- getQueryParam "field1"
+        p2  <- getParam "field2"
 
         liftIO $ do
             assertEqual "file1 contents"
@@ -95,9 +97,9 @@ testSuccess1 = testCase "fileUploads/success1" $
                         (Just formContents1)
                         p1
 
-            assertEqual "field2 contents"
-                        (Just formContents2)
-                        p2
+            assertEqual "field1 POST contents" (Just formContents1) p1P
+            assertEqual "field1 query contents" Nothing p1Q
+            assertEqual "field2 contents" (Just formContents2) p2
 
 
 
@@ -371,7 +373,7 @@ mkRequest body = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
                      enum Nothing POST (1,1) [] "" "/" "/"
-                     "/" "" Map.empty
+                     "/" "" Map.empty Map.empty Map.empty
 
 
 ------------------------------------------------------------------------------
@@ -386,7 +388,7 @@ mkDamagedRequest body = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
                      enum Nothing POST (1,1) [] "" "/" "/"
-                     "/" "" Map.empty
+                     "/" "" Map.empty Map.empty Map.empty
   where
     enum = enumBS (S.take (S.length body - 1) body) >==> dieNow
     dieNow _ = throw TestException
@@ -413,6 +415,7 @@ goWrongContentType m s = do
     rq <- mkRequest s
     let rq' = setHeader "Content-Type" "text/plain" rq
     liftM snd (run_ $ runIt m rq')
+
 
 ------------------------------------------------------------------------------
 goSlowEnumerator :: Snap a -> ByteString -> IO Response
@@ -441,6 +444,7 @@ goSlowEnumerator m s = do
 waitabit :: IO ()
 waitabit = threadDelay $ 2*seconds
 
+
 ------------------------------------------------------------------------------
 seconds :: Int
 seconds = (10::Int) ^ (6::Int)
@@ -448,7 +452,7 @@ seconds = (10::Int) ^ (6::Int)
 
 ------------------------------------------------------------------------------
 runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
-runIt m rq = iterateeDebugWrapper "test" $ runSnap m d d rq
+runIt m rq = iterateeDebugWrapper "test" $ runSnap m d (const $ return ()) rq
   where
     d :: forall a . Show a => a -> IO ()
     d = \x -> show x `deepseq` return ()

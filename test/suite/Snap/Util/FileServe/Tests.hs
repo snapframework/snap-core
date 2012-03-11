@@ -137,7 +137,8 @@ mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "" pathPart "/"
-                     (S.concat ["/",uri]) queryPart Map.empty
+                     (S.concat ["/",uri]) queryPart
+                     Map.empty Map.empty Map.empty
 
   where
     (pathPart, queryPart) = breakQuery uri

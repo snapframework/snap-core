@@ -324,7 +324,7 @@ defaultIndexGenerator mm styles d = do
         f <- liftIO $ liftM (\s -> T.encodeUtf8 s `mappend` "/") $ packFn f0
         writeBS "<tr><td class='filename'><a href='"
         writeBS f
-        writeBS "/'>"
+        writeBS "'>"
         writeBS f
         writeBS "</a></td><td class='type' colspan=2>DIR</td></tr>"
 

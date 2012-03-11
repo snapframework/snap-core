@@ -92,6 +92,8 @@ mkDefaultRequest = do
                      "/"
                      ""
                      Map.empty
+                     Map.empty
+                     Map.empty
 
 
 ------------------------------------------------------------------------------
@@ -129,18 +131,20 @@ buildRequest mm = do
 
     fixupParams = do
         rq <- rGet
-        let q   = rqQueryString rq
-        let pms = parseUrlEncoded q
+        let query       = rqQueryString rq
+        let queryParams = parseUrlEncoded query
+        let mbCT        = getHeader "Content-Type" rq
 
-        let mbCT = getHeader "Content-Type" rq
-        post <- if mbCT == Just "application/x-www-form-urlencoded"
-                  then do
-                    (SomeEnumerator e) <- liftIO $ readIORef $ rqBody rq
-                    s <- liftM S.concat (liftIO $ run_ $ e $$ consume)
-                    return $ parseUrlEncoded s
-                  else return Map.empty
+        postParams <- if mbCT == Just "application/x-www-form-urlencoded"
+                        then do
+                          (SomeEnumerator e) <- liftIO $ readIORef $ rqBody rq
+                          s <- liftM S.concat (liftIO $ run_ $ e $$ consume)
+                          return $ parseUrlEncoded s
+                        else return Map.empty
 
-        rPut $ rq { rqParams = Map.unionWith (++) pms post }
+        rPut $ rq { rqParams      = Map.unionWith (++) queryParams postParams
+                  , rqQueryParams = queryParams }
+
 
 ------------------------------------------------------------------------------
 -- | A request body of type \"@multipart/form-data@\" consists of a set of

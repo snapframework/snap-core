@@ -6,6 +6,7 @@ module Snap.Internal.Routing.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
+import           Control.Applicative ((<|>))
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -55,6 +56,7 @@ tests = [ testRouting1
         , testRouteLocal
         , testRouteUrlDecode
         , testRouteUrlEncodedPath
+        , testRouteEmptyCapture
         ]
 
 
@@ -126,6 +128,11 @@ routes7 = route [ ("foo/:id"       , fooCapture )
                 , ("fooo/:id/:id2" , fooCapture2)
                 , ("foooo/bar/baz" , bar        )
                 , (""              , topTop     ) ]
+
+
+------------------------------------------------------------------------------
+routesEmptyCapture :: Snap ByteString
+routesEmptyCapture = route [ ("foo/:id", fooCapture) ]
 
 
 ------------------------------------------------------------------------------
@@ -393,3 +400,17 @@ testRouteLocal = testCase "route/routeLocal" $ do
     r4 <- go routesLocal "foo/bar/baz/quux"
     assertEqual "/foo/bar/baz/quux" "foo/bar/baz/quux" r4
     expectExceptionH $ go routesLocal "bar"
+
+
+------------------------------------------------------------------------------
+testRouteEmptyCapture :: Test
+testRouteEmptyCapture = testCase "route/emptyCapture" $ do
+    r <- go m "foo"
+    assertEqual "empty capture must fail" expected r
+
+    r2 <- go m "foo/"
+    assertEqual "empty capture must fail" expected r2
+
+  where
+    expected = "ZOMG_OK"
+    m        = routesEmptyCapture <|> return expected
