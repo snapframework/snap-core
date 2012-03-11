@@ -31,22 +31,23 @@ rm -Rf $DIR
 mkdir -p $DIR
 
 EXCLUDES='Main
+Snap.Core.Tests
 Snap.Internal.Debug
-Snap.Internal.Iteratee.Debug
-Snap.Iteratee.Tests
 Snap.Internal.Http.Parser.Tests
 Snap.Internal.Http.Server.Tests
 Snap.Internal.Http.Types.Tests
+Snap.Internal.Iteratee.Debug
 Snap.Internal.Iteratee.Tests
 Snap.Internal.Parsing.Tests
 Snap.Internal.Routing.Tests
+Snap.Iteratee.Tests
+Snap.Test.Common
 Snap.Test.Tests
 Snap.Types.Tests
 Snap.Util.FileServe.Tests
 Snap.Util.FileUploads.Tests
 Snap.Util.GZip.Tests
-Text.Snap.Templates.Tests
-Snap.Test.Common'
+Text.Snap.Templates.Tests'
 
 EXCL=""
 
