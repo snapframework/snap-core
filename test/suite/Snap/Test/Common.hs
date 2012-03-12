@@ -16,6 +16,7 @@ module Snap.Test.Common
   , eatException
   ) where
 
+------------------------------------------------------------------------------
 import           Control.DeepSeq
 import           Control.Exception (SomeException(..), evaluate)
 import           Control.Monad
@@ -31,6 +32,7 @@ import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic
 
 
+------------------------------------------------------------------------------
 instance Arbitrary S.ByteString where
     arbitrary = liftM (S.pack . map c2w) arbitrary
 
@@ -41,6 +43,20 @@ instance Arbitrary L.ByteString where
         return $ L.fromChunks chunks
 
 
+------------------------------------------------------------------------------
+eatException :: (MonadCatchIO m) => m a -> m ()
+eatException a = (a >> return ()) `catch` handler
+  where
+    handler :: (MonadCatchIO m) => SomeException -> m ()
+    handler _ = return ()
+
+
+------------------------------------------------------------------------------
+forceSameType :: a -> a -> a
+forceSameType _ a = a
+
+
+------------------------------------------------------------------------------
 -- | Kill the false negative on derived show instances.
 coverShowInstance :: (Monad m, Show a) => a -> m ()
 coverShowInstance x = a `deepseq` b `deepseq` c `deepseq` return ()
@@ -50,23 +66,14 @@ coverShowInstance x = a `deepseq` b `deepseq` c `deepseq` return ()
     c = showList [x] ""
 
 
-eatException :: (MonadCatchIO m) => m a -> m ()
-eatException a = (a >> return ()) `catch` handler
-  where
-    handler :: (MonadCatchIO m) => SomeException -> m ()
-    handler _ = return ()
-
-
-forceSameType :: a -> a -> a
-forceSameType _ a = a
-
-
+------------------------------------------------------------------------------
 coverReadInstance :: (MonadIO m, Read a) => a -> m ()
 coverReadInstance x = do
     liftIO $ eatException $ evaluate $ forceSameType [(x,"")] $ readsPrec 0 ""
     liftIO $ eatException $ evaluate $ forceSameType [([x],"")] $ readList ""
 
 
+------------------------------------------------------------------------------
 coverEqInstance :: (Monad m, Eq a) => a -> m ()
 coverEqInstance x = a `seq` b `seq` return ()
   where
@@ -74,22 +81,25 @@ coverEqInstance x = a `seq` b `seq` return ()
     b = x /= x
 
 
+------------------------------------------------------------------------------
 coverOrdInstance :: (Monad m, Ord a) => a -> m ()
 coverOrdInstance x = a `deepseq` b `deepseq` return ()
   where
     a = [ x < x
         , x >= x
         , x > x
-        , x <= x 
+        , x <= x
         , compare x x == EQ ]
 
     b = min a $ max a a
 
 
+------------------------------------------------------------------------------
 coverTypeableInstance :: (Monad m, Typeable a) => a -> m ()
 coverTypeableInstance a = typeOf a `seq` return ()
 
 
+------------------------------------------------------------------------------
 expectException :: IO a -> PropertyM IO ()
 expectException m = do
     e <- liftQ $ try m
@@ -98,6 +108,7 @@ expectException m = do
       Right _ -> fail "expected exception, didn't get one"
 
 
+------------------------------------------------------------------------------
 expectExceptionH :: IO a -> IO ()
 expectExceptionH act = do
     e <- try act
@@ -106,5 +117,6 @@ expectExceptionH act = do
       Right _ -> fail "expected exception, didn't get one"
 
 
+------------------------------------------------------------------------------
 liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
 liftQ = QC.run

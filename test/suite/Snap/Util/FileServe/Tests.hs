@@ -5,6 +5,7 @@
 module Snap.Util.FileServe.Tests
   ( tests ) where
 
+------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Control.Monad
 import           Data.ByteString (ByteString)
@@ -18,13 +19,16 @@ import           Prelude hiding (take)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
-
+------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
 import           Snap.Util.FileServe
 import           Snap.Iteratee
 import qualified Snap.Types.Headers as H
+------------------------------------------------------------------------------
 
+
+------------------------------------------------------------------------------
 tests :: [Test]
 tests = [ testFooBin
         , testFooTxt
@@ -32,25 +36,26 @@ tests = [ testFooBin
         , testFooBinBinBin
         , test404s
         , testFsSingle
-
         , testFsCfgA
         , testFsCfgB
         , testFsCfgC
         , testFsCfgD
         , testFsCfgFancy
-
         , testRangeOK
         , testRangeBad
         , testMultiRange
-        , testIfRange ]
+        , testIfRange
+        ]
 
 
+------------------------------------------------------------------------------
 expect404 :: IO Response -> IO ()
 expect404 m = do
     r <- m
     assertBool "expected 404" (rspStatus r == 404)
 
 
+------------------------------------------------------------------------------
 expect302 :: ByteString -> IO Response -> IO ()
 expect302 p m = do
     r <- m
@@ -60,24 +65,28 @@ expect302 p m = do
                 (getHeader "location" r)
 
 
+------------------------------------------------------------------------------
 getBody :: Response -> IO L.ByteString
 getBody r = do
     let benum = rspBodyToEnum $ rspBody r
     liftM (toLazyByteString . mconcat) (runIteratee consume >>= run_ . benum)
 
 
+------------------------------------------------------------------------------
 runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
 runIt m rq = runSnap m d d rq
   where
     d = const $ return ()
 
 
+------------------------------------------------------------------------------
 go :: Snap a -> ByteString -> IO Response
 go m s = do
     rq <- mkRequest s
     liftM snd (run_ $ runIt m rq)
 
 
+------------------------------------------------------------------------------
 goIfModifiedSince :: Snap a -> ByteString -> ByteString -> IO Response
 goIfModifiedSince m s lm = do
     rq <- mkRequest s
@@ -85,6 +94,7 @@ goIfModifiedSince m s lm = do
     liftM snd (run_ $ runIt m r)
 
 
+------------------------------------------------------------------------------
 goIfRange :: Snap a -> ByteString -> (Int,Int) -> ByteString -> IO Response
 goIfRange m s (start,end) lm = do
     rq <- mkRequest s
@@ -95,6 +105,7 @@ goIfRange m s (start,end) lm = do
     liftM snd (run_ $ runIt m r)
 
 
+------------------------------------------------------------------------------
 goRange :: Snap a -> ByteString -> (Int,Int) -> IO Response
 goRange m s (start,end) = do
     rq' <- mkRequest s
@@ -104,6 +115,7 @@ goRange m s (start,end) = do
     liftM snd (run_ $ runIt m rq)
 
 
+------------------------------------------------------------------------------
 goMultiRange :: Snap a -> ByteString -> (Int,Int) -> (Int,Int) -> IO Response
 goMultiRange m s (start,end) (start2,end2) = do
     rq' <- mkRequest s
@@ -114,6 +126,7 @@ goMultiRange m s (start,end) (start2,end2) = do
     liftM snd (run_ $ runIt m rq)
 
 
+------------------------------------------------------------------------------
 goRangePrefix :: Snap a -> ByteString -> Int -> IO Response
 goRangePrefix m s start = do
     rq' <- mkRequest s
@@ -123,6 +136,7 @@ goRangePrefix m s start = do
     liftM snd (run_ $ runIt m rq)
 
 
+------------------------------------------------------------------------------
 goRangeSuffix :: Snap a -> ByteString -> Int -> IO Response
 goRangeSuffix m s end = do
     rq' <- mkRequest s
@@ -132,6 +146,7 @@ goRangeSuffix m s end = do
     liftM snd (run_ $ runIt m rq)
 
 
+------------------------------------------------------------------------------
 mkRequest :: ByteString -> IO Request
 mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
@@ -148,23 +163,25 @@ mkRequest uri = do
         (a,b) = S.break (=='?') s
 
 
+------------------------------------------------------------------------------
 fs :: Snap ()
 fs = do
     x <- serveDirectory "data/fileServe"
     return $! x `seq` ()
 
 
+------------------------------------------------------------------------------
 fsSingle :: Snap ()
 fsSingle = do
     x <- serveFile "data/fileServe/foo.html"
     return $! x `seq` ()
 
 
+------------------------------------------------------------------------------
 fsCfg :: DirectoryConfig Snap -> Snap ()
 fsCfg cfg = do
     x <- serveDirectoryWith cfg "data/fileServe"
     return $! x `seq` ()
-
 
 
 ------------------------------------------------------------------------------
@@ -225,8 +242,7 @@ testFooTxt = testCase "fileServe/foo.txt" $ do
         assertEqual (name ++ "/accept-ranges")
                     (Just "bytes")
                     (getHeader "accept-ranges" r)
-    
-    
+
 
 ------------------------------------------------------------------------------
 testFooHtml :: Test
@@ -292,6 +308,7 @@ printName :: FilePath -> Snap ()
 printName c = writeBS $ snd $ S.breakEnd (=='/') $ S.pack c
 
 
+------------------------------------------------------------------------------
 cfgA, cfgB, cfgC, cfgD :: DirectoryConfig Snap
 cfgA = DirectoryConfig {
          indexFiles      = []
@@ -326,6 +343,7 @@ cfgD = DirectoryConfig {
        }
 
 
+------------------------------------------------------------------------------
 testFsCfgA :: Test
 testFsCfgA = testCase "fileServe/cfgA" $ do
     let gooo = go (fsCfg cfgA)
@@ -339,9 +357,9 @@ testFsCfgA = testCase "fileServe/cfgA" $ do
     expect404 $ gooo "bar.bin"
 
     -- Named file in a subdirectory
-    gooo "mydir2/foo.txt" >>= checkProps "cfgA1/subdir/1" "text/plain" 
+    gooo "mydir2/foo.txt" >>= checkProps "cfgA1/subdir/1" "text/plain"
     gooo "mydir2/foo.txt?z=z" >>= checkProps "cfgA1/subdir/2" "text/plain"
-   
+
     -- Missing file in a subdirectory
     expect404 $ gooo "mydir2/bar.txt"
 
@@ -376,7 +394,9 @@ testFsCfgA = testCase "fileServe/cfgA" $ do
         assertEqual (name ++ "/accept-ranges")
                     (Just "bytes")
                     (getHeader "accept-ranges" r)
-    
+
+
+------------------------------------------------------------------------------
 testFsCfgB :: Test
 testFsCfgB = testCase "fileServe/cfgB" $ do
     let gooo = go (fsCfg cfgB)
@@ -413,6 +433,7 @@ testFsCfgB = testCase "fileServe/cfgB" $ do
     expect404 $ gooo "mydir2/"
 
 
+------------------------------------------------------------------------------
 testFsCfgC :: Test
 testFsCfgC = testCase "fileServe/cfgC" $ do
     let gooo = go (fsCfg cfgC)
@@ -442,6 +463,7 @@ testFsCfgC = testCase "fileServe/cfgC" $ do
     assertEqual "C3" "mydir2" bC3
 
 
+------------------------------------------------------------------------------
 testFsCfgD :: Test
 testFsCfgD = testCase "fileServe/cfgD" $ do
     -- Request for file with dynamic handler
@@ -451,6 +473,7 @@ testFsCfgD = testCase "fileServe/cfgD" $ do
     assertEqual "D1" "foo.txt" bD1
 
 
+------------------------------------------------------------------------------
 testFsCfgFancy :: Test
 testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
     -- Request for directory with autogen index
@@ -477,7 +500,7 @@ testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
         "<a href='foo.txt'" `S.isInfixOf` bE2
 
 
-
+------------------------------------------------------------------------------
 testFsSingle :: Test
 testFsSingle = testCase "fileServe/Single" $ do
     r1 <- go fsSingle "foo.html"
@@ -491,7 +514,7 @@ testFsSingle = testCase "fileServe/Single" $ do
     assertEqual "foo.html size" (Just 4) (rspContentLength r1)
 
 
-
+------------------------------------------------------------------------------
 testRangeOK :: Test
 testRangeOK = testCase "fileServe/range/ok" $ do
     r1 <- goRange fsSingle "foo.html" (1,2)
@@ -515,6 +538,7 @@ testRangeOK = testCase "fileServe/range/ok" $ do
     assertEqual "foo.html partial prefix" "O\n" b3
 
 
+------------------------------------------------------------------------------
 testMultiRange :: Test
 testMultiRange = testCase "fileServe/range/multi" $ do
     r1 <- goMultiRange fsSingle "foo.html" (1,2) (3,3)
@@ -527,6 +551,7 @@ testMultiRange = testCase "fileServe/range/multi" $ do
     assertEqual "foo.html" "FOO\n" b1
 
 
+------------------------------------------------------------------------------
 testRangeBad :: Test
 testRangeBad = testCase "fileServe/range/bad" $ do
     r1 <- goRange fsSingle "foo.html" (1,17)
@@ -542,12 +567,14 @@ testRangeBad = testCase "fileServe/range/bad" $ do
     assertEqual "bad suffix range" 416 $ rspStatus r2
 
 
+------------------------------------------------------------------------------
 coverMimeMap :: (Monad m) => m ()
 coverMimeMap = Prelude.mapM_ f $ Map.toList defaultMimeTypes
   where
     f (!k,!v) = return $ case k `seq` v `seq` () of () -> ()
 
 
+------------------------------------------------------------------------------
 testIfRange :: Test
 testIfRange = testCase "fileServe/range/if-range" $ do
     r <- goIfRange fs "foo.bin" (1,2) "Wed, 15 Nov 1995 04:58:08 GMT"

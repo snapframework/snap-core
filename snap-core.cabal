@@ -66,8 +66,8 @@ extra-source-files:
   test/suite/Snap/Test/Common.hs,
   test/suite/Snap/Util/FileServe/Tests.hs,
   test/suite/Snap/Util/FileUploads/Tests.hs,
-  test/suite/Snap/Util/GZip/Tests.hs
-
+  test/suite/Snap/Util/GZip/Tests.hs,
+  test/suite/Snap/Util/Proxy/Tests.hs
 
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
@@ -114,6 +114,7 @@ Library
     Snap.Util.FileServe,
     Snap.Util.FileUploads,
     Snap.Util.GZip,
+    Snap.Util.Proxy,
     Snap.Util.Readable
 
   other-modules:
@@ -160,20 +161,20 @@ Library
   extensions:
     BangPatterns,
     CPP,
-    PackageImports,
-    ScopedTypeVariables,
-    EmptyDataDecls,
-    ForeignFunctionInterface,
-    OverloadedStrings,
-    Rank2Types,
-    TypeSynonymInstances,
-    FlexibleInstances,
-    ExistentialQuantification,
-    OverloadedStrings,
-    FlexibleContexts,
-    GeneralizedNewtypeDeriving,
     DeriveDataTypeable,
-    MultiParamTypeClasses
+    EmptyDataDecls,
+    ExistentialQuantification,
+    FlexibleContexts,
+    FlexibleInstances,
+    ForeignFunctionInterface,
+    GeneralizedNewtypeDeriving,
+    MultiParamTypeClasses,
+    OverloadedStrings,
+    OverloadedStrings,
+    PackageImports,
+    Rank2Types,
+    ScopedTypeVariables,
+    TypeSynonymInstances
 
   ghc-prof-options: -prof -auto-all
 

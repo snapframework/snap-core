@@ -65,7 +65,7 @@ import qualified Snap.Types.Headers             as H
 -- | RequestBuilder is a monad transformer that allows you to conveniently
 -- build a snap 'Request' for testing.
 newtype RequestBuilder m a = RequestBuilder (StateT Request m a)
-  deriving (Monad, MonadIO, MonadTrans)
+  deriving (Monad, MonadIO, MonadState Request, MonadTrans)
 
 
 ------------------------------------------------------------------------------
@@ -272,11 +272,14 @@ encodeFormData boundary name vals =
                          , fromByteString b
                          , fromByteString "--\r\n--" ]
 
+
+------------------------------------------------------------------------------
 multipartMixed :: ByteString -> Builder
 multipartMixed b = mconcat [ fromByteString "Content-Type: multipart/mixed"
                            , fromByteString "; boundary="
                            , fromByteString b
                            , fromByteString "\r\n" ]
+
 
 ------------------------------------------------------------------------------
 encodeFiles :: ByteString -> ByteString -> [FileData] -> IO Builder
@@ -295,6 +298,7 @@ encodeFiles boundary name files =
                            ]
 
   where
+    --------------------------------------------------------------------------
     contentDisposition fn = mconcat [
                               fromByteString "Content-Disposition: attachment"
                             , fromByteString "; filename=\""
@@ -302,12 +306,14 @@ encodeFiles boundary name files =
                             , fromByteString "\"\r\n"
                             ]
 
+    --------------------------------------------------------------------------
     contentType ct = mconcat [
                        fromByteString "Content-Type: "
                      , fromByteString ct
                      , cr
                      ]
 
+    --------------------------------------------------------------------------
     oneVal b (FileData fileName ct contents) =
         mconcat [ fromByteString b
                 , cr
@@ -319,8 +325,9 @@ encodeFiles boundary name files =
                 , fromByteString "\r\n--"
                 ]
 
+    --------------------------------------------------------------------------
     hdr = multipartHeader boundary name
-    cr = fromByteString "\r\n"
+    cr  = fromByteString "\r\n"
 
 
 ------------------------------------------------------------------------------
@@ -601,7 +608,6 @@ responseToString resp = do
                liftM mconcat consume)
 
     return $ toByteString $ fromShow resp `mappend` b
-
 
 
 ------------------------------------------------------------------------------
