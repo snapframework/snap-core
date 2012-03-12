@@ -47,6 +47,7 @@ data ProxyType = NoProxy          -- ^ no proxy, leave the request alone
 behindProxy :: MonadSnap m => ProxyType -> m a -> m a
 behindProxy NoProxy         = id
 behindProxy X_Forwarded_For = ((modifyRequest xForwardedFor) >>)
+{-# INLINE behindProxy #-}
 
 
 ------------------------------------------------------------------------------
@@ -67,3 +68,4 @@ xForwardedFor req = req { rqRemoteAddr = ip
 
     port         = fromJust (fst <$> S.readInt portStr <|>
                              Just (rqRemotePort req))
+{-# INLINE xForwardedFor #-}
