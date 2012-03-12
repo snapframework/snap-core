@@ -186,30 +186,30 @@ newtype SomeEnumerator = SomeEnumerator (forall a . Enumerator ByteString IO a)
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
       -- @Host:@ header.
-      rqServerName     :: !ByteString
+      rqServerName     :: ByteString
 
       -- | Returns the port number the HTTP server is listening on.
     , rqServerPort     :: !Int
 
       -- | The remote IP address.
-    , rqRemoteAddr     :: !ByteString
+    , rqRemoteAddr     :: ByteString
 
       -- | The remote TCP port number.
-    , rqRemotePort     :: !Int
+    , rqRemotePort     :: Int
 
       -- | The local IP address for this request.
-    , rqLocalAddr      :: !ByteString
+    , rqLocalAddr      :: ByteString
 
       -- | Returns the port number the HTTP server is listening on.
-    , rqLocalPort      :: !Int
+    , rqLocalPort      :: Int
 
       -- | Returns the HTTP server's idea of its local hostname.
-    , rqLocalHostname  :: !ByteString
+    , rqLocalHostname  :: ByteString
 
       -- | Returns @True@ if this is an @HTTPS@ session.
-    , rqIsSecure       :: !Bool
+    , rqIsSecure       :: Bool
     , rqHeaders        :: Headers
-    , rqBody           :: IORef SomeEnumerator
+    , rqBody           :: !(IORef SomeEnumerator)
 
       -- | Returns the @Content-Length@ of the HTTP request body.
     , rqContentLength  :: !(Maybe Int)
@@ -218,38 +218,26 @@ data Request = Request
     , rqMethod         :: !Method
 
       -- | Returns the HTTP version used by the client.
-    , rqVersion        :: !HttpVersion
+    , rqVersion        :: HttpVersion
 
       -- | Returns a list of the cookies that came in from the HTTP request
       -- headers.
     , rqCookies        :: [Cookie]
 
-
-      -- | We'll be doing web components (or \"snaplets\") for version 0.2.
-      -- The \"snaplet path\" refers to the place on the URL where your
-      -- containing snaplet is hung. The value of 'rqSnapletPath' is either
-      -- @\"\"@ (at the top-level context) or is a path beginning with a
-      -- slash, but not ending with one.
+      -- | Handlers can be hung on a @URI@ \"entry point\"; this is called the
+      -- \"context path\". If a handler is hung on the context path
+      -- @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the value of
+      -- 'rqPathInfo' will be @\"bar\"@.
       --
-      -- An identity is that:
+      -- The following identity holds:
       --
-      -- > rqURI r == S.concat [ rqSnapletPath r
-      -- >                     , rqContextPath r
+      -- > rqURI r == S.concat [ rqContextPath r
       -- >                     , rqPathInfo r
       -- >                     , let q = rqQueryString r
       -- >                       in if S.null q
       -- >                            then ""
       -- >                            else S.append "?" q
       -- >                     ]
-      --
-      -- note that until we introduce snaplets in v0.2, 'rqSnapletPath' will
-      -- be \"\"
-    , rqSnapletPath    :: !ByteString
-
-      -- | Handlers can be hung on a @URI@ \"entry point\"; this is called the
-      -- \"context path\". If a handler is hung on the context path
-      -- @\"\/foo\/\"@, and you request @\"\/foo\/bar\"@, the value of
-      -- 'rqPathInfo' will be @\"bar\"@.
     , rqPathInfo       :: !ByteString
 
       -- | The \"context path\" of the request; catenating 'rqContextPath',
@@ -300,7 +288,6 @@ instance Show Request where
                     , cookies
                     , pathinfo
                     , contextpath
-                    , snapletpath
                     , uri
                     , params
                     ]
@@ -341,7 +328,6 @@ instance Show Request where
           ]
       pathinfo      = concat [ "pathinfo: ", toStr $ rqPathInfo r ]
       contextpath   = concat [ "contextpath: ", toStr $ rqContextPath r ]
-      snapletpath   = concat [ "snapletpath: ", toStr $ rqSnapletPath r ]
       uri           = concat [ "URI: ", toStr $ rqURI r ]
       params'       = "      " ++
                       (concat $ intersperse "\n " $

@@ -86,7 +86,7 @@ mkNoHeaders = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False emptyHdrs
-                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                 enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 
@@ -95,7 +95,7 @@ mkGzipRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False gzipHdrs
-                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                 enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 mkXGzipRq :: IO Request
@@ -103,7 +103,7 @@ mkXGzipRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xGzipHdrs
-                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                 enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 
@@ -114,7 +114,7 @@ mkCompressRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False compressHdrs
-                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                 enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 
@@ -123,7 +123,7 @@ mkXCompressRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xCompressHdrs
-                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                 enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 
@@ -134,7 +134,7 @@ mkBadRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False badHdrs
-                  enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                  enum Nothing GET (1,1) [] "/" "/" "/" ""
                   Map.empty Map.empty Map.empty
 
 

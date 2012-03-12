@@ -98,7 +98,7 @@ mkRequest uri = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $! Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
-                      enum Nothing GET (1,1) [] "" uri "/"
+                      enum Nothing GET (1,1) [] uri "/"
                       (S.concat ["/",uri]) "" Map.empty Map.empty Map.empty
 
 
@@ -110,7 +110,7 @@ mkRequestQuery uri k v = do
     let q  = S.concat [k,"=", S.concat v]
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing GET (1,1) [] "" uri "/"
+                     enum Nothing GET (1,1) [] uri "/"
                      (S.concat ["/",uri,"?",q]) q mp mp Map.empty
 
 
@@ -119,7 +119,7 @@ mkZomgRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
     return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                     enum Nothing GET (1,1) [] "/" "/" "/" ""
                      Map.empty Map.empty Map.empty
 
 
@@ -139,7 +139,7 @@ mkRqWithEnum :: (forall a . Enumerator ByteString IO a) -> IO Request
 mkRqWithEnum e = do
     enum <- newIORef $ SomeEnumerator e
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
-                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                 enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 testCatchIO :: Test

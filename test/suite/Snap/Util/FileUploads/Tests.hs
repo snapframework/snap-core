@@ -333,7 +333,7 @@ testDisconnectionCleanup = testCase "fileUploads/disconnectionCleanup" $ do
         dirs <- liftM (filter (\x -> x /= "." && x /= "..")) $
                 getDirectoryContents tmpdir
         assertEqual "files should be cleaned up" [] dirs
-    
+
 
     tmpdir = "tempdirC"
     hndl = handleFileUploads tmpdir
@@ -342,7 +342,7 @@ testDisconnectionCleanup = testCase "fileUploads/disconnectionCleanup" $ do
                              hndl'
 
     hndl' _ = return ()
-        
+
 
 ------------------------------------------------------------------------------
 harness :: FilePath -> Snap a -> ByteString -> IO ()
@@ -372,7 +372,7 @@ mkRequest body = do
                 ]
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
-                     enum Nothing POST (1,1) [] "" "/" "/"
+                     enum Nothing POST (1,1) [] "/" "/"
                      "/" "" Map.empty Map.empty Map.empty
 
 
@@ -387,7 +387,7 @@ mkDamagedRequest body = do
                 ]
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
-                     enum Nothing POST (1,1) [] "" "/" "/"
+                     enum Nothing POST (1,1) [] "/" "/"
                      "/" "" Map.empty Map.empty Map.empty
   where
     enum = enumBS (S.take (S.length body - 1) body) >==> dieNow

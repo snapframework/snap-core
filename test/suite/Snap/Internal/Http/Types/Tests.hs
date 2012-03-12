@@ -37,7 +37,7 @@ mkRq :: IO Request
 mkRq = do
     enum <- newIORef (SomeEnumerator $ enumBS "")
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
-                 enum Nothing GET (1,1) [] "" "/" "/" "/" ""
+                 enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 

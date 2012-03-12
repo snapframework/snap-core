@@ -87,7 +87,6 @@ mkDefaultRequest = do
                      (1,1)
                      []
                      ""
-                     ""
                      "/"
                      "/"
                      ""
@@ -98,6 +97,10 @@ mkDefaultRequest = do
 
 ------------------------------------------------------------------------------
 -- | Runs a 'RequestBuilder', producing the desired 'Request'.
+--
+-- N.B. /please/ don't use the request you get here in a real Snap application;
+-- things will probably break. Don't say you weren't warned :-)
+--
 buildRequest :: MonadIO m => RequestBuilder m () -> m Request
 buildRequest mm = do
     let (RequestBuilder m) = (mm >> fixup)
@@ -364,8 +367,7 @@ encodeMultipart kvps = do
 fixupURI :: Monad m => RequestBuilder m ()
 fixupURI = do
     rq <- rGet
-    let u = S.concat [ rqSnapletPath rq
-                     , rqContextPath rq
+    let u = S.concat [ rqContextPath rq
                      , rqPathInfo rq
                      , let q = rqQueryString rq
                        in if S.null q
@@ -432,8 +434,7 @@ setHttpVersion v = rModify $ \rq -> rq { rqVersion = v }
 -- Note that 'rqContextPath' is never set by any 'RequestBuilder' function.
 setRequestPath :: Monad m => ByteString -> RequestBuilder m ()
 setRequestPath p0 = do
-    rModify $ \rq -> rq { rqSnapletPath = ""
-                        , rqContextPath = "/"
+    rModify $ \rq -> rq { rqContextPath = "/"
                         , rqPathInfo    = p }
     fixupURI
 
