@@ -10,6 +10,8 @@ import           Data.ByteString (ByteString)
 import           Data.ByteString.Internal (c2w)
 import qualified Data.ByteString as B
 import           Data.Monoid
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as H
 import qualified Data.Map as Map
 
 ------------------------------------------------------------------------------
@@ -42,7 +44,7 @@ data Route a m = Action ((MonadSnap m) => m a)   -- wraps a 'Snap' action
                -- captures the dir in a param
                | Capture ByteString (Route a m) (Route a m)
                -- match on a dir
-               | Dir (Map.Map ByteString (Route a m)) (Route a m)
+               | Dir (HashMap ByteString (Route a m)) (Route a m)
                | NoRoute
 
 
@@ -55,7 +57,7 @@ instance Monoid (Route a m) where
     mappend l@(Action a) r = case r of
       (Action a')       -> Action (a <|> a')
       (Capture p r' fb) -> Capture p r' (mappend fb l)
-      (Dir _ _)         -> mappend (Dir Map.empty l) r
+      (Dir _ _)         -> mappend (Dir H.empty l) r
       NoRoute           -> l
 
     -- Whenever we're unioning two Captures and their capture variables
@@ -82,7 +84,7 @@ instance Monoid (Route a m) where
     mappend l@(Dir rm fb) r = case r of
       (Action _)      -> Dir rm (mappend fb r)
       (Capture _ _ _) -> Dir rm (mappend fb r)
-      (Dir rm' fb')   -> Dir (Map.unionWith mappend rm rm') (mappend fb fb')
+      (Dir rm' fb')   -> Dir (H.unionWith mappend rm rm') (mappend fb fb')
       NoRoute         -> l
 
 
@@ -92,7 +94,7 @@ routeHeight r = case r of
   NoRoute          -> 1
   (Action _)       -> 1
   (Capture _ r' _) -> 1 + routeHeight r'
-  (Dir rm _)       -> 1 + foldl max 1 (map routeHeight $ Map.elems rm)
+  (Dir rm _)       -> 1 + foldl max 1 (map routeHeight $ H.elems rm)
 {-# INLINE routeHeight #-}
 
 
@@ -212,7 +214,7 @@ pRoute (r, a) = foldr f (Action a) hier
     hier   = filter (not . B.null) $ B.splitWith (== (c2w '/')) r
     f s rt = if B.head s == c2w ':'
         then Capture (B.tail s) rt NoRoute
-        else Dir (Map.fromList [(s, rt)]) NoRoute
+        else Dir (H.fromList [(s, rt)]) NoRoute
 {-# INLINE pRoute #-}
 
 
@@ -250,7 +252,7 @@ route' pre !ctx [] !params (Dir _ fb) =
     route' pre ctx [] params fb
 route' pre !ctx (cwd:rest) !params (Dir rtm fb) = do
     cwd' <- maybe pass return $ urlDecode cwd
-    case Map.lookup cwd' rtm of
+    case H.lookup cwd' rtm of
       Just rt -> (route' pre (cwd:ctx) rest params rt) <|>
                  (route' pre ctx (cwd:rest) params fb)
       Nothing -> route' pre ctx (cwd:rest) params fb
