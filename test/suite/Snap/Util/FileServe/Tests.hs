@@ -12,6 +12,7 @@ import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.IORef
+import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Data.Monoid
@@ -313,7 +314,7 @@ cfgA, cfgB, cfgC, cfgD :: DirectoryConfig Snap
 cfgA = DirectoryConfig {
          indexFiles      = []
        , indexGenerator  = const pass
-       , dynamicHandlers = Map.empty
+       , dynamicHandlers = HashMap.empty
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
        }
@@ -321,7 +322,7 @@ cfgA = DirectoryConfig {
 cfgB = DirectoryConfig {
          indexFiles      = ["index.txt", "altindex.html"]
        , indexGenerator  = const pass
-       , dynamicHandlers = Map.empty
+       , dynamicHandlers = HashMap.empty
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
        }
@@ -329,7 +330,7 @@ cfgB = DirectoryConfig {
 cfgC = DirectoryConfig {
          indexFiles      = ["index.txt", "altindex.html"]
        , indexGenerator  = printName
-       , dynamicHandlers = Map.empty
+       , dynamicHandlers = HashMap.empty
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
        }
@@ -337,7 +338,7 @@ cfgC = DirectoryConfig {
 cfgD = DirectoryConfig {
          indexFiles      = []
        , indexGenerator  = const pass
-       , dynamicHandlers = Map.fromList [ (".txt", printName) ]
+       , dynamicHandlers = HashMap.fromList [ (".txt", printName) ]
        , mimeTypes       = defaultMimeTypes
        , preServeHook    = const $ return ()
        }
@@ -569,7 +570,7 @@ testRangeBad = testCase "fileServe/range/bad" $ do
 
 ------------------------------------------------------------------------------
 coverMimeMap :: (Monad m) => m ()
-coverMimeMap = Prelude.mapM_ f $ Map.toList defaultMimeTypes
+coverMimeMap = Prelude.mapM_ f $ HashMap.toList defaultMimeTypes
   where
     f (!k,!v) = return $ case k `seq` v `seq` () of () -> ()
 
