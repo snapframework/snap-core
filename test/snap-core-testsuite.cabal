@@ -40,7 +40,7 @@ Executable testsuite
     filepath,
     HUnit                      >= 1.2      && <2,
     enumerator                 >= 0.4.13.1 && <0.5,
-    MonadCatchIO-transformers  >= 0.2      && <0.3,
+    MonadCatchIO-transformers  >= 0.2      && <0.4,
     mtl                        >= 2        && <3,
     mwc-random                 >= 0.10     && <0.13,
     old-locale,
