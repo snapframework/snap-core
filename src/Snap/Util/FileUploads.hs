@@ -42,6 +42,8 @@ module Snap.Util.FileUploads
   , setProcessFormInputs
   , getMaximumFormInputSize
   , setMaximumFormInputSize
+  , getMaximumNumberOfFormInputs
+  , setMaximumNumberOfFormInputs
   , getMinimumUploadRate
   , setMinimumUploadRate
   , getMinimumUploadSeconds
@@ -481,6 +483,20 @@ getMaximumFormInputSize = maximumFormInputSize
 --   'rqParams' map.
 setMaximumFormInputSize :: Int64 -> UploadPolicy -> UploadPolicy
 setMaximumFormInputSize s u = u { maximumFormInputSize = s }
+
+
+------------------------------------------------------------------------------
+-- | Get the maximum size of a form input which will be read into our
+--   'rqParams' map.
+getMaximumNumberOfFormInputs :: UploadPolicy -> Int
+getMaximumNumberOfFormInputs = maximumNumberOfFormInputs
+
+
+------------------------------------------------------------------------------
+-- | Set the maximum size of a form input which will be read into our
+--   'rqParams' map.
+setMaximumNumberOfFormInputs :: Int -> UploadPolicy -> UploadPolicy
+setMaximumNumberOfFormInputs s u = u { maximumNumberOfFormInputs = s }
 
 
 ------------------------------------------------------------------------------
