@@ -21,6 +21,7 @@ module Snap.Internal.Http.Types where
 import           Blaze.ByteString.Builder
 import           Control.Monad (liftM)
 import           Data.ByteString (ByteString)
+import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as B
 import           Data.ByteString.Internal (c2w,w2c)
 import qualified Data.ByteString as S
@@ -441,6 +442,20 @@ instance Show Response where
 instance HasHeaders Response where
     headers = rspHeaders
     updateHeaders f r = r { rspHeaders = f (rspHeaders r) }
+
+
+------------------------------------------------------------------------------
+-- | Returns the authorization userid and password assuming Basic
+-- Authentication Scheme.
+rqBasicAuthentication :: Request  -- ^ HTTP request
+                      -> Maybe (ByteString, ByteString)
+rqBasicAuthentication rq = do
+  ("Basic ", d) <- B.splitAt 6 `fmap` getHeader "Authorization" rq
+  case B64.decode d of
+    Left _ -> Nothing
+    Right e -> case B.break (==':') e of
+                 (u,pw) | B.take 1 pw == ":" -> return (u, B.drop 1 pw)
+                 _ -> Nothing
 
 
 ------------------------------------------------------------------------------

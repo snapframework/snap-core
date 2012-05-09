@@ -93,6 +93,7 @@ module Snap.Core
   , rqContextPath
   , rqURI
   , rqQueryString
+  , rqBasicAuthentication
   , rqParams
   , rqQueryParams
   , rqPostParams
