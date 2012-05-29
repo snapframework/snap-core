@@ -137,6 +137,7 @@ noCompression = modifyResponse $ setHeader "Content-Encoding" "identity"
 compressibleMimeTypes :: Set ByteString
 compressibleMimeTypes = Set.fromList [ "application/x-font-truetype"
                                      , "application/x-javascript"
+                                     , "application/json"
                                      , "text/css"
                                      , "text/html"
                                      , "text/javascript"
