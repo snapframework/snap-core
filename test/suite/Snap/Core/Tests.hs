@@ -30,6 +30,7 @@ import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit hiding (Test, path)
+import           Test.QuickCheck(oneof, variant, elements, Gen, arbitrary)
 
 import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
@@ -54,6 +55,8 @@ tests = [ testFail
         , testTrivials
         , testMethod
         , testMethods
+        , testMethodEq
+        , testMethodNotEq
         , testDir
         , testCatchIO
         , testWrites
@@ -122,6 +125,13 @@ mkZomgRq = do
                      enum Nothing GET (1,1) [] "/" "/" "/" ""
                      Map.empty Map.empty Map.empty
 
+mkMethodRq :: Method -> IO Request
+mkMethodRq m = do
+    enum <- newIORef $ SomeEnumerator returnI
+
+    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
+                     enum Nothing m (1,1) [] "/" "/" "/" ""
+                     Map.empty Map.empty Map.empty
 
 mkIpHeaderRq :: IO Request
 mkIpHeaderRq = do
@@ -164,6 +174,13 @@ go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
     run_ $ runSnap m dummy (const (return ())) zomgRq
+  where
+    dummy !x = return $! (show x `using` rdeepseq) `seq` ()
+
+goMeth :: Method -> Snap a -> IO (Request,Response)
+goMeth m s = do
+    methRq <- mkMethodRq m
+    run_ $ runSnap s dummy (const (return ())) methRq
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
@@ -454,11 +471,57 @@ testMethod = testCase "types/method" $ do
 
 testMethods :: Test
 testMethods = testCase "types/methods" $ do
-   expect404 $ go (methods [POST,PUT] $ return ())
+   expect404 $ go (methods [POST,PUT,PATCH,Method "MOVE"] $ return ())
    expectNo404 $ go (methods [GET] $ return ())
    expectNo404 $ go (methods [POST,GET] $ return ())
    expectNo404 $ go (methods [PUT,GET] $ return ())
    expectNo404 $ go (methods [GET,PUT,DELETE] $ return ())
+   expectNo404 $ go (methods [GET,PUT,DELETE,PATCH] $ return ())
+   expectNo404 $ go (methods [GET,Method "COPY"] $ return ())
+   expect404 $ goMeth PATCH (methods [POST,PUT,GET,Method "FOO"] $ return ())
+   expect404 $ goMeth (Method "Baz")
+     (methods [GET,POST,Method "Foo"] $ return ())
+   expectNo404 $ goMeth (Method "Baz")
+     (method (Method "Baz") $ return ())
+   expectNo404 $ goMeth (Method "Foo")
+     (methods [Method "Baz",PATCH,GET,Method "Foo"] $ return ())
+
+   expectNo404 $ goMeth GET (method (Method "GET") $ return ())
+   expectNo404 $ goMeth (Method "GET") (method GET $ return ())
+
+
+methodGen :: Int -> Gen Method
+methodGen n = variant n $ oneof
+              [ elements [ GET, HEAD, POST, PUT, DELETE
+                         , TRACE, OPTIONS, CONNECT, PATCH ]
+              , Method <$> arbitrary
+              ]
+
+testMethodEq :: Test
+testMethodEq = testProperty "types/Method/eq" $ prop
+  where
+    prop n = do
+      m <- methodGen n
+      return $ m == m && toMeth m == m
+    toMeth GET     = Method "GET"
+    toMeth HEAD    = Method "HEAD"
+    toMeth POST    = Method "POST"
+    toMeth PUT     = Method "PUT"
+    toMeth DELETE  = Method "DELETE"
+    toMeth TRACE   = Method "TRACE"
+    toMeth OPTIONS = Method "OPTIONS"
+    toMeth CONNECT = Method "CONNECT"
+    toMeth PATCH   = Method "PATCH"
+    toMeth (Method a) = Method a
+
+
+testMethodNotEq :: Test
+testMethodNotEq = testProperty "types/Method/noteq" $ prop
+  where
+    prop n = do
+      m <- methodGen n
+      m' <- methodGen (n + 1)
+      return $ (m /= m') == not (m == m')
 
 
 testDir :: Test
