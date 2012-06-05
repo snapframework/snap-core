@@ -30,6 +30,7 @@ import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit hiding (Test, path)
+import           Test.QuickCheck(oneof, variant, elements, Gen, arbitrary)
 
 import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
@@ -54,6 +55,8 @@ tests = [ testFail
         , testTrivials
         , testMethod
         , testMethods
+        , testMethodEq
+        , testMethodNotEq
         , testDir
         , testCatchIO
         , testWrites
@@ -468,20 +471,58 @@ testMethod = testCase "types/method" $ do
 
 testMethods :: Test
 testMethods = testCase "types/methods" $ do
-   expect404 $ go (methods [POST,PUT,PATCH,ExtMethod "MOVE"] $ return ())
+   expect404 $ go (methods [POST,PUT,PATCH,Method "MOVE"] $ return ())
    expectNo404 $ go (methods [GET] $ return ())
    expectNo404 $ go (methods [POST,GET] $ return ())
    expectNo404 $ go (methods [PUT,GET] $ return ())
    expectNo404 $ go (methods [GET,PUT,DELETE] $ return ())
    expectNo404 $ go (methods [GET,PUT,DELETE,PATCH] $ return ())
-   expectNo404 $ go (methods [GET,ExtMethod "COPY"] $ return ())
-   expect404 $ goMeth PATCH (methods [POST,PUT,GET,ExtMethod "FOO"] $ return ())
-   expect404 $ goMeth (ExtMethod "Baz")
-     (methods [GET,POST,ExtMethod "Foo"] $ return ())
-   expectNo404 $ goMeth (ExtMethod "Baz")
-     (method (ExtMethod "Baz") $ return ())
-   expectNo404 $ goMeth (ExtMethod "Foo")
-     (methods [ExtMethod "Baz",PATCH,GET,ExtMethod "Foo"] $ return ())
+   expectNo404 $ go (methods [GET,Method "COPY"] $ return ())
+   expect404 $ goMeth PATCH (methods [POST,PUT,GET,Method "FOO"] $ return ())
+   expect404 $ goMeth (Method "Baz")
+     (methods [GET,POST,Method "Foo"] $ return ())
+   expectNo404 $ goMeth (Method "Baz")
+     (method (Method "Baz") $ return ())
+   expectNo404 $ goMeth (Method "Foo")
+     (methods [Method "Baz",PATCH,GET,Method "Foo"] $ return ())
+
+   expectNo404 $ goMeth GET (method (Method "GET") $ return ())
+   expectNo404 $ goMeth (Method "GET") (method GET $ return ())
+
+
+methodGen :: Int -> Gen Method
+methodGen n = variant n $ oneof
+              [elements [GET, HEAD, POST, PUT, DELETE
+                       , TRACE, OPTIONS, CONNECT, PATCH]
+              ,Method <$> arbitrary
+              ]
+
+testMethodEq :: Test
+testMethodEq = testProperty "types/Method/eq" $ prop
+  where
+    prop n = do
+      m <- methodGen n
+      return $ m == m && toMeth m == m
+    toMeth GET     = Method "GET"
+    toMeth HEAD    = Method "HEAD"
+    toMeth POST    = Method "POST"
+    toMeth PUT     = Method "PUT"
+    toMeth DELETE  = Method "DELETE"
+    toMeth TRACE   = Method "TRACE"
+    toMeth OPTIONS = Method "OPTIONS"
+    toMeth CONNECT = Method "CONNECT"
+    toMeth PATCH   = Method "PATCH"
+    toMeth (Method a) = Method a
+
+
+testMethodNotEq :: Test
+testMethodNotEq = testProperty "types/Method/noteq" $ prop
+  where
+    prop n = do
+      m <- methodGen n
+      m' <- methodGen (n + 1)
+      return $ (m /= m') == not (m == m')
+
 
 testDir :: Test
 testDir = testCase "types/dir" $ do

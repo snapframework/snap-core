@@ -63,8 +63,8 @@ testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do
     assertEqual "setRequestType/5/Method" POST (rqMethod request5)
 
     request6 <- buildRequest $ setRequestType $
-                RequestWithRawBody (ExtMethod "MOVE") "foo"
-    assertEqual "setRequestType/6/Method" (ExtMethod "MOVE") (rqMethod request6)
+                RequestWithRawBody (Method "MOVE") "foo"
+    assertEqual "setRequestType/6/Method" (Method "MOVE") (rqMethod request6)
 
     request7 <- buildRequest $ setRequestType $ RequestWithRawBody PATCH "bar"
     assertEqual "setRequestType/7/Method" PATCH (rqMethod request7)
