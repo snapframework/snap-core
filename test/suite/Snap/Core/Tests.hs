@@ -492,9 +492,9 @@ testMethods = testCase "types/methods" $ do
 
 methodGen :: Int -> Gen Method
 methodGen n = variant n $ oneof
-              [elements [GET, HEAD, POST, PUT, DELETE
-                       , TRACE, OPTIONS, CONNECT, PATCH]
-              ,Method <$> arbitrary
+              [ elements [ GET, HEAD, POST, PUT, DELETE
+                         , TRACE, OPTIONS, CONNECT, PATCH ]
+              , Method <$> arbitrary
               ]
 
 testMethodEq :: Test
