@@ -122,6 +122,13 @@ mkZomgRq = do
                      enum Nothing GET (1,1) [] "/" "/" "/" ""
                      Map.empty Map.empty Map.empty
 
+mkMethodRq :: Method -> IO Request
+mkMethodRq m = do
+    enum <- newIORef $ SomeEnumerator returnI
+
+    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
+                     enum Nothing m (1,1) [] "/" "/" "/" ""
+                     Map.empty Map.empty Map.empty
 
 mkIpHeaderRq :: IO Request
 mkIpHeaderRq = do
@@ -164,6 +171,13 @@ go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
     run_ $ runSnap m dummy (const (return ())) zomgRq
+  where
+    dummy !x = return $! (show x `using` rdeepseq) `seq` ()
+
+goMeth :: Method -> Snap a -> IO (Request,Response)
+goMeth m s = do
+    methRq <- mkMethodRq m
+    run_ $ runSnap s dummy (const (return ())) methRq
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
@@ -454,12 +468,20 @@ testMethod = testCase "types/method" $ do
 
 testMethods :: Test
 testMethods = testCase "types/methods" $ do
-   expect404 $ go (methods [POST,PUT] $ return ())
+   expect404 $ go (methods [POST,PUT,PATCH,ExtMethod "MOVE"] $ return ())
    expectNo404 $ go (methods [GET] $ return ())
    expectNo404 $ go (methods [POST,GET] $ return ())
    expectNo404 $ go (methods [PUT,GET] $ return ())
    expectNo404 $ go (methods [GET,PUT,DELETE] $ return ())
-
+   expectNo404 $ go (methods [GET,PUT,DELETE,PATCH] $ return ())
+   expectNo404 $ go (methods [GET,ExtMethod "COPY"] $ return ())
+   expect404 $ goMeth PATCH (methods [POST,PUT,GET,ExtMethod "FOO"] $ return ())
+   expect404 $ goMeth (ExtMethod "Baz")
+     (methods [GET,POST,ExtMethod "Foo"] $ return ())
+   expectNo404 $ goMeth (ExtMethod "Baz")
+     (method (ExtMethod "Baz") $ return ())
+   expectNo404 $ goMeth (ExtMethod "Foo")
+     (methods [ExtMethod "Baz",PATCH,GET,ExtMethod "Foo"] $ return ())
 
 testDir :: Test
 testDir = testCase "types/dir" $ do
