@@ -137,27 +137,27 @@ data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT |
 
 
 instance Eq Method where
-    GET     == GET = True
-    GET     == Method "GET" = True
-    HEAD    == HEAD = True
-    HEAD    == Method "HEAD" = True
-    POST    == POST = True
-    POST    == Method "POST" = True
-    PUT     == PUT = True
-    PUT     == Method "PUT" = True
-    DELETE  == DELETE = True
-    DELETE  == Method "DELETE" = True
-    TRACE   == TRACE = True
-    TRACE   == Method "TRACE" = True
-    OPTIONS == OPTIONS = True
-    OPTIONS == Method "OPTIONS" = True
-    CONNECT == CONNECT = True
-    CONNECT == Method "CONNECT" = True
-    PATCH   == PATCH = True
-    PATCH   == Method "PATCH" = True
-    Method a == Method b = a == b
-    m@(Method _) == other = other == m
-    _ == _ = False
+    GET          == GET              = True
+    GET          == Method "GET"     = True
+    HEAD         == HEAD             = True
+    HEAD         == Method "HEAD"    = True
+    POST         == POST             = True
+    POST         == Method "POST"    = True
+    PUT          == PUT              = True
+    PUT          == Method "PUT"     = True
+    DELETE       == DELETE           = True
+    DELETE       == Method "DELETE"  = True
+    TRACE        == TRACE            = True
+    TRACE        == Method "TRACE"   = True
+    OPTIONS      == OPTIONS          = True
+    OPTIONS      == Method "OPTIONS" = True
+    CONNECT      == CONNECT          = True
+    CONNECT      == Method "CONNECT" = True
+    PATCH        == PATCH            = True
+    PATCH        == Method "PATCH"   = True
+    Method a     == Method b         = a == b
+    m@(Method _) == other            = other == m
+    _            == _                = False
 
 ------------------------------------------------------------------------------
 type HttpVersion = (Int,Int)
