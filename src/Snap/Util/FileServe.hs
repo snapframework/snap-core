@@ -38,8 +38,8 @@ import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Internal (c2w)
 import           Data.Int
 import           Data.List
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as Map
 import           Data.Maybe (fromMaybe, isNothing)
 import           Data.Monoid
 import qualified Data.Text as T
@@ -79,12 +79,12 @@ getSafePath = do
 
 ------------------------------------------------------------------------------
 -- | A type alias for dynamic handlers
-type HandlerMap m = Map FilePath (FilePath -> m ())
+type HandlerMap m = HashMap FilePath (FilePath -> m ())
 
 
 ------------------------------------------------------------------------------
 -- | A type alias for MIME type
-type MimeMap = Map FilePath ByteString
+type MimeMap = HashMap FilePath ByteString
 
 
 ------------------------------------------------------------------------------
@@ -569,7 +569,7 @@ serveFileAs mime fp = do
 
 
 ------------------------------------------------------------------------------
-lookupExt :: a -> Map FilePath a -> FilePath -> a
+lookupExt :: a -> HashMap FilePath a -> FilePath -> a
 lookupExt def m f =
     if null ext
       then def
