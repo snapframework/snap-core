@@ -131,9 +131,33 @@ deleteHeader k = updateHeaders $ H.delete k
 ------------------------------------------------------------------------------
 -- | Enumerates the HTTP method values (see
 -- <http://tools.ietf.org/html/rfc2068.html#section-5.1.1>).
-data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT
-               deriving(Show,Read,Ord,Eq)
+data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT |
+               PATCH | Method ByteString
+               deriving(Show,Read,Ord)
 
+
+instance Eq Method where
+    GET          == GET              = True
+    GET          == Method "GET"     = True
+    HEAD         == HEAD             = True
+    HEAD         == Method "HEAD"    = True
+    POST         == POST             = True
+    POST         == Method "POST"    = True
+    PUT          == PUT              = True
+    PUT          == Method "PUT"     = True
+    DELETE       == DELETE           = True
+    DELETE       == Method "DELETE"  = True
+    TRACE        == TRACE            = True
+    TRACE        == Method "TRACE"   = True
+    OPTIONS      == OPTIONS          = True
+    OPTIONS      == Method "OPTIONS" = True
+    CONNECT      == CONNECT          = True
+    CONNECT      == Method "CONNECT" = True
+    PATCH        == PATCH            = True
+    PATCH        == Method "PATCH"   = True
+    Method a     == Method b         = a == b
+    m@(Method _) == other            = other == m
+    _            == _                = False
 
 ------------------------------------------------------------------------------
 type HttpVersion = (Int,Int)
