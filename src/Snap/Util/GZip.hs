@@ -44,6 +44,8 @@ import qualified Snap.Iteratee as I
 --
 --   * @application/x-javascript@
 --
+--   * @application/json@
+--
 --   * @text/css@
 --
 --   * @text/html@
