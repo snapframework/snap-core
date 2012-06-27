@@ -102,6 +102,7 @@ Library
 
   exposed-modules:
     Snap.Core,
+    Snap.Core.UTF8,
     Snap.Types,
     Snap.Iteratee,
     Snap.Internal.Debug,
