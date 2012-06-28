@@ -1,7 +1,9 @@
 {-|
 
-This module contains the core type definitions, class instances, and functions
-for HTTP as well as the 'Snap' monad, which is used for web handlers.
+This is a convenience version of Snap.Core using UTF8-encoded Text rather than
+ByteStrings.  It exports everything exported by Snap.Core and is meant to be
+used as a drop-in replacement for those who are using UTF8 and don't want to
+do the decoding manually.
 
 -}
 module Snap.Core.UTF8
@@ -24,7 +26,7 @@ module Snap.Core.UTF8
   , S.escapeHttp
 
     -- ** Routing
-  , path
+  , S.path
   , S.pathArg
   , dir
   , S.ifTop
@@ -182,12 +184,14 @@ import qualified Snap.Types.Headers as S
 enc = encodeUtf8
 dec = decodeUtf8
 
--- I think these are all the functions that need to have UTF8 versions:
+-- NOTE: We'll probably skip Text version of path because of
+-- urlencoding issues.
 
-------------------------------------------------------------------------------
--- | 
-path :: S.MonadSnap m => Text -> m a -> m a
-path p = S.path (enc p)
+--path :: S.MonadSnap m => Text -> m a -> m a
+--path p = S.path (enc p)
+
+
+-- I think these are all the functions that need to have UTF8 versions:
 
 dir :: S.MonadSnap m => Text -> m a -> m a
 dir d = S.dir (enc d)
