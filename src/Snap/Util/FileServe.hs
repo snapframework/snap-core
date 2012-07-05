@@ -36,6 +36,7 @@ import           Data.Attoparsec.Char8
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Internal (c2w)
+import qualified Data.ByteString.UTF8  as SU
 import           Data.Int
 import           Data.List
 import           Data.HashMap.Strict (HashMap)
@@ -55,7 +56,6 @@ import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
 import           Snap.Iteratee hiding (drop)
 
-
 ------------------------------------------------------------------------------
 -- | Gets a path from the 'Request' using 'rqPathInfo' and makes sure it is
 -- safe to use for opening files.  A path is safe if it is a relative path
@@ -65,8 +65,7 @@ getSafePath = do
     req <- getRequest
     let mp = urlDecode $ rqPathInfo req
 
-    p <- maybe pass (return . S.unpack) mp
-
+    p <- maybe pass (return . SU.toString) mp
     -- relative paths only!
     when (not $ isRelative p) pass
 
