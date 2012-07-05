@@ -538,7 +538,8 @@ runHandler = runHandlerM rs
                                       rq
 
         -- simulate server logic
-        return $! if rspContentLength rsp == Nothing &&
+        return $! H.setHeader "Server" "Snap/test" $
+                  if rspContentLength rsp == Nothing &&
                      rspHttpVersion rsp < (1,1)
                     then H.setHeader "Connection" "close" rsp
                     else rsp
