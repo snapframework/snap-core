@@ -521,6 +521,10 @@ postRaw uri contentType postData = do
 -- | Given a web handler in the 'Snap' monad, and a 'RequestBuilder' defining
 -- a test request, runs the handler, producing an HTTP 'Response'.
 --
+-- This function will produce almost exactly the same output as running the
+-- handler in a real server, except that chunked transfer encoding is not
+-- applied, and the \"Transfer-Encoding\" header is not set (this makes it
+-- easier to test response output).
 runHandler :: MonadIO m =>
               RequestBuilder m ()   -- ^ a request builder
            -> Snap a                -- ^ a web handler
@@ -532,7 +536,12 @@ runHandler = runHandlerM rs
                                       (const $ return $! ())
                                       (const $ return $! ())
                                       rq
-        return rsp
+
+        -- simulate server logic
+        return $! if rspContentLength rsp == Nothing &&
+                     rspHttpVersion rsp < (1,1)
+                    then H.setHeader "Connection" "close" rsp
+                    else rsp
 
 
 ------------------------------------------------------------------------------
