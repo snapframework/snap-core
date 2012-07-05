@@ -537,12 +537,7 @@ runHandler = runHandlerM rs
                                       (const $ return $! ())
                                       rq
 
-        -- simulate server logic
-        return $! H.setHeader "Server" "Snap/test" $
-                  if rspContentLength rsp == Nothing &&
-                     rspHttpVersion rsp < (1,1)
-                    then H.setHeader "Connection" "close" rsp
-                    else rsp
+        return rsp
 
 
 ------------------------------------------------------------------------------
@@ -561,8 +556,15 @@ runHandlerM :: (MonadIO m, MonadSnap n) =>
 runHandlerM rSnap rBuilder snap = do
     rq  <- buildRequest rBuilder
     rsp <- rSnap rq snap
+
+    -- simulate server logic
     t1  <- liftIO (epochTime >>= formatHttpTime)
-    return $ H.setHeader "Date" t1 rsp
+    return $ H.setHeader "Date" t1
+           $ H.setHeader "Server" "Snap/test"
+           $ if rspContentLength rsp == Nothing &&
+                rspHttpVersion rsp < (1,1)
+               then H.setHeader "Connection" "close" rsp
+               else rsp
 
 
 ------------------------------------------------------------------------------
