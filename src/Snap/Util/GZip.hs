@@ -10,7 +10,6 @@ module Snap.Util.GZip
 , noCompression ) where
 
 import           Blaze.ByteString.Builder
-import qualified Codec.Zlib.Enum as Z
 import           Control.Applicative
 import           Control.Exception
 import           Control.Monad
@@ -20,19 +19,19 @@ import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.Char as Char
 import           Data.Maybe
-import           Data.Monoid
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import           Data.Typeable
-import           Prelude hiding (catch, takeWhile)
+import           Prelude hiding (catch, takeWhile, read)
+import           System.IO.Streams (OutputStream)
+import qualified System.IO.Streams as Streams
+
 
 
 ----------------------------------------------------------------------------
 import           Snap.Core
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
-import           Snap.Iteratee
-import qualified Snap.Iteratee as I
 
 
 ------------------------------------------------------------------------------
@@ -112,15 +111,18 @@ withCompression' mimeTable action = do
 
         types <- liftIO $ parseAcceptEncoding s
 
-        chooseType types
+        chooseType Nothing types
 
 
-    chooseType []              = return $! ()
-    chooseType ("gzip":_)      = gzipCompression "gzip"
-    chooseType ("deflate":_)   = compressCompression "deflate"
-    chooseType ("x-gzip":_)    = gzipCompression "x-gzip"
-    chooseType ("x-deflate":_) = compressCompression "x-deflate"
-    chooseType (_:xs)          = chooseType xs
+    chooseType m []              = maybe (return $! ()) id m
+    chooseType _ ("gzip":_)      = gzipCompression "gzip"
+    chooseType m ("deflate":xs)  =
+        chooseType (m `mplus` Just (compressCompression "deflate")) xs
+
+    chooseType _ ("x-gzip":_)     = gzipCompression "x-gzip"
+    chooseType m ("x-deflate":xs) =
+        chooseType (m `mplus` Just (compressCompression "x-deflate")) xs
+    chooseType m (_:xs)          = chooseType m xs
 
 
 ------------------------------------------------------------------------------
@@ -156,7 +158,7 @@ gzipCompression ce = modifyResponse f
     f r = setHeader "Content-Encoding" ce    $
           setHeader "Vary" "Accept-Encoding" $
           clearContentLength                 $
-          modifyResponseBody (gcompress (getBufferingMode r)) r
+          modifyResponseBody gcompress r
 
 
 ------------------------------------------------------------------------------
@@ -166,45 +168,21 @@ compressCompression ce = modifyResponse f
     f r = setHeader "Content-Encoding" ce    $
           setHeader "Vary" "Accept-Encoding" $
           clearContentLength                 $
-          modifyResponseBody (ccompress (getBufferingMode r)) r
+          modifyResponseBody ccompress r
 
 
 ------------------------------------------------------------------------------
-gcompress :: Bool               -- ^ buffer?
-          -> forall a . Enumerator Builder IO a
-          -> Enumerator Builder IO a
-gcompress buffer e st = e $$ iFinal
-  where
-    i0     = returnI st
-    iNoB   = mapFlush                =$ i0
-    iZNoB  = Z.gzip                  =$ iNoB
-
-    iB     = I.map fromByteString    =$ i0
-    iZ     = Z.gzip                  =$ iB
-
-    iFinal = enumBuilderToByteString =$ if buffer then iZ else iZNoB
-
-    mapFlush :: Monad m => Enumeratee ByteString Builder m b
-    mapFlush = I.map ((`mappend` flush) . fromByteString)
+gcompress :: (OutputStream Builder -> IO ())
+          -> OutputStream Builder
+          -> IO ()
+gcompress body stream = Streams.gzipBuilder 5 stream >>= body
 
 
 ------------------------------------------------------------------------------
-ccompress :: Bool               -- ^ buffer?
-          -> forall a . Enumerator Builder IO a
-          -> Enumerator Builder IO a
-ccompress buffer e st = e $$ iFinal
-  where
-    i0     = returnI st
-    iNoB   = mapFlush                         =$ i0
-    iZNoB  = Z.compress 5 Z.defaultWindowBits =$ iNoB
-
-    iB     = I.map fromByteString             =$ i0
-    iZ     = Z.compress 5 Z.defaultWindowBits =$ iB
-
-    iFinal = enumBuilderToByteString =$ if buffer then iZ else iZNoB
-
-    mapFlush :: Monad m => Enumeratee ByteString Builder m b
-    mapFlush = I.map ((`mappend` flush) . fromByteString)
+ccompress :: (OutputStream Builder -> IO ())
+          -> OutputStream Builder
+          -> IO ()
+ccompress body stream = Streams.compressBuilder 5 stream >>= body
 
 
 ------------------------------------------------------------------------------
@@ -226,11 +204,11 @@ acceptParser = do
 
     qvalue = do
         skipSpace
-        char ';'
+        void $! char ';'
         skipSpace
-        char 'q'
+        void $! char 'q'
         skipSpace
-        char '='
+        void $! char '='
         float
         return ()
 

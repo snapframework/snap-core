@@ -41,10 +41,10 @@ import qualified Data.ByteString.Base16         as B16
 import           Data.ByteString.Char8          (ByteString)
 import qualified Data.ByteString.Char8          as S
 import           Data.CaseInsensitive           (CI)
-import           Data.IORef
 import qualified Data.Map                       as Map
 import           Data.Monoid
 import           Data.Word
+import qualified System.IO.Streams              as Streams
 import           System.PosixCompat.Time
 import           System.Random.MWC
 ------------------------------------------------------------------------------
@@ -54,7 +54,6 @@ import           Snap.Internal.Http.Types hiding (addHeader,
 import qualified Snap.Internal.Http.Types       as H
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types            (evalSnap)
-import           Snap.Iteratee                  hiding (map)
 import           Snap.Core                      hiding ( addHeader
                                                        , setContentType
                                                        , setHeader )
@@ -71,7 +70,7 @@ newtype RequestBuilder m a = RequestBuilder (StateT Request m a)
 ------------------------------------------------------------------------------
 mkDefaultRequest :: IO Request
 mkDefaultRequest = do
-    bodyRef <- newIORef $ SomeEnumerator enumEOF
+    b <- Streams.fromList []
     return $ Request "localhost"
                      8080
                      "127.0.0.1"
@@ -81,7 +80,7 @@ mkDefaultRequest = do
                      "localhost"
                      False
                      H.empty
-                     bodyRef
+                     b
                      Nothing
                      GET
                      (1,1)
@@ -119,9 +118,11 @@ buildRequest mm = do
         if (rqMethod rq == GET || rqMethod rq == DELETE ||
             rqMethod rq == HEAD)
           then do
+              b <- liftIO $ Streams.fromList []
               -- These requests are not permitted to have bodies
-              let rq' = deleteHeader "Content-Type" rq
-              liftIO $ writeIORef (rqBody rq') (SomeEnumerator enumEOF)
+              let rq' = deleteHeader "Content-Type" $
+                        rq { rqBody = b }
+
               rPut $ rq' { rqContentLength = Nothing }
           else return $! ()
 
@@ -138,15 +139,16 @@ buildRequest mm = do
         let queryParams = parseUrlEncoded query
         let mbCT        = getHeader "Content-Type" rq
 
-        postParams <- if mbCT == Just "application/x-www-form-urlencoded"
-                        then do
-                          (SomeEnumerator e) <- liftIO $ readIORef $ rqBody rq
-                          s <- liftM S.concat (liftIO $ run_ $ e $$ consume)
-                          return $ parseUrlEncoded s
-                        else return Map.empty
+        (postParams, rq') <-
+            if mbCT == Just "application/x-www-form-urlencoded"
+              then liftIO $ do
+                  s <- liftM S.concat $ Streams.toList $ rqBody rq
+                  b <- Streams.fromList []
+                  return (parseUrlEncoded s, rq { rqBody = b })
+              else return (Map.empty, rq)
 
-        rPut $ rq { rqParams      = Map.unionWith (++) queryParams postParams
-                  , rqQueryParams = queryParams }
+        rPut $ rq' { rqParams      = Map.unionWith (++) queryParams postParams
+                   , rqQueryParams = queryParams }
 
 
 ------------------------------------------------------------------------------
@@ -192,35 +194,42 @@ data RequestType
 -- | Sets the type of the 'Request' being built.
 setRequestType :: MonadIO m => RequestType -> RequestBuilder m ()
 setRequestType GetRequest = do
-    rq <- rGet
-    liftIO $ writeIORef (rqBody rq) $ SomeEnumerator enumEOF
+    rq   <- rGet
+    body <- liftIO $ Streams.fromList []
+
     rPut $ rq { rqMethod        = GET
               , rqContentLength = Nothing
+              , rqBody          = body
               }
 
 setRequestType DeleteRequest = do
-    rq <- rGet
-    liftIO $ writeIORef (rqBody rq) $ SomeEnumerator enumEOF
+    rq   <- rGet
+    body <- liftIO $ Streams.fromList []
+
     rPut $ rq { rqMethod        = DELETE
               , rqContentLength = Nothing
+              , rqBody          = body
               }
 
 setRequestType (RequestWithRawBody m b) = do
     rq <- rGet
-    liftIO $ writeIORef (rqBody rq) $ SomeEnumerator $ enumBS b
+    body <- liftIO $ Streams.fromList [ b ]
     rPut $ rq { rqMethod        = m
               , rqContentLength = Just $ S.length b
+              , rqBody          = body
               }
 
 setRequestType (MultipartPostRequest fp) = encodeMultipart fp
 
 setRequestType (UrlEncodedPostRequest fp) = do
     rq <- liftM (H.setHeader "Content-Type"
-                           "application/x-www-form-urlencoded") rGet
+                             "application/x-www-form-urlencoded") rGet
     let b = printUrlEncoded fp
-    liftIO $ writeIORef (rqBody rq) $ SomeEnumerator $ enumBS b
+    body <- liftIO $ Streams.fromList [b]
+
     rPut $ rq { rqMethod        = POST
               , rqContentLength = Just $ S.length b
+              , rqBody          = body
               }
 
 
@@ -339,18 +348,20 @@ encodeMultipart kvps = do
     boundary <- liftIO $ makeBoundary
     builders <- liftIO $ mapM (handleOne boundary) kvps
 
-    let b = toByteString $
-              mconcat (fromByteString "--" : builders)
-                `mappend` finalBoundary boundary
+    let b = toByteString $ mconcat (fromByteString "--" : builders)
+                             `mappend` finalBoundary boundary
 
     rq0 <- rGet
-    liftIO $ writeIORef (rqBody rq0) $ SomeEnumerator $ enumBS b
+
+    body <- liftIO $ Streams.fromList [b]
+
     let rq = H.setHeader "Content-Type"
                (S.append "multipart/form-data; boundary=" boundary)
                rq0
 
     rPut $ rq { rqMethod        = POST
               , rqContentLength = Just $ S.length b
+              , rqBody          = body
               }
 
 
@@ -532,10 +543,10 @@ runHandler :: MonadIO m =>
 runHandler = runHandlerM rs
   where
     rs rq s = do
-        (_,rsp) <- liftIO $ run_ $ runSnap s
-                                      (const $ return $! ())
-                                      (const $ return $! ())
-                                      rq
+        (_,rsp) <- liftIO $ runSnap s
+                               (const $ return $! ())
+                               (const $ return $! ())
+                               rq
 
         return rsp
 
@@ -580,8 +591,7 @@ evalHandler :: MonadIO m =>
             -> m a
 evalHandler = evalHandlerM rs
   where
-    rs rq s = liftIO $ run_
-                     $ evalSnap s (const $ return $! ())
+    rs rq s = liftIO $ evalSnap s (const $ return $! ())
                                   (const $ return $! ())
                                   rq
 
@@ -617,10 +627,13 @@ dumpResponse resp = responseToString resp >>= S.putStrLn
 -- | Converts the given response to a bytestring.
 responseToString :: Response -> IO ByteString
 responseToString resp = do
-    b <- run_ (rspBodyToEnum (rspBody resp) $$
-               liftM mconcat consume)
+    let act = rspBodyToEnum $ rspBody resp
 
-    return $ toByteString $ fromShow resp `mappend` b
+    (listOut, grab) <- Streams.listOutputStream
+    act listOut
+    builder <- liftM mconcat grab
+
+    return $ toByteString $ fromShow resp `mappend` builder
 
 
 ------------------------------------------------------------------------------

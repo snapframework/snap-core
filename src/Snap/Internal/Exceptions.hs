@@ -12,7 +12,7 @@ module Snap.Internal.Exceptions where
 import           Control.Exception
 import           Data.ByteString.Char8 (ByteString)
 import           Data.Typeable
-import           Snap.Iteratee
+import           System.IO.Streams
 
 ------------------------------------------------------------------------------
 -- | An exception hierarchy for exceptions that cannot be caught by
@@ -69,8 +69,8 @@ data EscapeHttpException = EscapeHttpException EscapeHttpHandler
 
 ------------------------------------------------------------------------------
 type EscapeHttpHandler =  ((Int -> Int) -> IO ())    -- ^ timeout modifier
-                       -> Iteratee ByteString IO ()  -- ^ socket write end
-                       -> Iteratee ByteString IO ()
+                       -> OutputStream ByteString    -- ^ socket write end
+                       -> IO ()
 
 
 ------------------------------------------------------------------------------
@@ -82,5 +82,3 @@ instance Show EscapeHttpException where
 instance Exception EscapeHttpException where
     toException   = uncatchableExceptionToException
     fromException = uncatchableExceptionFromException
-
-

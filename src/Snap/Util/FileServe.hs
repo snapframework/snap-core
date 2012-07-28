@@ -48,12 +48,12 @@ import           Prelude hiding (catch, show, Show)
 import qualified Prelude
 import           System.Directory
 import           System.FilePath
+import qualified System.IO.Streams as Streams
 import           System.PosixCompat.Files
 ------------------------------------------------------------------------------
 import           Snap.Core
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
-import           Snap.Iteratee hiding (drop)
 
 
 ------------------------------------------------------------------------------
@@ -606,7 +606,7 @@ rangeParser = string "bytes=" *>
   where
     byteRangeSpec = do
         start <- parseNum
-        char '-'
+        void $! char '-'
         end   <- option Nothing $ liftM Just parseNum
 
         return $! RangeReq start end
@@ -689,7 +689,7 @@ checkRangeReq req fp sz = do
                               . deleteHeader "Content-Type"
                               . deleteHeader "Content-Encoding"
                               . deleteHeader "Transfer-Encoding"
-                              . setResponseBody (enumBuilder mempty)
+                              . setResponseBody (Streams.write Nothing)
 
                return True
 

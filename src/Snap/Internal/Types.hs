@@ -14,7 +14,7 @@ module Snap.Internal.Types where
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception (SomeException, throwIO, ErrorCall(..))
+import           Control.Exception (throwIO, ErrorCall(..))
 import           Control.Monad
 import           Control.Monad.CatchIO
 import qualified Control.Monad.Error.Class as EC
@@ -24,21 +24,19 @@ import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.CaseInsensitive (CI)
 import           Data.Int
-import           Data.IORef
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Time
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import           Data.Typeable
 import           Prelude hiding (catch, take)
+import           System.IO.Streams (InputStream, OutputStream)
+import qualified System.IO.Streams as Streams
 import           System.PosixCompat.Files hiding (setFileSize)
 import           System.Posix.Types (FileOffset)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
-import           Snap.Internal.Iteratee.Debug
-import           Snap.Iteratee hiding (map)
 import qualified Snap.Types.Headers as H
 import           Snap.Util.Readable
 ------------------------------------------------------------------------------
@@ -138,7 +136,7 @@ data SnapResult a = SnapValue a
 
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
-      unSnap :: StateT SnapState (Iteratee ByteString IO) (SnapResult a)
+      unSnap :: StateT SnapState IO (SnapResult a)
     }
 
 
@@ -268,71 +266,25 @@ instance Typeable1 Snap where
 
 
 ------------------------------------------------------------------------------
-liftIter :: MonadSnap m => Iteratee ByteString IO a -> m a
-liftIter i = liftSnap $ Snap (lift i >>= return . SnapValue)
-
-
-------------------------------------------------------------------------------
--- | Sends the request body through an iteratee (data consumer) and
--- returns the result.
+-- | Pass the request body stream to a consuming procedure, returning the
+-- result.
 --
 -- If the iteratee you pass in here throws an exception, Snap will attempt to
 -- clear the rest of the unread request body before rethrowing the exception.
 -- If your iteratee used 'terminateConnection', however, Snap will give up and
 -- immediately close the socket.
-runRequestBody :: MonadSnap m => Iteratee ByteString IO a -> m a
-runRequestBody iter = do
+--
+-- FIXME/TODO: reword above
+
+runRequestBody :: MonadSnap m =>
+                  (InputStream ByteString -> IO a)
+               -> m a
+runRequestBody proc = do
     bumpTimeout <- liftM ($ max 5) getTimeoutModifier
     req         <- getRequest
-    senum       <- liftIO $ readIORef $ rqBody req
-    let (SomeEnumerator enum) = senum
-
-    -- make sure the iteratee consumes all of the output
-    let iter' = handle bumpTimeout req
-                       (iter >>= \a -> skipToEnd bumpTimeout >> return a)
-
-    -- run the iteratee
-    step   <- liftIO $ runIteratee iter'
-    result <- liftIter $ enum step
-
-    -- stuff a new dummy enumerator into the request, so you can only try to
-    -- read the request body from the socket once
-    resetEnum req
-    return result
-
-  where
-    resetEnum req = liftIO $
-                    writeIORef (rqBody req) $
-                    SomeEnumerator $ joinI . take 0
-
-    skipToEnd bump = killIfTooSlow bump 500 5 skipToEof `catchError` \e ->
-                     throwError $ ConnectionTerminatedException e
-
-    handle bump req =
-        (`catches` [
-          Handler $ \(e :: ConnectionTerminatedException) -> do
-              let en = SomeEnumerator $ const $ throwError e
-              liftIO $ writeIORef (rqBody req) en
-              throwError e
-         , Handler $ \(e :: SomeException) -> do
-              resetEnum req
-              skipToEnd bump
-              throwError e
-         ])
-
-
-------------------------------------------------------------------------------
--- | Returns the request body as a lazy bytestring.
---
--- This function is deprecated as of 0.6; it places no limits on the size of
--- the request being read, and as such, if used, can result in a
--- denial-of-service attack on your server. Please use 'readRequestBody'
--- instead.
-getRequestBody :: MonadSnap m => m L.ByteString
-getRequestBody = liftM L.fromChunks $ runRequestBody consume
-{-# INLINE getRequestBody #-}
-{-# DEPRECATED getRequestBody
-    "As of 0.6, please use 'readRequestBody' instead" #-}
+    body        <- liftIO $ Streams.killIfTooSlow bumpTimeout 500 5 $
+                            rqBody req
+    liftIO $ proc body
 
 
 ------------------------------------------------------------------------------
@@ -343,44 +295,37 @@ readRequestBody :: MonadSnap m =>
                           -- received, a 'TooManyBytesReadException' is
                           -- thrown. See 'takeNoMoreThan'.
                 -> m L.ByteString
-readRequestBody sz = liftM L.fromChunks $ runRequestBody $
-                     joinI $ takeNoMoreThan sz $$ consume
+readRequestBody sz = liftM L.fromChunks $ runRequestBody f
+  where
+    f str = Streams.takeNoMoreThan sz str >>= Streams.toList
 
 
 ------------------------------------------------------------------------------
 -- | Normally Snap is careful to ensure that the request body is fully
--- consumed after your web handler runs, but before the 'Response' enumerator
+-- consumed after your web handler runs, but before the 'Response' body
 -- is streamed out the socket. If you want to transform the request body into
 -- some output in O(1) space, you should use this function.
+--
+-- Take care: in order for this to work, the HTTP client must be written with
+-- input-to-output streaming in mind.
 --
 -- Note that upon calling this function, response processing finishes early as
 -- if you called 'finishWith'. Make sure you set any content types, headers,
 -- cookies, etc. before you call this function.
 --
-transformRequestBody :: (forall a . Enumerator Builder IO a)
+transformRequestBody :: (InputStream ByteString -> IO (InputStream ByteString))
                          -- ^ the output 'Iteratee' is passed to this
                          -- 'Enumerator', and then the resulting 'Iteratee' is
                          -- fed the request body stream. Your 'Enumerator' is
                          -- responsible for transforming the input.
                      -> Snap ()
 transformRequestBody trans = do
-    req <- getRequest
-    let ioref = rqBody req
-    senum <- liftIO $ readIORef ioref
-    let (SomeEnumerator enum') = senum
-    let enum = mapEnum toByteString fromByteString enum'
-    liftIO $ writeIORef ioref (SomeEnumerator enumEOF)
-
+    req     <- getRequest
+    is      <- liftIO ((trans $ rqBody req) >>=
+                         Streams.mapM (return . fromByteString))
     origRsp <- getResponse
-    let rsp = setResponseBody
-                (\writeEnd -> do
-                     let i = iterateeDebugWrapperWith showBuilder
-                                                      "transformRequestBody"
-                                                      $ trans writeEnd
-                     st <- liftIO $ runIteratee i
-
-                     enum st)
-                $ origRsp { rspTransformingRqBody = True }
+    let rsp = setResponseBody (\out -> Streams.connect is out) $
+              origRsp { rspTransformingRqBody = True }
     finishWith rsp
 
 
@@ -616,7 +561,7 @@ redirect' target status = do
     finishWith
         $ setResponseCode status
         $ setContentLength 0
-        $ modifyResponseBody (const $ enumBuilder mempty)
+        $ modifyResponseBody (const $ const $ return ())
         $ setHeader "Location" target r
 
 {-# INLINE redirect' #-}
@@ -634,16 +579,17 @@ logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
 -- | Adds the output from the given enumerator to the 'Response'
 -- stored in the 'Snap' monad state.
 addToOutput :: MonadSnap m
-            => (forall a . Enumerator Builder IO a)   -- ^ output to add
+            => (OutputStream Builder -> IO ())  -- ^ output to add
             -> m ()
-addToOutput enum = modifyResponse $ modifyResponseBody (>==> enum)
-
+addToOutput enum = modifyResponse $ modifyResponseBody (c enum)
+  where
+    c a b = \out -> a out >> b out
 
 ------------------------------------------------------------------------------
 -- | Adds the given 'Builder' to the body of the 'Response' stored in the
 -- | 'Snap' monad state.
 writeBuilder :: MonadSnap m => Builder -> m ()
-writeBuilder b = addToOutput $ enumBuilder b
+writeBuilder = addToOutput . Streams.write . Just
 {-# INLINE writeBuilder #-}
 
 
@@ -865,7 +811,7 @@ runSnap :: Snap a
         -> (ByteString -> IO ())
         -> ((Int -> Int) -> IO ())
         -> Request
-        -> Iteratee ByteString IO (Request,Response)
+        -> IO (Request,Response)
 runSnap (Snap m) logerr timeoutAction req = do
     (r, ss') <- runStateT m ss
 
@@ -889,20 +835,21 @@ runSnap (Snap m) logerr timeoutAction req = do
           emptyResponse
 
     --------------------------------------------------------------------------
-    enum404 = enumBuilder $ mconcat $ map fromByteString html
+    enum404 out = do
+        is <- Streams.fromList html
+        Streams.connect is out
 
     --------------------------------------------------------------------------
-    html = [ S.concat [ "<!DOCTYPE html>\n"
-                      , "<html>\n"
-                      , "<head>\n"
-                      , "<title>Not found</title>\n"
-                      , "</head>\n"
-                      , "<body>\n"
-                      , "<code>No handler accepted \""
-                      ]
-           , rqURI req
-           , "\"</code>\n</body></html>"
-           ]
+    html = map fromByteString [ "<!DOCTYPE html>\n"
+                              , "<html>\n"
+                              , "<head>\n"
+                              , "<title>Not found</title>\n"
+                              , "</head>\n"
+                              , "<body>\n"
+                              , "<code>No handler accepted \""
+                              , rqURI req
+                              , "\"</code>\n</body></html>"
+                              ]
 
     --------------------------------------------------------------------------
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
@@ -931,7 +878,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
 
     rsp'' <- do
         z <- case rspBody rsp' of
-               (Enum _)                  -> return rsp'
+               (Stream _)                -> return rsp'
                (SendFile f Nothing)      -> setFileSize f rsp'
                (SendFile _ (Just (s,e))) -> return $!
                                             setContentLength (e-s) rsp'
@@ -946,7 +893,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
     -- HEAD requests cannot have bodies per RFC 2616 sec. 9.4
     if rqMethod req == HEAD
       then return $! deleteHeader "Transfer-Encoding" $
-           rsp'' { rspBody = Enum $ enumBuilder mempty }
+           rsp'' { rspBody = Stream $ const $ return () }
       else return $! rsp''
 
   where
@@ -962,7 +909,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
 
     --------------------------------------------------------------------------
     handle304 :: Response -> Response
-    handle304 r = setResponseBody (enumBuilder mempty) $
+    handle304 r = setResponseBody (const $ return ()) $
                   updateHeaders (H.delete "Transfer-Encoding") $
                   setContentLength 0 r
 {-# INLINE fixupResponse #-}
@@ -973,7 +920,7 @@ evalSnap :: Snap a
          -> (ByteString -> IO ())
          -> ((Int -> Int) -> IO ())
          -> Request
-         -> Iteratee ByteString IO a
+         -> IO a
 evalSnap (Snap m) logerr timeoutAction req = do
     (r, _) <- runStateT m ss
 

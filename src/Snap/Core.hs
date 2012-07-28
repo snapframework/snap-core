@@ -51,7 +51,6 @@ module Snap.Core
 
     -- ** Grabbing/transforming request bodies
   , runRequestBody
-  , getRequestBody
   , readRequestBody
   , transformRequestBody
 
@@ -127,8 +126,6 @@ module Snap.Core
   , clearContentLength
   , redirect
   , redirect'
-  , setBufferingMode
-  , getBufferingMode
 
     -- *** Response I/O
   , setResponseBody
@@ -149,10 +146,6 @@ module Snap.Core
   , getTimeoutAction
   , getTimeoutModifier
 
-    -- * Iteratee
-  , Enumerator
-  , SomeEnumerator(..)
-
     -- * HTTP utilities
   , formatHttpTime
   , parseHttpTime
@@ -171,7 +164,6 @@ import           Snap.Internal.Instances ()
 import           Snap.Internal.Parsing
 import           Snap.Internal.Routing
 import           Snap.Internal.Types
-import           Snap.Iteratee (Enumerator)
 import           Snap.Types.Headers (Headers)
 ------------------------------------------------------------------------------
 

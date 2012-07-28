@@ -1,5 +1,5 @@
 name:           snap-core
-version:        0.9.1
+version:        1.0.0
 synopsis:       Snap: A Haskell Web Framework (core interfaces and types)
 
 description:
@@ -98,16 +98,13 @@ Library
     include-dirs: cbits
     build-depends: bytestring-mmap >= 0.2.2 && <0.3,
                    unix >= 2.4 && <3.0
-    cpp-options: -DUSE_UNIX
 
   exposed-modules:
     Snap.Core,
     Snap.Types,
-    Snap.Iteratee,
     Snap.Internal.Debug,
     Snap.Internal.Exceptions,
     Snap.Internal.Http.Types,
-    Snap.Internal.Iteratee.Debug,
     Snap.Internal.Parsing,
     Snap.Test,
     Snap.Types.Headers,
@@ -119,7 +116,6 @@ Library
 
   other-modules:
     Snap.Internal.Instances,
-    Snap.Internal.Iteratee.BoyerMooreHorspool,
     Snap.Internal.Parsing.FastSet,
     Snap.Internal.Routing,
     Snap.Internal.Types,
@@ -128,35 +124,33 @@ Library
 
 
   build-depends:
-    attoparsec >= 0.10 && < 0.11,
-    attoparsec-enumerator >= 0.3 && <0.4,
-    base >= 4 && < 5,
-    base16-bytestring <= 0.2,
-    blaze-builder >= 0.2.1.4 && <0.4,
-    blaze-builder-enumerator >= 0.2 && <0.3,
+    attoparsec                >= 0.10    && < 0.11,
+    base                      >= 4       && < 5,
+    base16-bytestring                  <=0.2,
+    blaze-builder             >= 0.2.1.4 && < 0.4,
     bytestring,
     bytestring-nums,
-    case-insensitive >= 0.3 && < 0.5,
+    case-insensitive          >= 0.3     && < 0.5,
     containers,
-    deepseq >= 1.1 && <1.4,
+    deepseq                   >= 1.1     && < 1.4,
     directory,
-    dlist >= 0.5 && < 0.6,
-    enumerator >= 0.4.15 && < 0.5,
+    dlist                     >= 0.5     && < 0.6,
+    enumerator                >= 0.4.15  && < 0.5,
     filepath,
-    HUnit >= 1.2 && < 2,
-    MonadCatchIO-transformers >= 0.2.1 && < 0.4,
-    mtl >= 2.0 && < 2.2,
-    mwc-random >= 0.10 && <0.13,
+    HUnit                     >= 1.2     && < 2,
+    io-streams                >= 0.1     && < 0.2,
+    MonadCatchIO-transformers >= 0.2.1   && < 0.4,
+    mtl                       >= 2.0     && < 2.2,
+    mwc-random                >= 0.10    && < 0.13,
     old-locale,
     old-time,
-    regex-posix <= 0.95.2,
-    text >= 0.11 && <0.12,
-    time >= 1.0 && < 1.5,
-    transformers >= 0.2 && < 0.4,
-    unix-compat >= 0.2 && <0.4,
-    unordered-containers >= 0.1.4.3 && <0.3,
-    vector >= 0.6 && <0.10,
-    zlib-enum >= 0.2.1 && <0.3
+    regex-posix                        <=0.95.2,
+    text                      >= 0.11    && < 0.12,
+    time                      >= 1.0     && < 1.5,
+    transformers              >= 0.2     && < 0.4,
+    unix-compat               >= 0.3     && < 0.4,
+    unordered-containers      >= 0.1.4.3 && < 0.3,
+    vector                    >= 0.6     && < 0.10
 
   extensions:
     BangPatterns,

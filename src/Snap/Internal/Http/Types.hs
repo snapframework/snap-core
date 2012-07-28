@@ -19,7 +19,7 @@ module Snap.Internal.Http.Types where
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
-import           Control.Monad (liftM)
+import           Control.Monad (liftM, unless)
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as B
 import           Data.ByteString.Internal (c2w,w2c)
@@ -28,15 +28,16 @@ import           Data.CaseInsensitive   (CI)
 import qualified Data.CaseInsensitive as CI
 import           Data.Int
 import qualified Data.IntMap as IM
-import           Data.IORef
 import           Data.List hiding (take)
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Maybe
-import           Data.Monoid
 import           Data.Time.Clock
 import           Foreign.C.Types
 import           Prelude hiding (take)
+import           System.IO
+import           System.IO.Streams (InputStream, OutputStream)
+import qualified System.IO.Streams as Streams
 
 ------------------------------------------------------------------------------
 #ifdef PORTABLE
@@ -52,8 +53,6 @@ import           Foreign.C.String
 #endif
 
 ------------------------------------------------------------------------------
-import           Snap.Iteratee (Enumerator)
-import qualified Snap.Iteratee as I
 import           Snap.Types.Headers (Headers)
 import qualified Snap.Types.Headers as H
 
@@ -201,10 +200,6 @@ type Params = Map ByteString [ByteString]
 -- request type
 ------------------------------------------------------------------------------
 
--- | An existential wrapper for the 'Enumerator ByteString IO a' type
-newtype SomeEnumerator = SomeEnumerator (forall a . Enumerator ByteString IO a)
-
-
 ------------------------------------------------------------------------------
 -- | Contains all of the information about an incoming HTTP request.
 data Request = Request
@@ -233,7 +228,7 @@ data Request = Request
       -- | Returns @True@ if this is an @HTTPS@ session.
     , rqIsSecure       :: Bool
     , rqHeaders        :: Headers
-    , rqBody           :: !(IORef SomeEnumerator)
+    , rqBody           :: !(InputStream ByteString)
 
       -- | Returns the @Content-Length@ of the HTTP request body.
     , rqContentLength  :: !(Maybe Int)
@@ -380,8 +375,10 @@ instance HasHeaders Headers where
 -- response type
 ------------------------------------------------------------------------------
 
-data ResponseBody = Enum (forall a . Enumerator Builder IO a)
-                      -- ^ output body is a 'Builder' enumerator
+type StreamProc = OutputStream Builder -> IO ()
+data ResponseBody = Stream (StreamProc)
+                      -- ^ output body is a function that writes to a 'Builder'
+                      -- stream
 
                   | SendFile FilePath (Maybe (Int64,Int64))
                       -- ^ output body is sendfile(), optional second argument
@@ -389,21 +386,26 @@ data ResponseBody = Enum (forall a . Enumerator Builder IO a)
 
 
 ------------------------------------------------------------------------------
-rspBodyMap :: (forall a .
-               Enumerator Builder IO a -> Enumerator Builder IO a)
-           -> ResponseBody
-           -> ResponseBody
-rspBodyMap f b      = Enum $ f $ rspBodyToEnum b
-
+rspBodyMap :: (StreamProc -> StreamProc) -> ResponseBody -> ResponseBody
+rspBodyMap f b = Stream $ f $ rspBodyToEnum b
 
 
 ------------------------------------------------------------------------------
-rspBodyToEnum :: ResponseBody -> Enumerator Builder IO a
-rspBodyToEnum (Enum e) = e
-rspBodyToEnum (SendFile fp Nothing) =
-    I.mapEnum toByteString fromByteString $ I.enumFile fp
-rspBodyToEnum (SendFile fp (Just s)) =
-    I.mapEnum toByteString fromByteString $ I.enumFilePartial fp s
+rspBodyToEnum :: ResponseBody -> (OutputStream Builder -> IO ())
+rspBodyToEnum (Stream e) = e
+
+rspBodyToEnum (SendFile fp Nothing) = \out ->
+    Streams.withFileAsInputStream fp $ \is -> do
+        is' <- Streams.mapM (return . fromByteString) is
+        Streams.connect is' out
+
+rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
+    withBinaryFile fp ReadMode $ \handle -> do
+        unless (start == 0) $ hSeek handle AbsoluteSeek $ toInteger start
+        is  <- Streams.handleToInputStream handle
+        is' <- Streams.readNoMoreThan (end - start) is >>=
+               Streams.mapM (return . fromByteString)
+        Streams.connect is' out
 
 
 ------------------------------------------------------------------------------
@@ -428,12 +430,6 @@ data Response = Response
       -- | If true, we are transforming the request body with
       -- 'transformRequestBody'
     , rspTransformingRqBody :: !Bool
-
-      -- | Controls whether Snap will buffer the output or not. You may wish to
-      -- disable buffering when using Comet-like techniques which rely on the
-      -- immediate sending of output data in order to maintain interactive
-      -- semantics.
-    , rspOutputBuffering    :: !Bool
     }
 
 
@@ -528,17 +524,17 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 -- | An empty 'Response'.
 emptyResponse :: Response
 emptyResponse = Response H.empty Map.empty (1,1) Nothing
-                         (Enum (I.enumBuilder mempty))
-                         200 "OK" False True
+                         (Stream (const $ return ()))
+                         200 "OK" False
 
 
 ------------------------------------------------------------------------------
--- | Sets an HTTP response body to the given 'Enumerator' value.
-setResponseBody     :: (forall a . Enumerator Builder IO a)
-                                   -- ^ new response body enumerator
+-- | Sets an HTTP response body to the given stream procedure.
+setResponseBody     :: (OutputStream Builder -> IO ())
+                                   -- ^ new response body
                     -> Response    -- ^ response to modify
                     -> Response
-setResponseBody e r = r { rspBody = Enum e }
+setResponseBody e r = r { rspBody = Stream e }
 {-# INLINE setResponseBody #-}
 
 
@@ -567,8 +563,8 @@ setResponseCode s r = setResponseStatus s reason r
 
 ------------------------------------------------------------------------------
 -- | Modifies a response body.
-modifyResponseBody  :: (forall a . Enumerator Builder IO a
-                                -> Enumerator Builder IO a)
+modifyResponseBody  :: ((OutputStream Builder -> IO ()) ->
+                        (OutputStream Builder -> IO ()))
                     -> Response
                     -> Response
 modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }
@@ -657,29 +653,6 @@ setContentLength l r = r { rspContentLength = Just l }
 clearContentLength :: Response -> Response
 clearContentLength r = r { rspContentLength = Nothing }
 {-# INLINE clearContentLength #-}
-
-
-------------------------------------------------------------------------------
--- | The buffering mode controls whether Snap will buffer the output or not.
--- You may wish to disable buffering when using Comet-like techniques which
--- rely on the immediate sending of output data in order to maintain
--- interactive semantics.
-getBufferingMode :: Response -> Bool
-getBufferingMode = rspOutputBuffering
-{-# INLINE getBufferingMode #-}
-
-
-------------------------------------------------------------------------------
--- | The buffering mode controls whether Snap will buffer the output or not.
--- You may wish to disable buffering when using Comet-like techniques which
--- rely on the immediate sending of output data in order to maintain
--- interactive semantics.
-setBufferingMode :: Bool        -- ^ if True, buffer the output, if False, send
-                                -- output immediately
-                 -> Response
-                 -> Response
-setBufferingMode b r = r { rspOutputBuffering = b }
-{-# INLINE setBufferingMode #-}
 
 
                                ----------------

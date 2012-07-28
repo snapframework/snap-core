@@ -7,16 +7,20 @@ import           Control.Monad (liftM)
 import           Data.ByteString.Char8 (ByteString)
 import           Data.Maybe (fromJust)
 import           Data.Monoid (mconcat)
+import qualified System.IO.Streams as Streams
 import           Test.HUnit (Assertion, assertBool, assertEqual)
 import           Text.Regex.Posix ((=~))
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
-import           Snap.Iteratee (run_, consume, ($$))
 
 ------------------------------------------------------------------------------
 getResponseBody :: Response -> IO ByteString
-getResponseBody rsp = run_ $ enum $$ liftM toBS consume
+getResponseBody rsp = do
+    (os, grab) <- Streams.listOutputStream
+    enum os
+    liftM toBS grab
+
   where
     enum = rspBodyToEnum $ rspBody rsp
     toBS = toByteString . mconcat
