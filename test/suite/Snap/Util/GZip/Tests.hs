@@ -70,13 +70,13 @@ liftQ = QC.run
 
 
 ------------------------------------------------------------------------------
-gzipHdrs, xGzipHdrs, badHdrs, compressHdrs, xCompressHdrs, emptyHdrs :: Headers
+gzipHdrs, xGzipHdrs, badHdrs, deflateHdrs, xDeflateHdrs, emptyHdrs :: Headers
 emptyHdrs = H.empty
 gzipHdrs = setHeader "Accept-Encoding" "froz,gzip, x-gzip" emptyHdrs
 xGzipHdrs = setHeader "Accept-Encoding" "x-gzip;q=1.0" emptyHdrs
 badHdrs = setHeader "Accept-Encoding" "*&%^&^$%&%&*^\023" emptyHdrs
-compressHdrs = setHeader "Accept-Encoding" "compress" emptyHdrs
-xCompressHdrs = setHeader "Accept-Encoding" "x-compress" emptyHdrs
+deflateHdrs = setHeader "Accept-Encoding" "deflate" emptyHdrs
+xDeflateHdrs = setHeader "Accept-Encoding" "x-deflate" emptyHdrs
 
 
 
@@ -109,20 +109,20 @@ mkXGzipRq = do
 
 
 ------------------------------------------------------------------------------
-mkCompressRq :: IO Request
-mkCompressRq = do
+mkDeflateRq :: IO Request
+mkDeflateRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False compressHdrs
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False deflateHdrs
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
 
-mkXCompressRq :: IO Request
-mkXCompressRq = do
+mkXDeflateRq :: IO Request
+mkXDeflateRq = do
     enum <- newIORef $ SomeEnumerator returnI
 
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xCompressHdrs
+    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xDeflateHdrs
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
                  Map.empty Map.empty Map.empty
 
@@ -154,13 +154,13 @@ goGeneric mkRq m = do
     d = (const $ return ())
 
 
-goGZip, goCompress, goXGZip     :: Snap a -> IO (Request,Response)
-goNoHeaders, goXCompress, goBad :: Snap a -> IO (Request,Response)
+goGZip, goDeflate, goXGZip     :: Snap a -> IO (Request,Response)
+goNoHeaders, goXDeflate, goBad :: Snap a -> IO (Request,Response)
 
 goGZip      = goGeneric mkGzipRq
-goCompress  = goGeneric mkCompressRq
+goDeflate  = goGeneric mkDeflateRq
 goXGZip     = goGeneric mkXGzipRq
-goXCompress = goGeneric mkXCompressRq
+goXDeflate = goGeneric mkXDeflateRq
 goBad       = goGeneric mkBadRq
 goNoHeaders = goGeneric mkNoHeaders
 
@@ -269,13 +269,14 @@ testIdentity1_charset = testProperty "gzip/identity1_charset" $
 
 ------------------------------------------------------------------------------
 testIdentity2 :: Test
-testIdentity2 = testProperty "gzip/identity2" $ monadicIO $ forAllM arbitrary prop
+testIdentity2 = testProperty "gzip/identity2" $ monadicIO $
+                forAllM arbitrary prop
   where
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
-        (!_,!rsp) <- liftQ $ goCompress (seqSnap $ withCompression $ textPlain s)
+        (!_,!rsp) <- liftQ $ goDeflate (seqSnap $ withCompression $ textPlain s)
 
-        assert $ getHeader "Content-Encoding" rsp == Just "compress"
+        assert $ getHeader "Content-Encoding" rsp == Just "deflate"
         assert $ getHeader "Vary" rsp == Just "Accept-Encoding"
         let body = rspBodyToEnum $ rspBody rsp
 
@@ -324,9 +325,9 @@ testIdentity5 = testProperty "gzip/identity5" $ monadicIO $ forAllM arbitrary pr
   where
     prop :: L.ByteString -> PropertyM IO ()
     prop s = do
-        (!_,!rsp2) <- liftQ $ goXCompress (seqSnap $ withCompression $ textPlain s)
+        (!_,!rsp2) <- liftQ $ goXDeflate (seqSnap $ withCompression $ textPlain s)
 
-        assert $ getHeader "Content-Encoding" rsp2 == Just "x-compress"
+        assert $ getHeader "Content-Encoding" rsp2 == Just "x-deflate"
         let body2 = rspBodyToEnum $ rspBody rsp2
 
         c2 <- liftQ $
@@ -404,7 +405,7 @@ testGzipLotsaChunks = testCase "gzip/lotsOfChunks" prop
         let s1 = GZip.decompress c
         H.assertBool "streams equal" $ s == s1
 
-    
+
     -- in order to get incompressible text (so that we can test whether the
     -- gzip thread is streaming properly!) we'll iteratively md5 the source
     -- string
