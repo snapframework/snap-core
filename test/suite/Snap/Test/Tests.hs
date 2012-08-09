@@ -7,10 +7,10 @@ module Snap.Test.Tests
 ------------------------------------------------------------------------------
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
-import           Data.IORef
 import qualified Data.Map as Map
 import           Control.Monad
 import           Control.Monad.Trans (liftIO)
+import qualified System.IO.Streams as Streams
 import           Test.Framework (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit (assertEqual, assertBool)
@@ -20,7 +20,6 @@ import           Snap.Internal.Http.Types (Request(..))
 import qualified Snap.Internal.Http.Types as T
 import           Snap.Test
 import           Snap.Test.Common
-import           Snap.Iteratee
 import           Snap.Core hiding (setHeader, addHeader, setContentType)
 import           Snap.Util.FileUploads
 
@@ -181,8 +180,8 @@ testMultipart = testCase "test/requestBuilder/testMultipart" $ do
     assertEqual "body" "OK" body
 
   where
-    partHandler (PartInfo field fn ct) = do
-        body <- liftM S.concat consume
+    partHandler (PartInfo field fn ct) stream = do
+        body <- liftM S.concat $ Streams.toList stream
         return (field, fn, ct, body)
 
     expectedParts = [ ("bar", Just "bar1.txt", "text/plain", "bar")
@@ -283,8 +282,4 @@ testAssertRedirect = testCase "test/requestBuilder/testAssertRedirect" $ do
 
 ------------------------------------------------------------------------------
 getRqBody :: Request -> IO ByteString
-getRqBody rq = do
-    (SomeEnumerator enum) <- readIORef ref
-    run_ $ enum $$ liftM S.concat consume
-  where
-    ref = rqBody rq
+getRqBody = liftM S.concat . Streams.toList . rqBody
