@@ -16,16 +16,16 @@ import           Control.Monad.CatchIO
 import           Control.Monad.Trans (liftIO)
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.IntMap as IM
 import           Data.IORef
 import           Data.Maybe (isJust)
-import           Data.Monoid
 import           Data.Text ()
 import           Data.Text.Lazy ()
 import qualified Data.Map as Map
 import           Prelude hiding (catch)
+import qualified System.IO.Streams as Streams
+import           System.IO.Streams (InputStream)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
@@ -36,10 +36,8 @@ import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types
-import           Snap.Iteratee
-import qualified Snap.Iteratee as I
+import qualified Snap.Test as Test
 import           Snap.Test.Common
-import qualified Snap.Types.Headers as H
 
 
 tests :: [Test]
@@ -97,41 +95,21 @@ expectNo404 m = do
 
 
 mkRequest :: ByteString -> IO Request
-mkRequest uri = do
-    enum <- newIORef $ SomeEnumerator returnI
-
-    return $! Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
-                      enum Nothing GET (1,1) [] uri "/"
-                      (S.concat ["/",uri]) "" Map.empty Map.empty Map.empty
+mkRequest uri = Test.buildRequest $ Test.get uri Map.empty
 
 
 mkRequestQuery :: ByteString -> ByteString -> [ByteString] -> IO Request
-mkRequestQuery uri k v = do
-    enum <- newIORef $ SomeEnumerator returnI
-
-    let mp = Map.fromList [(k,v)]
-    let q  = S.concat [k,"=", S.concat v]
-
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing GET (1,1) [] uri "/"
-                     (S.concat ["/",uri,"?",q]) q mp mp Map.empty
+mkRequestQuery uri k v =
+    Test.buildRequest $ Test.get uri $ Map.fromList [(k,v)]
 
 
 mkZomgRq :: IO Request
-mkZomgRq = do
-    enum <- newIORef $ SomeEnumerator returnI
-
-    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing GET (1,1) [] "/" "/" "/" ""
-                     Map.empty Map.empty Map.empty
+mkZomgRq = Test.buildRequest $ Test.get "/" Map.empty
 
 mkMethodRq :: Method -> IO Request
-mkMethodRq m = do
-    enum <- newIORef $ SomeEnumerator returnI
-
-    return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing m (1,1) [] "/" "/" "/" ""
-                     Map.empty Map.empty Map.empty
+mkMethodRq m = Test.buildRequest $ do
+                   Test.get "/" Map.empty
+                   Test.setRequestType $ Test.RequestWithRawBody m ""
 
 mkIpHeaderRq :: IO Request
 mkIpHeaderRq = do
@@ -142,15 +120,14 @@ mkIpHeaderRq = do
 
 
 mkRqWithBody :: IO Request
-mkRqWithBody = mkRqWithEnum (enumBS "zazzle" >==> enumEOF)
+mkRqWithBody = Test.buildRequest $ Test.postRaw "/" "text/plain" "zazzle"
 
 
-mkRqWithEnum :: (forall a . Enumerator ByteString IO a) -> IO Request
-mkRqWithEnum e = do
-    enum <- newIORef $ SomeEnumerator e
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
-                 enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+mkRqWithEnum :: (InputStream ByteString) -> IO Request
+mkRqWithEnum str = do
+    rq <- Test.buildRequest $ Test.postRaw "/" "text/plain" ""
+
+    return $! rq { rqBody = str }
 
 testCatchIO :: Test
 testCatchIO = testCase "types/catchIO" $ do
@@ -173,28 +150,28 @@ testCatchIO = testCase "types/catchIO" $ do
 go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
-    run_ $ runSnap m dummy (const (return ())) zomgRq
+    runSnap m dummy (const (return ())) zomgRq
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
 goMeth :: Method -> Snap a -> IO (Request,Response)
 goMeth m s = do
     methRq <- mkMethodRq m
-    run_ $ runSnap s dummy (const (return ())) methRq
+    runSnap s dummy (const (return ())) methRq
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
 goIP :: Snap a -> IO (Request,Response)
 goIP m = do
     rq <- mkIpHeaderRq
-    run_ $ runSnap m dummy (const (return ())) rq
+    runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
-    run_ $ runSnap m dummy (const (return ())) rq
+    runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
@@ -206,7 +183,7 @@ goPathQuery :: ByteString
             -> IO (Request,Response)
 goPathQuery s k v m = do
     rq <- mkRequestQuery s k v
-    run_ $ runSnap m dummy (const (return ())) rq
+    runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
@@ -214,17 +191,17 @@ goPathQuery s k v m = do
 goBody :: Snap a -> IO (Request,Response)
 goBody m = do
     rq <- mkRqWithBody
-    run_ $ runSnap m dummy (const (return ())) rq
+    runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
 
-goEnum :: (forall a . Enumerator ByteString IO a)
+goEnum :: InputStream ByteString
        -> Snap b
        -> IO (Request,Response)
 goEnum enum m = do
     rq <- mkRqWithEnum enum
-    run_ $ runSnap m dummy (const (return ())) rq
+    runSnap m dummy (const (return ())) rq
   where
     dummy = const $ return ()
 
@@ -275,7 +252,8 @@ testEscapeHttp = testCase "types/escapeHttp" $ flip catch catchEscape $ do
     escaper _ _ = liftIO $ assert True
     tickle _    = return ()
 
-    catchEscape (EscapeHttpException iter) = run_ $ iter tickle (return ())
+    catchEscape (EscapeHttpException iter) =
+        Streams.nullOutput >>= iter tickle
 
 
 isLeft :: Either a b -> Bool
@@ -294,26 +272,26 @@ testBracketSnap = testCase "types/bracketSnap" $ do
     ref <- newIORef 0
 
     expectSpecificException (NoHandlerException "") $
-        run_ $ evalSnap (act ref) (const $ return ()) (const $ return ()) rq
+        evalSnap (act ref) (const $ return ()) (const $ return ()) rq
 
     y <- readIORef ref
     assertEqual "bracketSnap/after1" (1::Int) y
 
     expectSpecificException (ErrorCall "no value") $
-        run_ $ evalSnap (act ref <|> finishWith emptyResponse)
-                        (const $ return ())
-                        (const $ return ())
-                        rq
+        evalSnap (act ref <|> finishWith emptyResponse)
+                 (const $ return ())
+                 (const $ return ())
+                 rq
 
     y' <- readIORef ref
     assertEqual "bracketSnap/after" 2 y'
 
 
     expectSpecificException (ErrorCall "foo") $
-        run_ $ evalSnap (act2 ref)
-                        (const $ return ())
-                        (const $ return ())
-                        rq
+        evalSnap (act2 ref)
+                 (const $ return ())
+                 (const $ return ())
+                 rq
 
     y'' <- readIORef ref
     assertEqual "bracketSnap/after" 3 y''
@@ -331,15 +309,15 @@ testBracketSnap = testCase "types/bracketSnap" $ do
 testCatchFinishWith :: Test
 testCatchFinishWith = testCase "types/catchFinishWith" $ do
     rq <- mkZomgRq
-    x <- run_ $ evalSnap (catchFinishWith $ finishWith emptyResponse)
-                         (const $ return ())
-                         (const $ return ())
-                         rq
+    x <- evalSnap (catchFinishWith $ finishWith emptyResponse)
+                  (const $ return ())
+                  (const $ return ())
+                  rq
     assertBool "catchFinishWith" $ isLeft x
-    y <- run_ $ evalSnap (catchFinishWith $ return ())
-                         (const $ return ())
-                         (const $ return ())
-                         rq
+    y <- evalSnap (catchFinishWith $ return ())
+                  (const $ return ())
+                  (const $ return ())
+                  rq
     assertBool "catchFinishWith" $ isRight y
 
 
@@ -364,10 +342,10 @@ testRqBody = testCase "types/requestBodies" $ do
 
   where
     f mvar1 mvar2 = do
-        getRequestBody >>= liftIO . putMVar mvar1
-        getRequestBody >>= liftIO . putMVar mvar2
+        readRequestBody 100000 >>= liftIO . putMVar mvar1
+        readRequestBody 100000 >>= liftIO . putMVar mvar2
 
-    g = transformRequestBody returnI
+    g = transformRequestBody (return . id)
 
 
 testRqBodyTooLong :: Test
@@ -385,31 +363,32 @@ testRqBodyTooLong = testCase "types/requestBodyTooLong" $ do
 
 testRqBodyException :: Test
 testRqBodyException = testCase "types/requestBodyException" $ do
-    (req,resp) <- goEnum (enumList 1 ["the", "quick", "brown", "fox"]) hndlr
-    bd      <- getBody resp
+    str <- Streams.fromList listData
+    (req,resp) <- goEnum str hndlr
+    bd         <- getBody resp
 
-    (SomeEnumerator e) <- readIORef $ rqBody req
-    b' <- liftM (S.concat) $ run_ $ e $$ consume
-    assertEqual "request body was consumed" "" b'
+    b' <- Streams.toList $ rqBody req
+    assertEqual "request body was consumed" [] b'
     assertEqual "response body was produced" "OK" bd
 
   where
-    h0 = runRequestBody $ do
-             _ <- I.head
+    listData = ["the", "quick", "brown", "fox"]
+
+    h0 = runRequestBody $ \str -> do
+             !_ <- Streams.read str
              throw $ ErrorCall "foo"
 
     hndlr = h0 `catch` \(_::SomeException) -> writeBS "OK"
 
 
 testRqBodyTermination :: Test
-testRqBodyTermination =
-    testCase "types/requestBodyTermination" $
-    expectExceptionH $
-    goEnum (enumList 1 ["the", "quick", "brown", "fox"]) hndlr
+testRqBodyTermination = testCase "types/requestBodyTermination" $ do
+    str <- Streams.fromList ["the", "quick", "brown", "fox"]
+    expectExceptionH $ goEnum str hndlr
 
   where
-    h0 = runRequestBody $ do
-             _ <- I.head
+    h0 = runRequestBody $ \str -> do
+             !_ <- Streams.read str
              terminateConnection $ ErrorCall "foo"
 
     hndlr = h0 `catch` \(_::SomeException) -> writeBS "OK"
@@ -555,9 +534,7 @@ testParam = testCase "types/getParam" $ do
 
 
 getBody :: Response -> IO L.ByteString
-getBody r = do
-    let benum = rspBodyToEnum $ rspBody r
-    liftM (toLazyByteString . mconcat) (runIteratee consume >>= run_ . benum)
+getBody r = liftM (L.fromChunks . (:[])) $ Test.getResponseBody r
 
 
 testWrites :: Test
@@ -568,7 +545,7 @@ testWrites = testCase "types/writes" $ do
   where
     h :: Snap ()
     h = do
-        addToOutput $ enumBuilder $ fromByteString "Foo1"
+        addToOutput $ Streams.write $ Just $ fromByteString "Foo1"
         writeBS "Foo2"
         writeLBS "Foo3"
 
@@ -595,7 +572,7 @@ testDir2 = testCase "types/dir2" $ do
   where
     f = dir "foo" $ dir "bar" $ do
             p <- liftM rqContextPath getRequest
-            addToOutput $ enumBuilder $ fromByteString p
+            addToOutput $ Streams.write (Just $ fromByteString p)
 
 
 testIpHeaderFilter :: Test
@@ -626,10 +603,10 @@ testMZero404 = testCase "types/mzero404" $ do
 testEvalSnap :: Test
 testEvalSnap = testCase "types/evalSnap-exception" $ do
     rq <- mkZomgRq
-    expectExceptionH (run_ $ evalSnap f
-                                    (const $ return ())
-                                    (const $ return ())
-                                    rq >> return ())
+    expectExceptionH (evalSnap f
+                             (const $ return ())
+                             (const $ return ())
+                             rq >> return ())
   where
     f = do
         logError "zzz"

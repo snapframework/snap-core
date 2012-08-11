@@ -8,12 +8,11 @@ import           Control.Monad
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Lazy.Char8 ()
-import           Data.IORef
 import qualified Data.Map as Map
-import           Data.Monoid
 import           Data.Time.Calendar
 import           Data.Time.Clock
 import           Prelude hiding (take)
+import qualified System.IO.Streams as Streams
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
@@ -21,8 +20,8 @@ import           Text.Regex.Posix
 
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
-import           Snap.Iteratee
 import qualified Snap.Types.Headers as H
+import qualified Snap.Test as Test
 
 
 tests :: [Test]
@@ -34,11 +33,7 @@ tests = [ testTypes
 
 
 mkRq :: IO Request
-mkRq = do
-    enum <- newIORef (SomeEnumerator $ enumBS "")
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
-                 enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+mkRq = Test.buildRequest $ Test.get "/" Map.empty
 
 
 testFormatLogTime :: Test
@@ -92,9 +87,8 @@ testTypes = testCase "show" $ do
     assertEqual "response status" 555 $ rspStatus resp
     assertEqual "response status reason" "bogus" $ rspStatusReason resp
     assertEqual "content-length" (Just 4) $ rspContentLength resp
-    -- run response body
-    let benum = rspBodyToEnum $ rspBody resp
-    bd <- liftM (toByteString . mconcat) (runIteratee consume >>= run_ . benum)
+
+    bd <- Test.getResponseBody resp
     assertEqual "response body" "PING" $ bd
 
     let !_ = show GET
@@ -110,7 +104,7 @@ testTypes = testCase "show" $ do
     resp = addResponseCookie cook $
            setContentLength 4 $
            modifyResponseBody id $
-           setResponseBody (enumBuilder (fromByteString "PING")) $
+           setResponseBody (Streams.write $ Just $ fromByteString "PING") $
            setContentType "text/plain" $
            setResponseStatus 555 "bogus" $
            emptyResponse
