@@ -10,19 +10,22 @@ module Snap.Util.FileUploads.Tests
 import           Control.Applicative
 import           Control.Concurrent (threadDelay)
 import           Control.DeepSeq
-import           Control.Exception (Exception(..), SomeException(..))
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import           Data.IORef
+import           Data.List (foldl')
 import qualified Data.Map as Map
 import           Data.Maybe
 import qualified Data.Text as T
 import           Data.Typeable
 import           Prelude hiding (catch)
 import           System.Directory
+import qualified System.IO.Streams.Internal as StreamsInt
+import           System.IO.Streams.Internal (Source(..))
+import           System.IO.Streams (RateTooSlowException)
 import           System.Mem
 import           System.Timeout
 import           Test.Framework
@@ -30,12 +33,9 @@ import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
-import           Snap.Internal.Debug
 import           Snap.Internal.Exceptions
-import           Snap.Internal.Iteratee.Debug
 import           Snap.Internal.Types
-import           Snap.Iteratee hiding (map)
-import qualified Snap.Types.Headers as H
+import qualified Snap.Test as Test
 import           Snap.Test.Common
 import           Snap.Util.FileUploads
 
@@ -71,14 +71,13 @@ testSuccess1 = testCase "fileUploads/success1" $
   where
     tmpdir = "tempdir1"
 
-    hndl = handleFileUploads tmpdir
-                             defaultUploadPolicy
-                             (const $ allowWithMaximumSize 300000)
-                             hndl'
+    hndl = do
+        xs <- handleFileUploads tmpdir
+                                defaultUploadPolicy
+                                (const $ allowWithMaximumSize 300000)
+                               hndl'
 
-    hndl' xs = do
-        fileMap <- foldM f Map.empty xs
-
+        let fileMap = foldl' f Map.empty xs
         p1  <- getParam "field1"
         p1P <- getPostParam "field1"
         p1Q <- getQueryParam "field1"
@@ -101,16 +100,15 @@ testSuccess1 = testCase "fileUploads/success1" $
             assertEqual "field1 query contents" Nothing p1Q
             assertEqual "field2 contents" (Just formContents2) p2
 
+    f mp (fn, ct, x) = Map.insert fn (ct,x) mp
 
-
-    f mp (partInfo, e) =
+    hndl' partInfo =
         either throw
                (\fp -> do
                     x <- liftIO $ S.readFile fp
                     let fn = fromJust $ partFileName partInfo
                     let ct = partContentType partInfo
-                    return $ Map.insert fn (ct,x) mp)
-               e
+                    return (fn, ct, x))
 
 
 ------------------------------------------------------------------------------
@@ -123,14 +121,17 @@ testSuccess2 = testCase "fileUploads/success2" $
 
     policy = setProcessFormInputs False defaultUploadPolicy
 
-    hndl = handleFileUploads tmpdir
-                             policy
-                             (const $ allowWithMaximumSize 300000)
-                             hndl'
+    hndl = do
+        ref <- liftIO $ newIORef (0::Int)
+        _ <- handleFileUploads tmpdir
+                               policy
+                               (const $ allowWithMaximumSize 300000)
+                               (hndl' ref)
 
-    hndl' xs = do
-        liftIO $ assertEqual "num params" 4 (length xs)
-        show xs `deepseq` return ()
+        n <- liftIO $ readIORef ref
+        liftIO $ assertEqual "num params" 4 n
+
+    hndl' ref _ _ = atomicModifyIORef ref (\x -> (x+1, ()))
 
 
 ------------------------------------------------------------------------------
@@ -140,15 +141,14 @@ testPerPartPolicyViolation1 = testCase "fileUploads/perPartPolicyViolation1" $
   where
     tmpdir = "tempdir_pol1"
 
-    hndl = handleFileUploads tmpdir defaultUploadPolicy
-                             (const disallow)
-                             hndl'
+    hndl = do
+        _ <- handleFileUploads tmpdir defaultUploadPolicy
+                               (const disallow)
+                               hndl'
 
-    hndl' xs = do
         p1 <- getParam "field1"
         p2 <- getParam "field2"
 
-        mapM_ f xs
 
         liftIO $ do
             assertEqual "field1 contents"
@@ -159,9 +159,9 @@ testPerPartPolicyViolation1 = testCase "fileUploads/perPartPolicyViolation1" $
                         (Just formContents2)
                         p2
 
-    f (!_, e) = either (\i -> show i `deepseq` return ())
-                       (const $ error "expected policy violation")
-                       e
+    hndl' !_ e = either (\i -> show i `deepseq` return $! ())
+                        (const $ error "expected policy violation")
+                        e
 
 
 ------------------------------------------------------------------------------
@@ -175,11 +175,9 @@ testPerPartPolicyViolation2 = testCase "fileUploads/perPartPolicyViolation2" $
                              (const $ allowWithMaximumSize 4)
                              hndl'
 
-    hndl' xs = mapM_ f xs
-
-    f (partInfo, e) = (if partFileName partInfo == Just "file1.txt"
-                         then ePass
-                         else eFail) e
+    hndl' partInfo e = (if partFileName partInfo == Just "file1.txt"
+                          then ePass
+                          else eFail) e
 
     eFail = either (\i -> show i `deepseq` return ())
                    (const $ error "expected policy violation")
@@ -208,7 +206,7 @@ testFormInputPolicyViolation = testCase "fileUploads/formInputTooBig" $
                              (const $ allowWithMaximumSize 4)
                              hndl'
 
-    hndl' xs = show xs `deepseq` return ()
+    hndl' xs _ = show xs `deepseq` return ()
 
 
 ------------------------------------------------------------------------------
@@ -224,7 +222,7 @@ testNoBoundary = testCase "fileUploads/noBoundary" $
                              (const $ allowWithMaximumSize 300000)
                              hndl'
 
-    hndl' xs = show xs `deepseq` return ()
+    hndl' xs _ = show xs `deepseq` return ()
 
 
 ------------------------------------------------------------------------------
@@ -240,7 +238,7 @@ testNoMixedBoundary = testCase "fileUploads/noMixedBoundary" $
                              (const $ allowWithMaximumSize 300000)
                              hndl'
 
-    hndl' xs = show xs `deepseq` return ()
+    hndl' xs _ = show xs `deepseq` return ()
 
 
 ------------------------------------------------------------------------------
@@ -257,7 +255,7 @@ testWrongContentType = testCase "fileUploads/wrongContentType" $
                              hndl'
            <|> error "expect fail here"
 
-    hndl' xs = show xs `deepseq` return ()
+    hndl' xs _ = show xs `deepseq` return ()
 
 
 ------------------------------------------------------------------------------
@@ -273,7 +271,7 @@ testTooManyHeaders = testCase "fileUploads/tooManyHeaders" $
                              (const $ allowWithMaximumSize 4)
                              hndl'
 
-    hndl' xs = show xs `deepseq` return ()
+    hndl' xs _ = show xs `deepseq` return ()
 
 
 ------------------------------------------------------------------------------
@@ -299,7 +297,7 @@ testSlowEnumerator = testCase "fileUploads/tooSlow" $
                              (const $ allowWithMaximumSize 400000)
                              hndl'
 
-    hndl' xs = show xs `deepseq` return ()
+    hndl' xs _ = show xs `deepseq` return ()
 
 
 ------------------------------------------------------------------------------
@@ -328,7 +326,7 @@ testDisconnectionCleanup = testCase "fileUploads/disconnectionCleanup" $ do
         eatException $ removeDirectoryRecursive tmpdir
         createDirectoryIfMissing True tmpdir
         rq <- mkDamagedRequest mixedTestBody
-        eatException $ liftM snd (run_ $ runIt hndl rq)
+        eatException $ liftM snd (runIt hndl rq)
         performGC
         dirs <- liftM (filter (\x -> x /= "." && x /= "..")) $
                 getDirectoryContents tmpdir
@@ -341,7 +339,7 @@ testDisconnectionCleanup = testCase "fileUploads/disconnectionCleanup" $ do
                              (const $ allowWithMaximumSize 300000)
                              hndl'
 
-    hndl' _ = return ()
+    hndl' _ _ = return ()
 
 
 ------------------------------------------------------------------------------
@@ -357,48 +355,38 @@ harness' :: (Snap a -> ByteString -> IO Response)
          -> IO ()
 harness' g tmpdir hndl body = (do
     createDirectoryIfMissing True tmpdir
-    g hndl body
+    !_ <- g hndl body
     return ()) `finally` removeDirectoryRecursive tmpdir
 
 
 ------------------------------------------------------------------------------
 mkRequest :: ByteString -> IO Request
-mkRequest body = do
-    enum <- newIORef $ SomeEnumerator $ enumBS body
-
-    let hdrs = H.fromList [
-                 ("Content-type", S.append "multipart/form-data; boundary="
-                                            boundaryValue)
-                ]
-
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
-                     enum Nothing POST (1,1) [] "/" "/"
-                     "/" "" Map.empty Map.empty Map.empty
+mkRequest body = Test.buildRequest $ Test.postRaw "/" ct body
+  where
+    ct = S.append "multipart/form-data; boundary=" boundaryValue
 
 
 ------------------------------------------------------------------------------
 mkDamagedRequest :: ByteString -> IO Request
 mkDamagedRequest body = do
-    enum <- newIORef $ SomeEnumerator $ enum
+    req <- Test.buildRequest $ Test.postRaw "/" ct ""
 
-    let hdrs = H.fromList [
-                 ("Content-type", S.append "multipart/form-data; boundary="
-                                            boundaryValue)
-                ]
+    e <- StreamsInt.sourceToStream enum
 
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
-                     enum Nothing POST (1,1) [] "/" "/"
-                     "/" "" Map.empty Map.empty Map.empty
+    return $! req { rqBody = e }
+
   where
-    enum = enumBS (S.take (S.length body - 1) body) >==> dieNow
-    dieNow _ = throw TestException
+    ct = S.append "multipart/form-data; boundary=" boundaryValue
+    enum = Source $ do
+        return (Source $ throw TestException,
+                Just $ S.take (S.length body - 1) body)
 
 
 ------------------------------------------------------------------------------
 go :: Snap a -> ByteString -> IO Response
 go m s = do
     rq <- mkRequest s
-    liftM snd (run_ $ runIt m rq)
+    liftM snd (runIt m rq)
 
 
 ------------------------------------------------------------------------------
@@ -406,7 +394,7 @@ goBadContentType :: Snap a -> ByteString -> IO Response
 goBadContentType m s = do
     rq <- mkRequest s
     let rq' = setHeader "Content-Type" "multipart/form-data" rq
-    liftM snd (run_ $ runIt m rq')
+    liftM snd (runIt m rq')
 
 
 ------------------------------------------------------------------------------
@@ -414,30 +402,27 @@ goWrongContentType :: Snap a -> ByteString -> IO Response
 goWrongContentType m s = do
     rq <- mkRequest s
     let rq' = setHeader "Content-Type" "text/plain" rq
-    liftM snd (run_ $ runIt m rq')
+    liftM snd (runIt m rq')
 
 
 ------------------------------------------------------------------------------
 goSlowEnumerator :: Snap a -> ByteString -> IO Response
 goSlowEnumerator m s = do
     rq <- mkRequest s
-    writeIORef (rqBody rq) $ SomeEnumerator slowEnum
-    mx <- timeout (20*seconds) (liftM snd (run_ $ runIt m rq))
+    e  <- StreamsInt.sourceToStream slowInput
+    let rq' = rq { rqBody = e }
+    mx <- timeout (20*seconds) (liftM snd (runIt m rq'))
     maybe (error "timeout") return mx
 
   where
     body = S.unpack s
 
-    slowEnum x = goo x body
-
-    goo (Continue k) []     = k EOF
-    goo (Continue k) (x:xs) = do
-        debug $ "goSlowEnumerator: sending " ++ show x
-        step <- lift $ runIteratee $ k $ Chunks [ S.pack (x:[]) ]
-        liftIO waitabit
-        goo step xs
-    goo (Error e) _ = throwError e
-    goo _ _ = error "impossible"
+    slowInput = Source $ goo body
+      where
+        goo []     = return (StreamsInt.nullSource, Nothing)
+        goo (x:xs) = do
+            waitabit
+            return (Source $ goo xs, Just $ S.singleton x)
 
 
 ------------------------------------------------------------------------------
@@ -451,8 +436,8 @@ seconds = (10::Int) ^ (6::Int)
 
 
 ------------------------------------------------------------------------------
-runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
-runIt m rq = iterateeDebugWrapper "test" $ runSnap m d (const $ return ()) rq
+runIt :: Snap a -> Request -> IO (Request, Response)
+runIt m rq = runSnap m d (const $ return ()) rq
   where
     d :: forall a . Show a => a -> IO ()
     d = \x -> show x `deepseq` return ()
