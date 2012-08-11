@@ -6,16 +6,12 @@ module Snap.Util.FileServe.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
 import           Control.Monad
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
-import           Data.IORef
 import qualified Data.HashMap.Strict as HashMap
 import qualified Data.Map as Map
 import           Data.Maybe
-import           Data.Monoid
 import           Prelude hiding (take)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
@@ -24,8 +20,7 @@ import           Test.HUnit hiding (Test, path)
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
 import           Snap.Util.FileServe
-import           Snap.Iteratee
-import qualified Snap.Types.Headers as H
+import qualified Snap.Test as Test
 ------------------------------------------------------------------------------
 
 
@@ -67,14 +62,7 @@ expect302 p m = do
 
 
 ------------------------------------------------------------------------------
-getBody :: Response -> IO L.ByteString
-getBody r = do
-    let benum = rspBodyToEnum $ rspBody r
-    liftM (toLazyByteString . mconcat) (runIteratee consume >>= run_ . benum)
-
-
-------------------------------------------------------------------------------
-runIt :: Snap a -> Request -> Iteratee ByteString IO (Request, Response)
+runIt :: Snap a -> Request -> IO (Request, Response)
 runIt m rq = runSnap m d d rq
   where
     d = const $ return ()
@@ -84,7 +72,7 @@ runIt m rq = runSnap m d d rq
 go :: Snap a -> ByteString -> IO Response
 go m s = do
     rq <- mkRequest s
-    liftM snd (run_ $ runIt m rq)
+    liftM snd (runIt m rq)
 
 
 ------------------------------------------------------------------------------
@@ -92,7 +80,7 @@ goIfModifiedSince :: Snap a -> ByteString -> ByteString -> IO Response
 goIfModifiedSince m s lm = do
     rq <- mkRequest s
     let r = setHeader "if-modified-since" lm rq
-    liftM snd (run_ $ runIt m r)
+    liftM snd (runIt m r)
 
 
 ------------------------------------------------------------------------------
@@ -103,7 +91,7 @@ goIfRange m s (start,end) lm = do
             setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
                        rq
-    liftM snd (run_ $ runIt m r)
+    liftM snd (runIt m r)
 
 
 ------------------------------------------------------------------------------
@@ -113,7 +101,7 @@ goRange m s (start,end) = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end)
                        rq'
-    liftM snd (run_ $ runIt m rq)
+    liftM snd (runIt m rq)
 
 
 ------------------------------------------------------------------------------
@@ -124,7 +112,7 @@ goMultiRange m s (start,end) (start2,end2) = do
                        (S.pack $ "bytes=" ++ show start ++ "-" ++ show end
                                  ++ "," ++ show start2 ++ "-" ++ show end2)
                        rq'
-    liftM snd (run_ $ runIt m rq)
+    liftM snd (runIt m rq)
 
 
 ------------------------------------------------------------------------------
@@ -134,7 +122,7 @@ goRangePrefix m s start = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=" ++ show start ++ "-")
                        rq'
-    liftM snd (run_ $ runIt m rq)
+    liftM snd (runIt m rq)
 
 
 ------------------------------------------------------------------------------
@@ -144,18 +132,14 @@ goRangeSuffix m s end = do
     let rq = setHeader "Range"
                        (S.pack $ "bytes=-" ++ show end)
                        rq'
-    liftM snd (run_ $ runIt m rq)
+    liftM snd (runIt m rq)
 
 
 ------------------------------------------------------------------------------
 mkRequest :: ByteString -> IO Request
-mkRequest uri = do
-    enum <- newIORef $ SomeEnumerator returnI
-    return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
-                     enum Nothing GET (1,1) [] pathPart "/"
-                     (S.concat ["/",uri]) queryPart
-                     Map.empty Map.empty Map.empty
-
+mkRequest uri = Test.buildRequest $ do
+                    Test.get pathPart Map.empty
+                    Test.setQueryStringRaw queryPart
   where
     (pathPart, queryPart) = breakQuery uri
 
@@ -203,7 +187,7 @@ testFooBin = testCase "fileServe/foo.bin" $ do
 
   where
     checkProps name r = do
-        b <- getBody r
+        b <- Test.getResponseBody r
 
         assertEqual (name ++ "/contents") "FOO\n" b
         assertEqual (name ++ "/content-type")
@@ -228,7 +212,7 @@ testFooTxt = testCase "fileServe/foo.txt" $ do
 
   where
     checkProps name r = do
-        b <- getBody r
+        b <- Test.getResponseBody r
 
         assertEqual (name ++ "/contents") "FOO\n" b
         assertEqual (name ++ "/content-type")
@@ -253,7 +237,7 @@ testFooHtml = testCase "fileServe/foo.html" $ do
 
   where
     checkProps name r = do
-        b <- getBody r
+        b <- Test.getResponseBody r
 
         assertEqual (name ++ "/contents") "FOO\n" b
         assertEqual (name ++ "/content-type")
@@ -277,7 +261,7 @@ testFooBinBinBin = testCase "fileServe/foo.bin.bin.bin" $ do
 
   where
     checkProps name r = do
-        b <- getBody r
+        b <- Test.getResponseBody r
 
         assertEqual (name ++ "/contents") "FOO\n" b
         assertEqual (name ++ "/content-type")
@@ -380,7 +364,7 @@ testFsCfgA = testCase "fileServe/cfgA" $ do
 
   where
     checkProps name ct r = do
-        b <- getBody r
+        b <- Test.getResponseBody r
 
         assertEqual (name ++ "/contents") "FOO\n" b
         assertEqual (name ++ "/content-type")
@@ -404,7 +388,7 @@ testFsCfgB = testCase "fileServe/cfgB" $ do
 
     -- Request for root directory with index
     rB1 <- gooo "mydir1/"
-    bB1 <- getBody rB1
+    bB1 <- Test.getResponseBody rB1
 
     assertEqual "B1" "INDEX\n" bB1
     assertEqual "B1 content-type"
@@ -413,7 +397,7 @@ testFsCfgB = testCase "fileServe/cfgB" $ do
 
     -- Request for root directory with index, query
     rB2 <- gooo "mydir1/?z=z"
-    bB2 <- getBody rB2
+    bB2 <- Test.getResponseBody rB2
 
     assertEqual "B2" "INDEX\n" bB2
     assertEqual "B2 content-type"
@@ -423,7 +407,7 @@ testFsCfgB = testCase "fileServe/cfgB" $ do
 
     -- Request for root directory with alternate index
     rB3 <- gooo "mydir3/"
-    bB3 <- getBody rB3
+    bB3 <- Test.getResponseBody rB3
 
     assertEqual "B3" "ALTINDEX\n" bB3
     assertEqual "B3 content-type"
@@ -441,7 +425,7 @@ testFsCfgC = testCase "fileServe/cfgC" $ do
 
     -- Request for root directory with index
     rC1 <- gooo "mydir1/"
-    bC1 <- getBody rC1
+    bC1 <- Test.getResponseBody rC1
 
     assertEqual "C1" "INDEX\n" bC1
     assertEqual "C1 content-type"
@@ -450,7 +434,7 @@ testFsCfgC = testCase "fileServe/cfgC" $ do
 
     -- Request for root directory with index, query
     rC2 <- gooo "mydir1/?z=z"
-    bC2 <- getBody rC2
+    bC2 <- Test.getResponseBody rC2
 
     assertEqual "C2" "INDEX\n" bC2
     assertEqual "C2 content-type"
@@ -459,7 +443,7 @@ testFsCfgC = testCase "fileServe/cfgC" $ do
 
     -- Request for root directory with generated index
     rC3 <- gooo "mydir2/"
-    bC3 <- getBody rC3
+    bC3 <- Test.getResponseBody rC3
 
     assertEqual "C3" "mydir2" bC3
 
@@ -469,7 +453,7 @@ testFsCfgD :: Test
 testFsCfgD = testCase "fileServe/cfgD" $ do
     -- Request for file with dynamic handler
     rD1 <- go (fsCfg cfgD) "mydir2/foo.txt"
-    bD1 <- getBody rD1
+    bD1 <- Test.getResponseBody rD1
 
     assertEqual "D1" "foo.txt" bD1
 
@@ -479,7 +463,7 @@ testFsCfgFancy :: Test
 testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
     -- Request for directory with autogen index
     rE1 <- go (fsCfg fancyDirectoryConfig) "mydir2/"
-    bE1 <- S.concat `fmap` L.toChunks `fmap` getBody rE1
+    bE1 <- Test.getResponseBody rE1
 
     assertBool "autogen-sub-index" $
         "Directory Listing: /mydir2/" `S.isInfixOf` bE1
@@ -491,7 +475,7 @@ testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
 
     -- Request for directory with autogen index
     rE2 <- go (fsCfg fancyDirectoryConfig) "mydir2/?z=z"
-    bE2 <- S.concat `fmap` L.toChunks `fmap` getBody rE2
+    bE2 <- Test.getResponseBody rE2
 
     assertBool "autogen-sub-index" $
         "Directory Listing: /mydir2/" `S.isInfixOf` bE2
@@ -505,7 +489,7 @@ testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
 testFsSingle :: Test
 testFsSingle = testCase "fileServe/Single" $ do
     r1 <- go fsSingle "foo.html"
-    b1 <- getBody r1
+    b1 <- Test.getResponseBody r1
 
     assertEqual "foo.html" "FOO\n" b1
     assertEqual "foo.html content-type"
@@ -520,7 +504,7 @@ testRangeOK :: Test
 testRangeOK = testCase "fileServe/range/ok" $ do
     r1 <- goRange fsSingle "foo.html" (1,2)
     assertEqual "foo.html 206" 206 $ rspStatus r1
-    b1 <- getBody r1
+    b1 <- Test.getResponseBody r1
 
     assertEqual "foo.html partial" "OO" b1
     assertEqual "foo.html partial size" (Just 2) (rspContentLength r1)
@@ -530,12 +514,12 @@ testRangeOK = testCase "fileServe/range/ok" $ do
 
     r2 <- goRangeSuffix fsSingle "foo.html" 3
     assertEqual "foo.html 206" 206 $ rspStatus r2
-    b2 <- getBody r2
+    b2 <- Test.getResponseBody r2
     assertEqual "foo.html partial suffix" "OO\n" b2
 
     r3 <- goRangePrefix fsSingle "foo.html" 2
     assertEqual "foo.html 206" 206 $ rspStatus r3
-    b3 <- getBody r3
+    b3 <- Test.getResponseBody r3
     assertEqual "foo.html partial prefix" "O\n" b3
 
 
@@ -547,7 +531,7 @@ testMultiRange = testCase "fileServe/range/multi" $ do
     -- we don't support multiple ranges so it's ok for us to return 200 here;
     -- test this behaviour
     assertEqual "foo.html 200" 200 $ rspStatus r1
-    b1 <- getBody r1
+    b1 <- Test.getResponseBody r1
 
     assertEqual "foo.html" "FOO\n" b1
 
@@ -561,7 +545,7 @@ testRangeBad = testCase "fileServe/range/bad" $ do
                 (Just "bytes */4")
                 (getHeader "Content-Range" r1)
     assertEqual "bad range content-length" (Just 0) (rspContentLength r1)
-    b1 <- getBody r1
+    b1 <- Test.getResponseBody r1
     assertEqual "bad range empty body" "" b1
 
     r2 <- goRangeSuffix fsSingle "foo.html" 4893
@@ -580,15 +564,15 @@ testIfRange :: Test
 testIfRange = testCase "fileServe/range/if-range" $ do
     r <- goIfRange fs "foo.bin" (1,2) "Wed, 15 Nov 1995 04:58:08 GMT"
     assertEqual "foo.bin 200" 200 $ rspStatus r
-    b <- getBody r
+    b <- Test.getResponseBody r
     assertEqual "foo.bin" "FOO\n" b
 
     r2 <- goIfRange fs "foo.bin" (1,2) "Tue, 01 Oct 2030 04:58:08 GMT"
     assertEqual "foo.bin 206" 206 $ rspStatus r2
-    b2 <- getBody r2
+    b2 <- Test.getResponseBody r2
     assertEqual "foo.bin partial" "OO" b2
 
     r3 <- goIfRange fs "foo.bin" (1,24324) "Tue, 01 Oct 2030 04:58:08 GMT"
     assertEqual "foo.bin 200" 200 $ rspStatus r3
-    b3 <- getBody r3
+    b3 <- Test.getResponseBody r3
     assertEqual "foo.bin" "FOO\n" b3

@@ -13,9 +13,7 @@ description:
     1. Primitive types and functions for HTTP (requests, responses, cookies,
        post/query parameters, etc)
   .
-    2. Type aliases and helper functions for Iteratee I/O
-  .
-    3. A monad for programming web handlers called \"Snap\", which allows:
+    2. A monad for programming web handlers called \"Snap\", which allows:
   .
        * Stateful access to the HTTP request and response objects
   .
@@ -25,8 +23,7 @@ description:
        * Early termination of the computation if you know early what you want
          to return and want to prevent further monadic processing
   .
-  /Quick start/: The 'Snap' monad and HTTP definitions are in "Snap.Core",
-  some iteratee utilities are in "Snap.Iteratee".
+  /Quick start/: The 'Snap' monad and HTTP definitions are in "Snap.Core".
 
 license:        BSD3
 license-file:   LICENSE
@@ -62,7 +59,6 @@ extra-source-files:
   test/suite/Snap/Internal/Http/Types/Tests.hs,
   test/suite/Snap/Internal/Parsing/Tests.hs,
   test/suite/Snap/Internal/Routing/Tests.hs,
-  test/suite/Snap/Iteratee/Tests.hs,
   test/suite/Snap/Test/Common.hs,
   test/suite/Snap/Util/FileServe/Tests.hs,
   test/suite/Snap/Util/FileUploads/Tests.hs,

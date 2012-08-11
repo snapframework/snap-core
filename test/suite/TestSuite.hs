@@ -7,7 +7,6 @@ import qualified Snap.Core.Tests
 import qualified Snap.Internal.Http.Types.Tests
 import qualified Snap.Internal.Parsing.Tests
 import qualified Snap.Internal.Routing.Tests
-import qualified Snap.Iteratee.Tests
 import qualified Snap.Util.FileServe.Tests
 import qualified Snap.Util.FileUploads.Tests
 import qualified Snap.Util.GZip.Tests
@@ -25,8 +24,6 @@ main = defaultMain tests
                         Snap.Internal.Routing.Tests.tests
             , testGroup "Snap.Core.Tests"
                         Snap.Core.Tests.tests
-            , testGroup "Snap.Iteratee.Tests"
-                        Snap.Iteratee.Tests.tests
             , testGroup "Snap.Internal.Parsing.Tests"
                         Snap.Internal.Parsing.Tests.tests
             , testGroup "Snap.Util.FileServe.Tests"
