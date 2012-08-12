@@ -545,10 +545,13 @@ testWrites = testCase "types/writes" $ do
   where
     h :: Snap ()
     h = do
-        addToOutput $ Streams.write $ Just $ fromByteString "Foo1"
+        addToOutput f
         writeBS "Foo2"
         writeLBS "Foo3"
 
+    f str = do
+        Streams.write (Just $ fromByteString "Foo1") str
+        return str
 
 testURLEncode1 :: Test
 testURLEncode1 = testCase "types/urlEncoding1" $ do
@@ -572,7 +575,9 @@ testDir2 = testCase "types/dir2" $ do
   where
     f = dir "foo" $ dir "bar" $ do
             p <- liftM rqContextPath getRequest
-            addToOutput $ Streams.write (Just $ fromByteString p)
+            addToOutput $ \s -> do
+                Streams.write (Just $ fromByteString p) s
+                return s
 
 
 testIpHeaderFilter :: Test

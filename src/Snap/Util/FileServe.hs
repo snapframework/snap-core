@@ -48,7 +48,6 @@ import           Prelude hiding (catch, show, Show)
 import qualified Prelude
 import           System.Directory
 import           System.FilePath
-import qualified System.IO.Streams as Streams
 import           System.PosixCompat.Files
 ------------------------------------------------------------------------------
 import           Snap.Core

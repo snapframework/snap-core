@@ -14,7 +14,7 @@ module Snap.Internal.Types where
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception (throwIO, ErrorCall(..))
+import           Control.Exception (throwIO, SomeException(..), ErrorCall(..))
 import           Control.Monad
 import           Control.Monad.CatchIO
 import qualified Control.Monad.Error.Class as EC
@@ -284,8 +284,21 @@ runRequestBody proc = do
     req         <- getRequest
     body        <- liftIO $ Streams.killIfTooSlow bumpTimeout 500 5 $
                             rqBody req
-    liftIO $ proc body
+    liftIO $ run body
 
+  where
+    skip body = Streams.skipToEof body `catch` tooSlow
+
+    tooSlow (e :: Streams.RateTooSlowException) =
+        throw $ ConnectionTerminatedException $ SomeException e
+
+    run body = (do
+        x <- proc body
+        Streams.skipToEof body
+        return x) `catches` handlers
+      where
+        handlers = [ Handler tooSlow, Handler other ]
+        other (e :: SomeException) = skip body >> throw e
 
 ------------------------------------------------------------------------------
 -- | Returns the request body as a lazy bytestring. /New in 0.6./
@@ -579,17 +592,20 @@ logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
 -- | Adds the output from the given enumerator to the 'Response'
 -- stored in the 'Snap' monad state.
 addToOutput :: MonadSnap m
-            => (OutputStream Builder -> IO ())  -- ^ output to add
+            => (OutputStream Builder -> IO (OutputStream Builder))
+                    -- ^ output to add
             -> m ()
 addToOutput enum = modifyResponse $ modifyResponseBody (c enum)
   where
-    c a b = \out -> a out >> b out
+    c a b = \out -> b out >>= a
 
 ------------------------------------------------------------------------------
 -- | Adds the given 'Builder' to the body of the 'Response' stored in the
 -- | 'Snap' monad state.
 writeBuilder :: MonadSnap m => Builder -> m ()
-writeBuilder = addToOutput . Streams.write . Just
+writeBuilder b = addToOutput f
+  where
+    f str = Streams.write (Just b) str >> return str
 {-# INLINE writeBuilder #-}
 
 

@@ -278,12 +278,13 @@ testTooManyHeaders = testCase "fileUploads/tooManyHeaders" $
 testSlowEnumerator :: Test
 testSlowEnumerator = testCase "fileUploads/tooSlow" $
                      (harness' goSlowEnumerator tmpdir hndl mixedTestBody
-                               `catch` h0)
+                               `catches` [Handler h0])
   where
-    h0 (e :: ConnectionTerminatedException) =
+    h0 (e :: ConnectionTerminatedException) = do
+        putStrLn "hi"
         let (ConnectionTerminatedException se) = e
             (me :: Maybe RateTooSlowException) = fromException se
-        in maybe (throw e) h me
+        maybe (throw e) h me
 
     h (e :: RateTooSlowException) = e `seq` return ()
 
