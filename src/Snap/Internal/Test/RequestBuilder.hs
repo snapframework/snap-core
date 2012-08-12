@@ -142,9 +142,10 @@ buildRequest mm = do
         (postParams, rq') <-
             if mbCT == Just "application/x-www-form-urlencoded"
               then liftIO $ do
-                  s <- liftM S.concat $ Streams.toList $ rqBody rq
-                  b <- Streams.fromList []
-                  return (parseUrlEncoded s, rq { rqBody = b })
+                  l <- Streams.toList $ rqBody rq
+                  -- snap-server regurgitates the parsed form body
+                  b <- Streams.fromList l
+                  return (parseUrlEncoded (S.concat l), rq { rqBody = b })
               else return (Map.empty, rq)
 
         rPut $ rq' { rqParams      = Map.unionWith (++) queryParams postParams

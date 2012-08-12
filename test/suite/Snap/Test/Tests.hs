@@ -170,12 +170,14 @@ testMisc = testCase "test/requestBuilder/testMisc" $ do
 ------------------------------------------------------------------------------
 testMultipart :: Test
 testMultipart = testCase "test/requestBuilder/testMultipart" $ do
-    request  <- buildRequest rq
-    rbody    <- getRqBody request
+    request0        <- buildRequest rq
+    (request,rbody) <- peekRqBody request0
     assertEqual "content-length" (Just (S.length rbody)) $
                 rqContentLength request
 
-    response <- runHandler rq handler
+    (_,response) <- runSnap handler (const $ return $! ())
+                                    (const $ return $! ())
+                                    request
     body     <- getResponseBody response
     assertEqual "body" "OK" body
 
@@ -283,3 +285,11 @@ testAssertRedirect = testCase "test/requestBuilder/testAssertRedirect" $ do
 ------------------------------------------------------------------------------
 getRqBody :: Request -> IO ByteString
 getRqBody = liftM S.concat . Streams.toList . rqBody
+
+
+peekRqBody :: Request -> IO (Request, ByteString)
+peekRqBody rq = do
+    l <- Streams.toList $ rqBody rq
+    b <- Streams.fromList l
+
+    return (rq { rqBody = b }, S.concat l)

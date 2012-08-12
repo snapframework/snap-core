@@ -91,17 +91,17 @@ import           Prelude hiding (catch, getLine, takeWhile)
 import           System.Directory
 import           System.IO hiding (isEOF)
 import qualified System.IO.Streams as Streams
+import qualified System.IO.Streams.Internal as StreamsI
 import           System.IO.Streams ( InputStream
                                    , MatchInfo(..)
                                    , boyerMooreHorspool
                                    , RateTooSlowException
                                    , TooManyBytesReadException )
-import           System.IO.Streams.Attoparsec (parseFromStream)
+import           System.IO.Streams.Attoparsec
 import           System.FilePath ((</>))
 import           System.PosixCompat.Temp (mkstemp)
 ------------------------------------------------------------------------------
 import           Snap.Core
---import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
 import qualified Snap.Types.Headers as H
 
@@ -794,7 +794,12 @@ internalHandleMultipart boundary clientHandler stream = go
       where
         hdrs = do
             str' <- Streams.takeNoMoreThan mAX_HDRS_SIZE str
-            liftM toHeaders $ parseFromStream pHeadersWithSeparator str'
+            (e, leftovers) <- parseFromStreamWithLeftovers
+                                  pHeadersWithSeparator str'
+
+            when (not $ S.null leftovers) $ Streams.unRead leftovers str
+
+            either (throw . ParseException) (return . toHeaders) e
 
         handler (_ :: TooManyBytesReadException) =
             throw $ BadPartException "headers exceeded maximum size"
@@ -874,9 +879,15 @@ findParam p = fmap snd . find ((== p) . fst)
 
 ------------------------------------------------------------------------------
 partStream :: InputStream MatchInfo -> IO (InputStream ByteString)
-partStream st = Streams.makeInputStream $
-                Streams.read st >>= maybe (return Nothing) f
+partStream st = StreamsI.sourceToStream go
+
   where
+    go = StreamsI.Source $ do
+        x <- Streams.read st >>= maybe (return Nothing) f
+        return $! maybe (StreamsI.nullSource, Nothing)
+                        (const $! (go, x))
+                        x
+
     f (NoMatch s) = return $ Just s
     f _           = return Nothing
 
@@ -902,6 +913,7 @@ processParts partFunc stream = go D.empty
 
     part pStream = do
         isLast <- parseFromStream pBoundaryEnd pStream
+
         if isLast
           then return Nothing
           else do
