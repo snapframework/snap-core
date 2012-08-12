@@ -101,10 +101,12 @@ testTypes = testCase "show" $ do
     return ()
 
   where
+    enum os = Streams.write (Just $ fromByteString "PING") os >> return os
+
     resp = addResponseCookie cook $
            setContentLength 4 $
            modifyResponseBody id $
-           setResponseBody (Streams.write $ Just $ fromByteString "PING") $
+           setResponseBody enum $
            setContentType "text/plain" $
            setResponseStatus 555 "bogus" $
            emptyResponse

@@ -172,16 +172,16 @@ compressCompression ce = modifyResponse f
 
 
 ------------------------------------------------------------------------------
-gcompress :: (OutputStream Builder -> IO ())
+gcompress :: (OutputStream Builder -> IO (OutputStream Builder))
           -> OutputStream Builder
-          -> IO ()
+          -> IO (OutputStream Builder)
 gcompress body stream = Streams.gzipBuilder 5 stream >>= body
 
 
 ------------------------------------------------------------------------------
-ccompress :: (OutputStream Builder -> IO ())
+ccompress :: (OutputStream Builder -> IO (OutputStream Builder))
           -> OutputStream Builder
-          -> IO ()
+          -> IO (OutputStream Builder)
 ccompress body stream = Streams.compressBuilder 5 stream >>= body
 
 

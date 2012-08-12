@@ -375,7 +375,7 @@ instance HasHeaders Headers where
 -- response type
 ------------------------------------------------------------------------------
 
-type StreamProc = OutputStream Builder -> IO ()
+type StreamProc = OutputStream Builder -> IO (OutputStream Builder)
 data ResponseBody = Stream (StreamProc)
                       -- ^ output body is a function that writes to a 'Builder'
                       -- stream
@@ -391,13 +391,15 @@ rspBodyMap f b = Stream $ f $ rspBodyToEnum b
 
 
 ------------------------------------------------------------------------------
-rspBodyToEnum :: ResponseBody -> (OutputStream Builder -> IO ())
+rspBodyToEnum :: ResponseBody
+              -> (OutputStream Builder -> IO (OutputStream Builder))
 rspBodyToEnum (Stream e) = e
 
 rspBodyToEnum (SendFile fp Nothing) = \out ->
     Streams.withFileAsInputStream fp $ \is -> do
         is' <- Streams.mapM (return . fromByteString) is
         Streams.connect is' out
+        return out
 
 rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
     withBinaryFile fp ReadMode $ \handle -> do
@@ -406,6 +408,7 @@ rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
         is' <- Streams.readNoMoreThan (end - start) is >>=
                Streams.mapM (return . fromByteString)
         Streams.connect is' out
+        return out
 
 
 ------------------------------------------------------------------------------
@@ -524,13 +527,13 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 -- | An empty 'Response'.
 emptyResponse :: Response
 emptyResponse = Response H.empty Map.empty (1,1) Nothing
-                         (Stream (const $ return ()))
+                         (Stream (return . id))
                          200 "OK" False
 
 
 ------------------------------------------------------------------------------
 -- | Sets an HTTP response body to the given stream procedure.
-setResponseBody     :: (OutputStream Builder -> IO ())
+setResponseBody     :: (OutputStream Builder -> IO (OutputStream Builder))
                                    -- ^ new response body
                     -> Response    -- ^ response to modify
                     -> Response
@@ -563,8 +566,8 @@ setResponseCode s r = setResponseStatus s reason r
 
 ------------------------------------------------------------------------------
 -- | Modifies a response body.
-modifyResponseBody  :: ((OutputStream Builder -> IO ()) ->
-                        (OutputStream Builder -> IO ()))
+modifyResponseBody  :: ((OutputStream Builder -> IO (OutputStream Builder)) ->
+                        (OutputStream Builder -> IO (OutputStream Builder)))
                     -> Response
                     -> Response
 modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }

@@ -22,8 +22,12 @@ getResponseBody rsp = do
     liftM toBS grab
 
   where
-    enum = rspBodyToEnum $ rspBody rsp
+    enum os = do
+        os' <- rspBodyToEnum (rspBody rsp) os
+        Streams.write Nothing os'
+
     toBS = toByteString . mconcat
+
 
 ------------------------------------------------------------------------------
 -- | Given a Response, asserts that its HTTP status code is 200 (success).
@@ -32,6 +36,7 @@ assertSuccess rsp = assertEqual message 200 status
   where
     message = "Expected success (200) but got (" ++ (show status) ++ ")"
     status  = rspStatus rsp
+
 
 ------------------------------------------------------------------------------
 -- | Given a Response, asserts that its HTTP status code is 404 (Not Found).

@@ -324,7 +324,7 @@ transformRequestBody trans = do
     is      <- liftIO ((trans $ rqBody req) >>=
                          Streams.mapM (return . fromByteString))
     origRsp <- getResponse
-    let rsp = setResponseBody (\out -> Streams.connect is out) $
+    let rsp = setResponseBody (\out -> Streams.connect is out >> return out) $
               origRsp { rspTransformingRqBody = True }
     finishWith rsp
 
@@ -561,7 +561,7 @@ redirect' target status = do
     finishWith
         $ setResponseCode status
         $ setContentLength 0
-        $ modifyResponseBody (const $ const $ return ())
+        $ modifyResponseBody (const $ return . id)
         $ setHeader "Location" target r
 
 {-# INLINE redirect' #-}
@@ -838,6 +838,7 @@ runSnap (Snap m) logerr timeoutAction req = do
     enum404 out = do
         is <- Streams.fromList html
         Streams.connect is out
+        return out
 
     --------------------------------------------------------------------------
     html = map fromByteString [ "<!DOCTYPE html>\n"
@@ -893,7 +894,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
     -- HEAD requests cannot have bodies per RFC 2616 sec. 9.4
     if rqMethod req == HEAD
       then return $! deleteHeader "Transfer-Encoding" $
-           rsp'' { rspBody = Stream $ const $ return () }
+           rsp'' { rspBody = Stream $ return . id }
       else return $! rsp''
 
   where
@@ -909,7 +910,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
 
     --------------------------------------------------------------------------
     handle304 :: Response -> Response
-    handle304 r = setResponseBody (const $ return ()) $
+    handle304 r = setResponseBody (return . id) $
                   updateHeaders (H.delete "Transfer-Encoding") $
                   setContentLength 0 r
 {-# INLINE fixupResponse #-}

@@ -118,18 +118,20 @@ goNoHeaders = goGeneric mkNoHeaders
 
 ------------------------------------------------------------------------------
 noContentType :: L.ByteString -> Snap ()
-noContentType body =
-    modifyResponse $ setResponseBody $
-    Streams.writeList $ map fromByteString $ L.toChunks body
-
+noContentType body = modifyResponse $ setResponseBody e
+  where
+    e s = do
+        Streams.writeList (map fromByteString $ L.toChunks body) s
+        return s
 
 ------------------------------------------------------------------------------
 withContentType :: ByteString -> L.ByteString -> Snap ()
-withContentType ct body =
-    modifyResponse $
-    setResponseBody (Streams.writeList $ map fromByteString $
-                     L.toChunks body) .
-    setContentType ct
+withContentType ct body = modifyResponse $
+                          setResponseBody e . setContentType ct
+  where
+    e s = do
+        Streams.writeList (map fromByteString $ L.toChunks body) s
+        return s
 
 
 ------------------------------------------------------------------------------

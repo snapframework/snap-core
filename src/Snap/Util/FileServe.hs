@@ -689,7 +689,7 @@ checkRangeReq req fp sz = do
                               . deleteHeader "Content-Type"
                               . deleteHeader "Content-Encoding"
                               . deleteHeader "Transfer-Encoding"
-                              . setResponseBody (Streams.write Nothing)
+                              . setResponseBody (return . id)
 
                return True
 
