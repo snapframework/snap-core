@@ -15,7 +15,9 @@ import           Control.Monad.State.Strict
 import qualified Control.Monad.State.Lazy    as LState
 import           Control.Monad.Writer.Strict hiding (pass)
 import qualified Control.Monad.Writer.Lazy   as LWriter
+#if !MIN_VERSION_base(4,6,0)
 import           Prelude                     hiding (catch)
+#endif
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Types

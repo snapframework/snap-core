@@ -91,7 +91,11 @@ import qualified Data.Text as T
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as TE
 import           Data.Typeable
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (getLine, takeWhile)
+#else
 import           Prelude hiding (catch, getLine, takeWhile)
+#endif
 import           System.Directory
 import           System.IO hiding (isEOF)
 ------------------------------------------------------------------------------

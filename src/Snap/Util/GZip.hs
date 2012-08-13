@@ -24,7 +24,11 @@ import           Data.Monoid
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import           Data.Typeable
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (takeWhile)
+#else
 import           Prelude hiding (catch, takeWhile)
+#endif
 
 
 ----------------------------------------------------------------------------

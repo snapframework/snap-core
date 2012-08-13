@@ -31,7 +31,11 @@ import           Data.Time
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import           Data.Typeable
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (take)
+#else
 import           Prelude hiding (catch, take)
+#endif
 import           System.PosixCompat.Files hiding (setFileSize)
 import           System.Posix.Types (FileOffset)
 ------------------------------------------------------------------------------

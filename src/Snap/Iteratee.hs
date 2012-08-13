@@ -127,7 +127,11 @@ import           Data.Typeable
 import           Foreign hiding (peek)
 import           Foreign.C.Types
 import           GHC.ForeignPtr
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (drop, head, take)
+#else
 import           Prelude hiding (catch, drop, head, take)
+#endif
 import           System.IO
 
 #ifndef PORTABLE
