@@ -910,11 +910,6 @@ processParts :: (InputStream ByteString -> IO a)
              -> IO [a]
 processParts partFunc stream = go D.empty
   where
-    isEOF = Streams.read stream >>=
-            maybe (return True)
-                  (\s -> Streams.unRead s stream >> return False)
-
-
     part pStream = do
         isLast <- parseFromStream pBoundaryEnd pStream
 
@@ -926,7 +921,7 @@ processParts partFunc stream = go D.empty
               return $! Just x
 
     go !soFar = do
-        b <- isEOF
+        b <- Streams.atEOF stream
         if b
           then return $! D.toList soFar
           else partStream stream >>=
