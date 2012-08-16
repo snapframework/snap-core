@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns              #-}
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
@@ -29,9 +30,13 @@ import           Data.Time
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as LT
 import           Data.Typeable
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (take)
+#else
 import           Prelude hiding (catch, take)
 import           System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as Streams
+#endif
 import           System.PosixCompat.Files hiding (setFileSize)
 import           System.Posix.Types (FileOffset)
 ------------------------------------------------------------------------------
@@ -258,7 +263,11 @@ instance MonadSnap Snap where
 -- | The Typeable instance is here so Snap can be dynamically executed with
 -- Hint.
 snapTyCon :: TyCon
+#if MIN_VERSION_base(4,4,0)
+snapTyCon = mkTyCon3 "snap-core" "Snap.Core" "Snap"
+#else
 snapTyCon = mkTyCon "Snap.Core.Snap"
+#endif
 {-# NOINLINE snapTyCon #-}
 
 instance Typeable1 Snap where

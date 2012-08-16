@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -22,12 +23,13 @@ import           Data.Maybe
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import           Data.Typeable
+#if MIN_VERSION_base(4,6,0)
 import           Prelude hiding (catch, takeWhile, read)
+#else
+import           Prelude hiding (takeWhile, read)
+#endif
 import           System.IO.Streams (OutputStream)
 import qualified System.IO.Streams as Streams
-
-
-
 ----------------------------------------------------------------------------
 import           Snap.Core
 import           Snap.Internal.Debug

@@ -44,7 +44,11 @@ import           Data.Maybe (fromMaybe, isNothing)
 import           Data.Monoid
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (show, Show)
+#else
 import           Prelude hiding (catch, show, Show)
+#endif
 import qualified Prelude
 import           System.Directory
 import           System.FilePath
