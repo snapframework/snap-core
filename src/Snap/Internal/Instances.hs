@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE PackageImports #-}
+{-# LANGUAGE CPP                  #-}
+{-# LANGUAGE PackageImports       #-}
 
 module Snap.Internal.Instances where
 
