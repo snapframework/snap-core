@@ -4,12 +4,10 @@ module Snap.Util.Readable
 
 ------------------------------------------------------------------------------
 import           Data.ByteString.Char8 (ByteString)
-import           Data.Int
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Text.Encoding
 import           Data.Text.Read
-import           Data.Word
 
 
 ------------------------------------------------------------------------------
@@ -37,20 +35,3 @@ instance Readable Integer where
 instance Readable Double where
     fromBS = either fail checkComplete . double . decodeUtf8
 
-instance Readable Int8 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
-instance Readable Int16 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
-instance Readable Int32 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
-instance Readable Int64 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
-
-instance Readable Word8 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
-instance Readable Word16 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
-instance Readable Word32 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
-instance Readable Word64 where
-    fromBS = either fail checkComplete . decimal . decodeUtf8
