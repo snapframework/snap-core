@@ -798,12 +798,7 @@ internalHandleMultipart boundary clientHandler stream = go
       where
         hdrs = do
             str' <- Streams.takeNoMoreThan mAX_HDRS_SIZE str
-            (e, leftovers) <- parseFromStreamWithLeftovers
-                                  pHeadersWithSeparator str'
-
-            when (not $ S.null leftovers) $ Streams.unRead leftovers str
-
-            either (throw . ParseException) (return . toHeaders) e
+            liftM toHeaders $ parseFromStream pHeadersWithSeparator str'
 
         handler (_ :: TooManyBytesReadException) =
             throw $ BadPartException "headers exceeded maximum size"
@@ -886,7 +881,7 @@ partStream :: InputStream MatchInfo -> IO (InputStream ByteString)
 partStream st = StreamsI.sourceToStream go
 
   where
-    go = StreamsI.Source $ do
+    go = StreamsI.withDefaultPushback $ do
         x <- Streams.read st >>= maybe (return Nothing) f
         return $! maybe (StreamsI.nullSource, Nothing)
                         (const $! (go, x))

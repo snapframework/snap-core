@@ -24,7 +24,7 @@ import           Data.Typeable
 import           Prelude hiding (catch)
 import           System.Directory
 import qualified System.IO.Streams.Internal as StreamsInt
-import           System.IO.Streams.Internal (Source(..))
+import           System.IO.Streams.Internal (withDefaultPushback)
 import           System.IO.Streams (RateTooSlowException)
 import           System.Mem
 import           System.Timeout
@@ -378,8 +378,8 @@ mkDamagedRequest body = do
 
   where
     ct = S.append "multipart/form-data; boundary=" boundaryValue
-    enum = Source $ do
-        return (Source $ throw TestException,
+    enum = withDefaultPushback $ do
+        return (withDefaultPushback $ throw TestException,
                 Just $ S.take (S.length body - 1) body)
 
 
@@ -418,12 +418,12 @@ goSlowEnumerator m s = do
   where
     body = S.unpack s
 
-    slowInput = Source $ goo body
+    slowInput = withDefaultPushback $ goo body
       where
         goo []     = return (StreamsInt.nullSource, Nothing)
         goo (x:xs) = do
             waitabit
-            return (Source $ goo xs, Just $ S.singleton x)
+            return (withDefaultPushback $ goo xs, Just $ S.singleton x)
 
 
 ------------------------------------------------------------------------------
