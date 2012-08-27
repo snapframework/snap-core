@@ -396,7 +396,7 @@ rspBodyToEnum :: ResponseBody
 rspBodyToEnum (Stream e) = e
 
 rspBodyToEnum (SendFile fp Nothing) = \out ->
-    Streams.withFileAsInputStream fp $ \is -> do
+    Streams.withFileAsInput fp $ \is -> do
         is' <- Streams.mapM (return . fromByteString) is
         Streams.connect is' out
         return out
