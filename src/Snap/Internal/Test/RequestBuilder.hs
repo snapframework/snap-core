@@ -239,8 +239,14 @@ makeBoundary = do
 
     encode = toByteString . S8.foldl' f mempty
 
+#if MIN_VERSION_base(4,5,0)
+    shR = unsafeShiftR
+#else
+    shR = shiftR
+#endif
+
     f m c = let low = c .&. 0xf
-                hi  = (c .&. 0xf0) `unsafeShiftR` 4
+                hi  = (c .&. 0xf0) `shR` 4
                 k   = \i -> fromWord8 $! toEnum $! fromEnum $!
                             V.unsafeIndex table (fromEnum i)
             in m `mappend` k hi `mappend` k low
