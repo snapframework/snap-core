@@ -20,7 +20,6 @@ import           Control.Monad.Trans
 
 #ifndef NODEBUG
 import           Control.Concurrent
-import           Control.DeepSeq
 import           Data.Either
 import           Control.Exception
 import           Data.Char
@@ -64,7 +63,7 @@ debugErrno = let !x = unsafePerformIO $ do
                                       in if y == "1" || y == "on"
                                         then return debugErrnoOn
                                         else if y == "testsuite"
-                                               then return debugErrnoSeq
+                                               then return debugSeq
                                                else return debugErrnoIgnore)
                               e
                  return $! f
@@ -73,12 +72,8 @@ debugErrno = let !x = unsafePerformIO $ do
 
 ------------------------------------------------------------------------------
 debugSeq :: (MonadIO m) => String -> m ()
-debugSeq !s = let !s' = rnf s in return $! s' `deepseq` ()
+debugSeq !s = length s `seq` return $! ()
 {-# NOINLINE debugSeq #-}
-
-debugErrnoSeq :: (MonadIO m) => String -> m ()
-debugErrnoSeq !s = let !s' = rnf s in return $! s' `deepseq` ()
-{-# NOINLINE debugErrnoSeq #-}
 
 ------------------------------------------------------------------------------
 _debugMVar :: MVar ()
