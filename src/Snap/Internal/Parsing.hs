@@ -15,7 +15,6 @@ import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Internal (c2w, w2c)
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString.Nums.Careless.Hex as Cvt
 import qualified Data.CaseInsensitive as CI
 import           Data.CaseInsensitive (CI)
 import           Data.Char hiding (isDigit, isSpace)
@@ -295,7 +294,7 @@ pUrlEscaped = do
         when (S.length hx /= 2 || (not $ S.all isHexDigit hx)) $
              fail "bad hex in url"
 
-        let code = w2c ((Cvt.hex hx) :: Word8)
+        let code = w2c ((unHex hx) :: Word8)
         nextChunk $ DL.snoc l (S.singleton code)
 
     --------------------------------------------------------------------------
@@ -463,3 +462,16 @@ parseCookie = parseToCompletion pCookies
 ------------------------------------------------------------------------------
 strictize :: L.ByteString -> ByteString
 strictize = S.concat . L.toChunks
+
+nybble :: Enum b => Char -> b
+nybble c | c >= '0' && c <= '9' = toEnum $! fromEnum c - fromEnum '0'
+         | c >= 'a' && c <= 'f' = toEnum $! 10 + fromEnum c - fromEnum 'a'
+         | c >= 'A' && c <= 'F' = toEnum $! 10 + fromEnum c - fromEnum 'A'
+         | otherwise            = error $ "bad hex digit: " ++ show c
+
+------------------------------------------------------------------------------
+unHex :: (Enum a, Bits a) => ByteString -> a
+unHex = S.foldl' f 0
+  where
+    f !cnt !i = unsafeShiftL cnt 4 .|. nybble i
+{-# INLINE unHex #-}

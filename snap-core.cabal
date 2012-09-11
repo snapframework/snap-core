@@ -135,7 +135,6 @@ Library
     blaze-builder >= 0.2.1.4 && <0.4,
     blaze-builder-enumerator >= 0.2 && <0.3,
     bytestring,
-    bytestring-nums,
     case-insensitive >= 0.3 && < 0.5,
     containers,
     deepseq >= 1.1 && <1.4,
