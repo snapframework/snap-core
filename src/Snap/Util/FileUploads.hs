@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns              #-}
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -78,7 +79,6 @@ import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Internal (c2w)
 import qualified Data.CaseInsensitive as CI
-import qualified Data.DList as D
 import           Data.Int
 import           Data.List hiding (takeWhile)
 import qualified Data.Map as Map
@@ -903,7 +903,7 @@ partStream st = StreamsI.sourceToStream go
 processParts :: (InputStream ByteString -> IO a)
              -> InputStream MatchInfo
              -> IO [a]
-processParts partFunc stream = go D.empty
+processParts partFunc stream = go id
   where
     part pStream = do
         isLast <- parseFromStream pBoundaryEnd pStream
@@ -918,11 +918,11 @@ processParts partFunc stream = go D.empty
     go !soFar = do
         b <- Streams.atEOF stream
         if b
-          then return $! D.toList soFar
+          then return $ soFar []
           else partStream stream >>=
                part >>=
-               maybe (return $ D.toList soFar)
-                     (go . D.snoc soFar)
+               maybe (return $ soFar [])
+                     (\x -> go (soFar . (x:)))
 
     pBoundaryEnd = (eol *> pure False) <|> (string "--" *> pure True)
 
