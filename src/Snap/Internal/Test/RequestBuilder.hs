@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE Rank2Types                 #-}
@@ -229,11 +230,14 @@ setRequestType (UrlEncodedPostRequest fp) = do
 ------------------------------------------------------------------------------
 makeBoundary :: MonadIO m => m ByteString
 makeBoundary = do
-    xs  <- liftIO $ replicateM 16 (randomIO :: IO Word8)
+    xs  <- liftIO $ replicateM 16 randomWord8
     let x = S.pack $ map (toEnum . fromEnum) xs
     return $ S.concat [ "snap-boundary-", encode x ]
 
   where
+    randomWord8 :: IO Word8
+    randomWord8 = liftM (\c -> toEnum $ c .&. 0xff) randomIO
+
     table = V.fromList [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
                        , 'a', 'b', 'c', 'd', 'e', 'f' ]
 
