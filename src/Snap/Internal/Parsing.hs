@@ -18,8 +18,6 @@ import qualified Data.ByteString.Lazy.Char8 as L
 import qualified Data.CaseInsensitive as CI
 import           Data.CaseInsensitive (CI)
 import           Data.Char hiding (isDigit, isSpace)
-import           Data.DList (DList)
-import qualified Data.DList as DL
 import           Data.Int
 import           Data.List (intersperse)
 import           Data.Map (Map)
@@ -272,10 +270,12 @@ parseToCompletion p s = toResult $ finish r
 
 
 ------------------------------------------------------------------------------
+type DList a = [a] -> [a]
+
 pUrlEscaped :: Parser ByteString
 pUrlEscaped = do
-    sq <- nextChunk DL.empty
-    return $! S.concat $ DL.toList sq
+    sq <- nextChunk id
+    return $! S.concat $ sq []
 
   where
     --------------------------------------------------------------------------
@@ -295,20 +295,20 @@ pUrlEscaped = do
              fail "bad hex in url"
 
         let code = w2c ((unHex hx) :: Word8)
-        nextChunk $ DL.snoc l (S.singleton code)
+        nextChunk $ l . ((S.singleton code) :)
 
     --------------------------------------------------------------------------
     unEncoded :: Char -> DList ByteString -> Parser (DList ByteString)
     unEncoded !c !l' = do
-        let l = DL.snoc l' (S.singleton c)
+        let l = l' . ((S.singleton c) :)
         bs   <- takeTill (flip elem "%+")
         if S.null bs
           then nextChunk l
-          else nextChunk $ DL.snoc l bs
+          else nextChunk $ l . (bs :)
 
     --------------------------------------------------------------------------
     plusSpace :: DList ByteString -> Parser (DList ByteString)
-    plusSpace l = nextChunk (DL.snoc l (S.singleton ' '))
+    plusSpace l = nextChunk (l . ((S.singleton ' ') :))
 
 
 ------------------------------------------------------------------------------

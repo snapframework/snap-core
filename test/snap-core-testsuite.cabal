@@ -34,7 +34,6 @@ Executable testsuite
     containers,
     deepseq                    >= 1.1      && <1.4,
     directory,
-    dlist                      >= 0.5      && <0.6,
     filepath,
     HUnit                      >= 1.2      && <2,
     enumerator                 >= 0.4.13.1 && <0.5,
