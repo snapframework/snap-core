@@ -294,7 +294,7 @@ pUrlEscaped = do
         when (S.length hx /= 2 || (not $ S.all isHexDigit hx)) $
              fail "bad hex in url"
 
-        let code = w2c ((unHex hx) :: Word8)
+        let code = w2c ((unsafeFromHex hx) :: Word8)
         nextChunk $ l . ((S.singleton code) :)
 
     --------------------------------------------------------------------------
@@ -463,15 +463,22 @@ parseCookie = parseToCompletion pCookies
 strictize :: L.ByteString -> ByteString
 strictize = S.concat . L.toChunks
 
-nybble :: Enum b => Char -> b
-nybble c | c >= '0' && c <= '9' = toEnum $! fromEnum c - fromEnum '0'
-         | c >= 'a' && c <= 'f' = toEnum $! 10 + fromEnum c - fromEnum 'a'
-         | c >= 'A' && c <= 'F' = toEnum $! 10 + fromEnum c - fromEnum 'A'
-         | otherwise            = error $ "bad hex digit: " ++ show c
-
 ------------------------------------------------------------------------------
-unHex :: (Enum a, Bits a) => ByteString -> a
-unHex = S.foldl' f 0
+unsafeFromHex :: (Enum a, Bits a) => ByteString -> a
+unsafeFromHex = S.foldl' f 0
   where
     f !cnt !i = unsafeShiftL cnt 4 .|. nybble i
-{-# INLINE unHex #-}
+
+    nybble c | c >= '0' && c <= '9' = toEnum $! fromEnum c - fromEnum '0'
+             | c >= 'a' && c <= 'f' = toEnum $! 10 + fromEnum c - fromEnum 'a'
+             | c >= 'A' && c <= 'F' = toEnum $! 10 + fromEnum c - fromEnum 'A'
+             | otherwise            = error $ "bad hex digit: " ++ show c
+{-# INLINE unsafeFromHex #-}
+
+
+------------------------------------------------------------------------------
+unsafeFromInt :: (Enum a, Bits a) => ByteString -> a
+unsafeFromInt = S.foldl' f 0
+  where
+    f !cnt !i = cnt * 10 + toEnum (digitToInt i)
+{-# INLINE unsafeFromInt #-}
