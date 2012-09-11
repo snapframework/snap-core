@@ -48,7 +48,7 @@ import           Data.Monoid
 import           Data.Word
 import qualified Data.Vector                    as V
 import           System.PosixCompat.Time
-import           System.Random.MWC
+import           System.Random
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types hiding (addHeader,
                                                   setContentType,
@@ -229,8 +229,7 @@ setRequestType (UrlEncodedPostRequest fp) = do
 ------------------------------------------------------------------------------
 makeBoundary :: MonadIO m => m ByteString
 makeBoundary = do
-    xs <- liftIO $ withSystemRandom $ \rng ->
-          replicateM 16 ((uniform rng) :: IO Word8)
+    xs  <- liftIO $ replicateM 16 (randomIO :: IO Word8)
     let x = S.pack $ map (toEnum . fromEnum) xs
     return $ S.concat [ "snap-boundary-", encode x ]
 
