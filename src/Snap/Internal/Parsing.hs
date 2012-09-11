@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE MagicHash         #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -467,7 +468,13 @@ strictize = S.concat . L.toChunks
 unsafeFromHex :: (Enum a, Bits a) => ByteString -> a
 unsafeFromHex = S.foldl' f 0
   where
-    f !cnt !i = unsafeShiftL cnt 4 .|. nybble i
+#if MIN_VERSION_base(4,5,0)
+    sl = unsafeShiftL
+#else
+    sl = shiftL
+#endif
+
+    f !cnt !i = sl cnt 4 .|. nybble i
 
     nybble c | c >= '0' && c <= '9' = toEnum $! fromEnum c - fromEnum '0'
              | c >= 'a' && c <= 'f' = toEnum $! 10 + fromEnum c - fromEnum 'a'
