@@ -364,8 +364,8 @@ testRqBody = testCase "types/requestBodies" $ do
 
   where
     f mvar1 mvar2 = do
-        getRequestBody >>= liftIO . putMVar mvar1
-        getRequestBody >>= liftIO . putMVar mvar2
+        readRequestBody 200 >>= liftIO . putMVar mvar1
+        readRequestBody 200 >>= liftIO . putMVar mvar2
 
     g = transformRequestBody returnI
 

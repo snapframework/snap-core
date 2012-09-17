@@ -51,7 +51,6 @@ module Snap.Core
 
     -- ** Grabbing/transforming request bodies
   , runRequestBody
-  , getRequestBody
   , readRequestBody
   , transformRequestBody
 
@@ -146,7 +145,6 @@ module Snap.Core
   , setTimeout
   , extendTimeout
   , modifyTimeout
-  , getTimeoutAction
   , getTimeoutModifier
 
     -- * Iteratee

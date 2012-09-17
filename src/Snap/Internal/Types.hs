@@ -331,20 +331,6 @@ runRequestBody iter = do
 
 
 ------------------------------------------------------------------------------
--- | Returns the request body as a lazy bytestring.
---
--- This function is deprecated as of 0.6; it places no limits on the size of
--- the request being read, and as such, if used, can result in a
--- denial-of-service attack on your server. Please use 'readRequestBody'
--- instead.
-getRequestBody :: MonadSnap m => m L.ByteString
-getRequestBody = liftM L.fromChunks $ runRequestBody consume
-{-# INLINE getRequestBody #-}
-{-# DEPRECATED getRequestBody
-    "As of 0.6, please use 'readRequestBody' instead" #-}
-
-
-------------------------------------------------------------------------------
 -- | Returns the request body as a lazy bytestring. /New in 0.6./
 readRequestBody :: MonadSnap m =>
                    Int64  -- ^ size of the largest request body we're willing
@@ -1123,17 +1109,6 @@ modifyTimeout :: MonadSnap m => (Int -> Int) -> m ()
 modifyTimeout f = do
     m <- getTimeoutModifier
     liftIO $ m f
-
-
-------------------------------------------------------------------------------
--- | Returns an 'IO' action which you can use to set the handling thread's
--- timeout value.
-getTimeoutAction :: MonadSnap m => m (Int -> IO ())
-getTimeoutAction = do
-    modifier <- liftSnap $ liftM _snapModifyTimeout sget
-    return $! modifier . const
-{-# DEPRECATED getTimeoutAction
-      "use getTimeoutModifier instead. Since 0.8." #-}
 
 
 ------------------------------------------------------------------------------
