@@ -12,4 +12,5 @@ dist*/
 .DS_Store
 **/.DS_Store
 docs/templates/out
+test/dist/
 test/dist*/
