@@ -1,5 +1,5 @@
 name:           snap-core
-version:        0.9.1
+version:        0.10
 synopsis:       Snap: A Haskell Web Framework (core interfaces and types)
 
 description:
@@ -102,7 +102,6 @@ Library
 
   exposed-modules:
     Snap.Core,
-    Snap.Types,
     Snap.Iteratee,
     Snap.Internal.Debug,
     Snap.Internal.Exceptions,
@@ -175,10 +174,10 @@ Library
   ghc-prof-options: -prof -auto-all
 
   if impl(ghc >= 6.12.0)
-    ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
+    ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O
                  -fno-warn-unused-do-bind
   else
-    ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O2
+    ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -O
 
 source-repository head
   type:     git

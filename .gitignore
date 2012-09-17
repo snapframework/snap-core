@@ -1,6 +1,6 @@
 *~
 cabal-dev
-dist/
+dist*/
 *.tix
 .hpc
 *.prof
@@ -12,3 +12,4 @@ dist/
 .DS_Store
 **/.DS_Store
 docs/templates/out
+test/dist*/
