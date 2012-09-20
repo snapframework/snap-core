@@ -50,7 +50,7 @@ Executable testsuite
     text                       >= 0.11     && <0.12,
     time,
     transformers,
-    unix-compat                >= 0.2      && <0.4,
+    unix-compat                >= 0.2      && <0.5,
     unordered-containers       >= 0.1.4.3  && <0.3,
     vector                     >= 0.6      && <0.10,
     zlib,
