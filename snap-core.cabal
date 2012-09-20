@@ -149,7 +149,7 @@ Library
     text                      >= 0.11    && < 0.12,
     time                      >= 1.0     && < 1.5,
     transformers              >= 0.2     && < 0.4,
-    unix-compat               >= 0.2     && < 0.4,
+    unix-compat               >= 0.2     && < 0.5,
     unordered-containers      >= 0.1.4.3 && < 0.3,
     vector                    >= 0.6     && < 0.10,
     zlib-enum                 >= 0.2.1   && < 0.3
