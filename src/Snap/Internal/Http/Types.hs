@@ -405,7 +405,7 @@ rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
     withBinaryFile fp ReadMode $ \handle -> do
         unless (start == 0) $ hSeek handle AbsoluteSeek $ toInteger start
         is  <- Streams.handleToInputStream handle
-        is' <- Streams.readNoMoreThan (end - start) is >>=
+        is' <- Streams.takeBytes (end - start) is >>=
                Streams.mapM (return . fromByteString)
         Streams.connect is' out
         return out

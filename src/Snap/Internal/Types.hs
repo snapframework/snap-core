@@ -291,7 +291,7 @@ runRequestBody :: MonadSnap m =>
 runRequestBody proc = do
     bumpTimeout <- liftM ($ max 5) getTimeoutModifier
     req         <- getRequest
-    body        <- liftIO $ Streams.killIfTooSlow bumpTimeout 500 5 $
+    body        <- liftIO $ Streams.throwIfTooSlow bumpTimeout 500 5 $
                             rqBody req
     liftIO $ run body
 
@@ -319,7 +319,7 @@ readRequestBody :: MonadSnap m =>
                 -> m L.ByteString
 readRequestBody sz = liftM L.fromChunks $ runRequestBody f
   where
-    f str = Streams.takeNoMoreThan sz str >>= Streams.toList
+    f str = Streams.throwIfProducesMoreThan sz str >>= Streams.toList
 
 
 ------------------------------------------------------------------------------

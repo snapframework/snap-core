@@ -98,7 +98,7 @@ import qualified System.IO.Streams as Streams
 import qualified System.IO.Streams.Internal as StreamsI
 import           System.IO.Streams ( InputStream
                                    , MatchInfo(..)
-                                   , boyerMooreHorspool
+                                   , search
                                    , RateTooSlowException
                                    , TooManyBytesReadException )
 import           System.IO.Streams.Attoparsec
@@ -176,7 +176,7 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
         (PartUploadPolicy mbFs) = partPolicy partInfo
 
         takeIt maxSize = do
-            str' <- Streams.takeNoMoreThan maxSize stream
+            str' <- Streams.throwIfProducesMoreThan maxSize stream
             fileReader tmpdir partHandler partInfo str' `catches`
                        [ Handler $ tooMany maxSize
                        , Handler $ policyViolation ]
@@ -440,7 +440,7 @@ handleMultipart uploadPolicy origPartHandler = do
 
     --------------------------------------------------------------------------
     proc bumpTimeout boundary partHandler stream = do
-        str <- Streams.killIfTooSlow bumpTimeout uploadRate uploadSecs stream
+        str <- Streams.throwIfTooSlow bumpTimeout uploadRate uploadSecs stream
         internalHandleMultipart boundary partHandler str `catch` errHandler
 
       where
@@ -731,7 +731,7 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
   where
     variable = do
         x <- liftM S.concat $
-             Streams.takeNoMoreThan maxSize stream >>= Streams.toList
+             Streams.throwIfProducesMoreThan maxSize stream >>= Streams.toList
         return $! Capture fieldName x
 
     fieldName = partFieldName partInfo
@@ -778,7 +778,7 @@ internalHandleMultipart boundary clientHandler stream = go
     go = do
         -- swallow the first boundary
         _        <- parseFromStream (parseFirstBoundary boundary) stream
-        bmstream <- boyerMooreHorspool (fullBoundary boundary) stream
+        bmstream <- search (fullBoundary boundary) stream
         liftM concat $ processParts goPart bmstream
 
     --------------------------------------------------------------------------
@@ -797,7 +797,7 @@ internalHandleMultipart boundary clientHandler stream = go
     takeHeaders str = hdrs `catch` handler
       where
         hdrs = do
-            str' <- Streams.takeNoMoreThan mAX_HDRS_SIZE str
+            str' <- Streams.throwIfProducesMoreThan mAX_HDRS_SIZE str
             liftM toHeaders $ parseFromStream pHeadersWithSeparator str'
 
         handler (_ :: TooManyBytesReadException) =
@@ -825,7 +825,7 @@ internalHandleMultipart boundary clientHandler stream = go
     processMixed fieldName str mixedBoundary = do
         -- swallow the first boundary
         _  <- parseFromStream (parseFirstBoundary mixedBoundary) str
-        bm <- boyerMooreHorspool (fullBoundary mixedBoundary) str
+        bm <- search (fullBoundary mixedBoundary) str
         processParts (mixedStream fieldName) bm
 
 
