@@ -465,7 +465,7 @@ strictize :: L.ByteString -> ByteString
 strictize = S.concat . L.toChunks
 
 ------------------------------------------------------------------------------
-unsafeFromHex :: (Enum a, Bits a) => ByteString -> a
+unsafeFromHex :: (Enum a, Num a, Bits a) => ByteString -> a
 unsafeFromHex = S.foldl' f 0
   where
 #if MIN_VERSION_base(4,5,0)
@@ -484,7 +484,7 @@ unsafeFromHex = S.foldl' f 0
 
 
 ------------------------------------------------------------------------------
-unsafeFromInt :: (Enum a, Bits a) => ByteString -> a
+unsafeFromInt :: (Enum a, Num a, Bits a) => ByteString -> a
 unsafeFromInt = S.foldl' f 0
   where
     f !cnt !i = cnt * 10 + toEnum (digitToInt i)

@@ -49,7 +49,7 @@ Executable testsuite
     time,
     transformers               >= 0.3      && <0.4,
     transformers-base          >= 0.4      && <0.5,
-    unix-compat                >= 0.2      && <0.4,
+    unix-compat                >= 0.2      && <0.5,
     unordered-containers       >= 0.1.4.3  && <0.3,
     vector                     >= 0.6      && <0.10,
     zlib
