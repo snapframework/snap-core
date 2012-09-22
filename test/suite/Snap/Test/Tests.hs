@@ -9,7 +9,7 @@ import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.Map as Map
 import           Control.Monad
-import           Control.Monad.Trans (liftIO)
+import           Control.Monad.IO.Class (liftIO)
 import qualified System.IO.Streams as Streams
 import           Test.Framework (Test)
 import           Test.Framework.Providers.HUnit (testCase)

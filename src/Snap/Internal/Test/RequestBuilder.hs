@@ -36,31 +36,33 @@ module Snap.Internal.Test.RequestBuilder
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
-import           Control.Monad.State            hiding (get, put)
-import qualified Control.Monad.State            as State
+import           Control.Monad
+import           Control.Monad.State.Strict hiding (get, put)
+import qualified Control.Monad.State.Strict as State
+import           Control.Monad.IO.Class
 import           Data.Bits
-import           Data.ByteString.Char8          (ByteString)
-import qualified Data.ByteString.Char8          as S
-import qualified Data.ByteString                as S8
-import           Data.CaseInsensitive           (CI)
-import qualified Data.Map                       as Map
+import           Data.ByteString.Char8            (ByteString)
+import qualified Data.ByteString.Char8            as S
+import qualified Data.ByteString                  as S8
+import           Data.CaseInsensitive             (CI)
+import qualified Data.Map                         as Map
 import           Data.Monoid
 import           Data.Word
-import qualified Data.Vector                    as V
-import qualified System.IO.Streams              as Streams
+import qualified Data.Vector                      as V
+import qualified System.IO.Streams                as Streams
 import           System.PosixCompat.Time
 import           System.Random
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types hiding (addHeader,
                                                   setContentType,
                                                   setHeader)
-import qualified Snap.Internal.Http.Types       as H
+import qualified Snap.Internal.Http.Types         as H
 import           Snap.Internal.Parsing
-import           Snap.Internal.Types            (evalSnap)
+import           Snap.Internal.Types              (evalSnap)
 import           Snap.Core                      hiding ( addHeader
                                                        , setContentType
                                                        , setHeader )
-import qualified Snap.Types.Headers             as H
+import qualified Snap.Types.Headers               as H
 
 
 ------------------------------------------------------------------------------

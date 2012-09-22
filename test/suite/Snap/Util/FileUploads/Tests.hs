@@ -10,9 +10,9 @@ module Snap.Util.FileUploads.Tests
 import           Control.Applicative
 import           Control.Concurrent (threadDelay)
 import           Control.DeepSeq
+import           Control.Exception.Lifted
 import           Control.Monad
-import           Control.Monad.CatchIO
-import           Control.Monad.Trans
+import           Control.Monad.IO.Class
 import           Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S
 import           Data.IORef

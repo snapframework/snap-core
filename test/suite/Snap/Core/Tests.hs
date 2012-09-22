@@ -10,10 +10,17 @@ import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
-import           Control.Exception (ErrorCall(..), SomeException, throwIO)
+import           Control.Exception.Lifted ( ErrorCall(..)
+                                          , Exception
+                                          , SomeException
+                                          , catch
+                                          , fromException
+                                          , mask
+                                          , throwIO
+                                          , try
+                                          )
 import           Control.Monad
-import           Control.Monad.CatchIO
-import           Control.Monad.Trans (liftIO)
+import           Control.Monad.IO.Class (liftIO)
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -139,7 +146,8 @@ testCatchIO = testCase "types/catchIO" $ do
 
   where
     f :: Snap ()
-    f = (block $ unblock $ throw $ NoHandlerException "") `catch` h
+    f = (mask $ \restore -> restore $ throwIO $ NoHandlerException "")
+            `catch` h
 
     g :: Snap ()
     g = return () `catch` h
@@ -376,7 +384,7 @@ testRqBodyException = testCase "types/requestBodyException" $ do
 
     h0 = runRequestBody $ \str -> do
              !_ <- Streams.read str
-             throw $ ErrorCall "foo"
+             throwIO $ ErrorCall "foo"
 
     hndlr = h0 `catch` \(_::SomeException) -> writeBS "OK"
 

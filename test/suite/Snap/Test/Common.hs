@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleInstances    #-}
+{-# LANGUAGE FlexibleContexts     #-}
 {-# LANGUAGE ScopedTypeVariables  #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -18,10 +19,14 @@ module Snap.Test.Common
 
 ------------------------------------------------------------------------------
 import           Control.DeepSeq
-import           Control.Exception (SomeException(..), evaluate)
+import           Control.Exception.Lifted ( SomeException(..)
+                                          , catch
+                                          , evaluate
+                                          , try
+                                          )
 import           Control.Monad
-import           Control.Monad.CatchIO
-import           Control.Monad.Trans
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Control
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import           Data.ByteString.Internal (c2w)
@@ -44,10 +49,10 @@ instance Arbitrary L.ByteString where
 
 
 ------------------------------------------------------------------------------
-eatException :: (MonadCatchIO m) => m a -> m ()
+eatException :: (MonadBaseControl IO m) => m a -> m ()
 eatException a = (a >> return ()) `catch` handler
   where
-    handler :: (MonadCatchIO m) => SomeException -> m ()
+    handler :: (MonadBaseControl IO m) => SomeException -> m ()
     handler _ = return ()
 
 

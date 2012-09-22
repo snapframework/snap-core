@@ -4,41 +4,23 @@
 
 module Snap.Internal.Instances where
 
-import           Control.Applicative
-import           Control.Monad.CatchIO ()
-import           Control.Monad.Cont
-import           Control.Monad.Error
-import           Control.Monad.List
-import           Control.Monad.RWS.Strict    hiding (pass)
-import qualified Control.Monad.RWS.Lazy      as LRWS
-import           Control.Monad.Reader
-import           Control.Monad.State.Strict
-import qualified Control.Monad.State.Lazy    as LState
-import           Control.Monad.Writer.Strict hiding (pass)
-import qualified Control.Monad.Writer.Lazy   as LWriter
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Error
+import           Control.Monad.Trans.List
+import           Control.Monad.Trans.RWS.Strict    hiding (pass)
+import qualified Control.Monad.Trans.RWS.Lazy      as LRWS
+import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.State.Strict
+import qualified Control.Monad.Trans.State.Lazy    as LState
+import           Control.Monad.Trans.Writer.Strict hiding (pass)
+import qualified Control.Monad.Trans.Writer.Lazy   as LWriter
+import           Data.Monoid
 #if !MIN_VERSION_base(4,6,0)
 import           Prelude                     hiding (catch)
 #endif
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Types
-
-
-------------------------------------------------------------------------------
-instance MonadPlus m => MonadPlus (ContT c m) where
-    mzero = lift mzero
-    m `mplus` n = ContT $ \ f -> runContT m f `mplus` runContT n f
-
-
-------------------------------------------------------------------------------
-instance MonadPlus m => Alternative (ContT c m) where
-    empty = mzero
-    (<|>) = mplus
-
-
-------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (ContT c m) where
-    liftSnap = lift . liftSnap
 
 
 ------------------------------------------------------------------------------

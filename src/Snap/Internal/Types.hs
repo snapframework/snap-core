@@ -1,13 +1,16 @@
-{-# LANGUAGE BangPatterns              #-}
-{-# LANGUAGE CPP                       #-}
-{-# LANGUAGE DeriveDataTypeable        #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE FlexibleInstances         #-}
-{-# LANGUAGE MultiParamTypeClasses     #-}
-{-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE Rank2Types                #-}
-{-# LANGUAGE ScopedTypeVariables       #-}
-{-# LANGUAGE TypeSynonymInstances      #-}
+{-# LANGUAGE BangPatterns               #-}
+{-# LANGUAGE CPP                        #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE Rank2Types                 #-}
+{-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 
 module Snap.Internal.Types where
 
@@ -15,11 +18,21 @@ module Snap.Internal.Types where
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception (throwIO, SomeException(..), ErrorCall(..))
+import           Control.Exception.Lifted (catch,
+                                           catches,
+                                           mask,
+                                           onException,
+                                           throwIO,
+                                           toException,
+                                           Handler(..),
+                                           Exception,
+                                           SomeException(..),
+                                           ErrorCall(..))
 import           Control.Monad
-import           Control.Monad.CatchIO
-import qualified Control.Monad.Error.Class as EC
-import           Control.Monad.State
+import           Control.Monad.Base
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Control
+import           Control.Monad.Trans.State
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -104,12 +117,13 @@ import           Snap.Util.Readable
    > a :: Snap ()
    > a = setTimeout 30
 
-8. throw and catch exceptions using a 'MonadCatchIO' instance:
+8. throw and catch exceptions using a 'MonadBaseControl' instance:
 
+   > import           Control.Exception.Lifted (SomeException, throwIO, catch)
    > foo :: Snap ()
    > foo = bar `catch` \(e::SomeException) -> baz
    >   where
-   >     bar = throw FooException
+   >     bar = throwIO FooException
 
 9. log a message to the error log:
 
@@ -129,7 +143,7 @@ transformers ('ReaderT', 'WriterT', 'StateT', etc.).
 ------------------------------------------------------------------------------
 -- | 'MonadSnap' is a type class, analogous to 'MonadIO' for 'IO', that makes
 -- it easy to wrap 'Snap' inside monad transformers.
-class (Monad m, MonadIO m, MonadCatchIO m, MonadPlus m, Functor m,
+class (Monad m, MonadIO m, MonadBaseControl IO m, MonadPlus m, Functor m,
        Applicative m, Alternative m) => MonadSnap m where
     liftSnap :: Snap a -> m a
 
@@ -189,25 +203,23 @@ instance MonadIO Snap where
 
 
 ------------------------------------------------------------------------------
-instance MonadCatchIO Snap where
-    catch (Snap m) handler = Snap $! m `catch` h
-      where
-        h e = do
-            rethrowIfUncatchable $ fromException e
-            maybe (throw e)
-                  (\e' -> let (Snap z) = handler e' in z)
-                  (fromException e)
-
-    block (Snap m) = Snap $ block m
-    unblock (Snap m) = Snap $ unblock m
+instance (MonadBase IO) Snap where
+    liftBase = Snap . liftM SnapValue . liftBase
 
 
 ------------------------------------------------------------------------------
-rethrowIfUncatchable :: (MonadCatchIO m) =>
-                        Maybe UncatchableException ->
-                        m ()
-rethrowIfUncatchable Nothing  = return ()
-rethrowIfUncatchable (Just e) = throw e
+instance (MonadBaseControl IO) Snap where
+    newtype StM Snap a = StSnap {
+          unStSnap :: StM (StateT SnapState IO) (SnapResult a)
+        }
+
+    liftBaseWith f = Snap $ liftM SnapValue $
+                     liftBaseWith $ \g' -> f $ \m ->
+                     liftM StSnap $ g' $ unSnap m
+    {-# INLINE liftBaseWith #-}
+
+    restoreM = Snap . restoreM . unStSnap
+    {-# INLINE restoreM #-}
 
 
 ------------------------------------------------------------------------------
@@ -225,6 +237,10 @@ instance MonadPlus Snap where
 
 
 ------------------------------------------------------------------------------
+{-
+
+we dumped mtl...
+
 instance (EC.MonadError String) Snap where
     throwError = fail
     catchError act hndl = Snap $ do
@@ -234,6 +250,7 @@ instance (EC.MonadError String) Snap where
           SnapValue _        -> return r
           PassOnProcessing m -> unSnap $ hndl m
           _                  -> return r
+-}
 
 
 ------------------------------------------------------------------------------
@@ -256,7 +273,6 @@ instance Alternative Snap where
 ------------------------------------------------------------------------------
 instance MonadSnap Snap where
     liftSnap = id
-
 
 
 ------------------------------------------------------------------------------
@@ -299,7 +315,7 @@ runRequestBody proc = do
     skip body = Streams.skipToEof body `catch` tooSlow
 
     tooSlow (e :: Streams.RateTooSlowException) =
-        throw $ ConnectionTerminatedException $ SomeException e
+        throwIO $ ConnectionTerminatedException $ SomeException e
 
     run body = (do
         x <- proc body
@@ -307,7 +323,7 @@ runRequestBody proc = do
         return x) `catches` handlers
       where
         handlers = [ Handler tooSlow, Handler other ]
-        other (e :: SomeException) = skip body >> throw e
+        other (e :: SomeException) = skip body >> throwIO e
 
 ------------------------------------------------------------------------------
 -- | Returns the request body as a lazy bytestring. /New in 0.6./
@@ -788,11 +804,10 @@ ipHeaderFilter' header = do
 --
 -- 3. An exception being thrown.
 bracketSnap :: IO a -> (a -> IO b) -> (a -> Snap c) -> Snap c
-bracketSnap before after thing = block . Snap $ do
+bracketSnap before after thing = mask $ \restore -> Snap $ do
     a <- liftIO before
     let after' = liftIO $ after a
-        (Snap thing') = thing a
-    r <- unblock thing' `onException` after'
+    r <- unSnap (restore $ thing a) `onException` after'
     _ <- after'
     return r
 
@@ -814,8 +829,8 @@ instance Exception NoHandlerException
 
 ------------------------------------------------------------------------------
 -- | Terminate the HTTP session with the given exception.
-terminateConnection :: (Exception e, MonadCatchIO m) => e -> m a
-terminateConnection = throw . ConnectionTerminatedException . toException
+terminateConnection :: (Exception e, MonadBaseControl IO m) => e -> m a
+terminateConnection = throwIO . ConnectionTerminatedException . toException
 
 
 ------------------------------------------------------------------------------
@@ -824,10 +839,10 @@ terminateConnection = throw . ConnectionTerminatedException . toException
 --
 -- The external handler takes two arguments: a function to modify the thread's
 -- timeout, and a write end to the socket.
-escapeHttp :: MonadCatchIO m =>
+escapeHttp :: MonadBaseControl IO m =>
               EscapeHttpHandler
            -> m ()
-escapeHttp = throw . EscapeHttpException
+escapeHttp = throwIO . EscapeHttpException
 
 
 ------------------------------------------------------------------------------

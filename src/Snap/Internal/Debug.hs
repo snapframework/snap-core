@@ -16,11 +16,10 @@
 module Snap.Internal.Debug where
 
 ------------------------------------------------------------------------------
-import           Control.Monad.Trans
+import           Control.Monad.IO.Class
 
 #ifndef NODEBUG
 import           Control.Concurrent
-import           Data.Either
 import           Control.Exception
 import           Data.Char
 import           Data.List

@@ -14,7 +14,7 @@ import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Exception
 import           Control.Monad
-import           Control.Monad.Trans
+import           Control.Monad.IO.Class
 import           Data.Attoparsec.Char8
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S

@@ -4,16 +4,16 @@
 module Snap.Util.Proxy.Tests (tests) where
 
 ------------------------------------------------------------------------------
-import           Control.Monad.State hiding (get)
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import           Data.CaseInsensitive (CI(..))
-import qualified Data.Map as Map
+import           Control.Monad.State.Strict     hiding (get)
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import           Data.CaseInsensitive           (CI(..))
+import qualified Data.Map                       as Map
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
-import           Test.HUnit hiding (Test, path)
+import           Test.HUnit                     hiding (Test, path)
 ------------------------------------------------------------------------------
-import           Snap.Core hiding (setHeader)
+import           Snap.Core                      hiding (setHeader)
 import           Snap.Test
 import           Snap.Test.Common
 import           Snap.Util.Proxy

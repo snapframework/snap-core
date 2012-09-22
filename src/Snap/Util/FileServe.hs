@@ -5,33 +5,33 @@
 
 -- | Contains web handlers to serve files from a directory.
 module Snap.Util.FileServe
-(
-  getSafePath
-  -- * Configuration for directory serving
-, MimeMap
-, HandlerMap
-, DirectoryConfig(..)
-, simpleDirectoryConfig
-, defaultDirectoryConfig
-, fancyDirectoryConfig
-, defaultIndexGenerator
-, defaultMimeTypes
-, fileType
-  -- * File servers
-, serveDirectory
-, serveDirectoryWith
-, serveFile
-, serveFileAs
-) where
+  ( getSafePath
+    -- * Configuration for directory serving
+  , MimeMap
+  , HandlerMap
+  , DirectoryConfig(..)
+  , simpleDirectoryConfig
+  , defaultDirectoryConfig
+  , fancyDirectoryConfig
+  , defaultIndexGenerator
+  , defaultMimeTypes
+  , fileType
+    -- * File servers
+  , serveDirectory
+  , serveDirectoryWith
+  , serveFile
+  , serveFileAs
+  ) where
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
-import           Control.Exception (SomeException, evaluate)
+import           Control.Exception.Lifted ( SomeException
+                                          , catch
+                                          , evaluate)
 import           Control.Monad
-import           Control.Monad.CatchIO
-import           Control.Monad.Trans
+import           Control.Monad.IO.Class
 import           Data.Attoparsec.Char8
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)

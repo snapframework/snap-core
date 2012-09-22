@@ -69,10 +69,18 @@ module Snap.Util.FileUploads
 ------------------------------------------------------------------------------
 import           Control.Arrow
 import           Control.Applicative
-import           Control.Exception (SomeException(..))
-import qualified Control.Exception as E
+import           Control.Exception.Lifted ( Exception
+                                          , Handler(..)
+                                          , SomeException(..)
+                                          , throwIO
+                                          , catch
+                                          , catches
+                                          , mask
+                                          , bracket
+                                          , fromException
+                                          , toException
+                                          )
 import           Control.Monad
-import           Control.Monad.CatchIO
 import qualified Data.Attoparsec.Char8 as Atto
 import           Data.Attoparsec.Char8
 import qualified Data.ByteString.Char8 as S
@@ -203,175 +211,6 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
                                   , "\"" ] )
 
 
-{-
-handleFileUploads ::
-       (MonadSnap m) =>
-       FilePath                       -- ^ temporary directory
-    -> UploadPolicy                   -- ^ general upload policy
-    -> (PartInfo -> PartUploadPolicy) -- ^ per-part upload policy
-    -> ([(PartInfo, Either PolicyViolationException FilePath)] -> m a)
-                                      -- ^ user handler (see function
-                                      -- description)
-    -> m a
-handleFileUploads tmpdir uploadPolicy partPolicy handler = do
-    uploadedFiles <- newUploadedFiles
-
-    (do
-        xs <- handleMultipart uploadPolicy (iter uploadedFiles)
-        handler xs
-        ) `finally` (cleanupUploadedFiles uploadedFiles)
-
-  where
-    iter uploadedFiles partInfo = maybe disallowed takeIt mbFs
-      where
-        ctText = partContentType partInfo
-        fnText = fromMaybe "" $ partFileName partInfo
-
-        ct = TE.decodeUtf8 ctText
-        fn = TE.decodeUtf8 fnText
-
-        (PartUploadPolicy mbFs) = partPolicy partInfo
-
-        retVal (_,x) = (partInfo, Right x)
-
-        takeIt maxSize = do
-            debug "handleFileUploads/takeIt: begin"
-            let it = fmap retVal $
-                     joinI' $
-                     iterateeDebugWrapper "takeNoMoreThan" $
-                     takeNoMoreThan maxSize $$
-                     fileReader uploadedFiles tmpdir partInfo
-
-            it `catches` [
-                    Handler $ \(_ :: TooManyBytesReadException) -> do
-                        debug $ "handleFileUploads/iter: " ++
-                                "caught TooManyBytesReadException"
-                        skipToEof
-                        tooMany maxSize
-                  , Handler $ \(e :: SomeException) -> do
-                        debug $ "handleFileUploads/iter: caught " ++ show e
-                        debug "handleFileUploads/iter: rethrowing"
-                        throw e
-                  ]
-
-        tooMany maxSize =
-            return ( partInfo
-                   , Left $ PolicyViolationException
-                          $ T.concat [ "File \""
-                                     , fn
-                                     , "\" exceeded maximum allowable size "
-                                     , T.pack $ show maxSize ] )
-
-        disallowed =
-            return ( partInfo
-                   , Left $ PolicyViolationException
-                          $ T.concat [ "Policy disallowed upload of file \""
-                                     , fn
-                                     , "\" with content-type \""
-                                     , ct
-                                     , "\"" ] )
-
-------------------------------------------------------------------------------
--- | Given an upload policy and a function to consume uploaded \"parts\",
--- consume a request body uploaded with @Content-type: multipart/form-data@.
--- Normally most users will want to use 'handleFileUploads' (which writes
--- uploaded files to a temporary directory and passes their names to a given
--- handler) rather than this function; the lower-level 'handleMultipart'
--- function should be used if you want to stream uploaded files to your own
--- iteratee function.
---
--- If the request's @Content-type@ was not \"@multipart/formdata@\", this
--- function skips processing using 'pass'.
---
--- If the client's upload rate passes below the configured minimum (see
--- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function
--- terminates the connection. This setting is there to protect the server
--- against slowloris-style denial of service attacks.
---
--- If the given 'UploadPolicy' stipulates that you wish form inputs to be
--- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and
--- a form input exceeds the maximum allowable size, this function will throw a
--- 'PolicyViolationException'.
---
--- If an uploaded part contains MIME headers longer than a fixed internal
--- threshold (currently 32KB), this function will throw a 'BadPartException'.
---
-handleMultipart ::
-       (MonadSnap m) =>
-       UploadPolicy                            -- ^ global upload policy
-    -> (PartInfo -> Iteratee ByteString IO a)  -- ^ part processor
-    -> m [a]
-handleMultipart uploadPolicy origPartHandler = do
-    hdrs <- liftM headers getRequest
-    let (ct, mbBoundary) = getContentType hdrs
-
-    tickleTimeout <- liftM (. max) getTimeoutModifier
-    let bumpTimeout = tickleTimeout $ uploadTimeout uploadPolicy
-
-    let partHandler = if doProcessFormInputs uploadPolicy
-                        then captureVariableOrReadFile
-                                 (getMaximumFormInputSize uploadPolicy)
-                                 origPartHandler
-                        else (\p -> fmap File (origPartHandler p))
-
-    -- not well-formed multipart? bomb out.
-    when (ct /= "multipart/form-data") $ do
-        debug $ "handleMultipart called with content-type=" ++ S.unpack ct
-                  ++ ", passing"
-        pass
-
-    when (isNothing mbBoundary) $
-         throw $ BadPartException $
-         "got multipart/form-data without boundary"
-
-    let boundary = fromJust mbBoundary
-    captures <- runRequestBody (iter bumpTimeout boundary partHandler)
-
-    xs <- procCaptures [] captures
-    modifyRequest $ \req ->
-        let pp = rqPostParams req
-        in rqModifyParams (\p -> Map.unionWith (++) p pp) req
-    return xs
-
-  where
-    rateLimit bump m =
-        killIfTooSlow bump
-            (minimumUploadRate uploadPolicy)
-            (minimumUploadSeconds uploadPolicy)
-            m
-          `catchError` \e -> do
-              debug $ "rateLimit: caught " ++ show e
-              let (me::Maybe RateTooSlowException) = fromException e
-              maybe (throwError e)
-                    terminateConnection
-                    me
-
-    iter bump boundary ph = iterateeDebugWrapper "killIfTooSlow" $
-                            rateLimit bump $
-                            internalHandleMultipart boundary ph
-
-    ins k v = Map.insertWith' (flip (++)) k [v]
-
-    maxFormVars = maximumNumberOfFormInputs uploadPolicy
-
-    modifyParams f r = r { rqPostParams = f $ rqPostParams r
-                         , rqParams     = f $ rqParams r
-                         }
-
-    procCaptures l [] = return $! reverse l
-    procCaptures l ((File x):xs) = procCaptures (x:l) xs
-    procCaptures l ((Capture k v):xs) = do
-        rq <- getRequest
-        let n = Map.size $ rqPostParams rq
-        when (n >= maxFormVars) $
-          throw $ PolicyViolationException $
-          T.concat [ "number of form inputs exceeded maximum of "
-                   , T.pack $ show maxFormVars ]
-        modifyRequest $ modifyParams (ins k v)
-        procCaptures l xs
-
--}
-
 ------------------------------------------------------------------------------
 -- | A type alias for a function that will process one of the parts of a
 -- @multipart/form-data@ HTTP request body.
@@ -424,7 +263,7 @@ handleMultipart uploadPolicy origPartHandler = do
     -- not well-formed multipart? bomb out.
     guard (ct == "multipart/form-data")
 
-    boundary <- maybe (throw $ BadPartException
+    boundary <- maybe (throwIO $ BadPartException
                        "got multipart/form-data without boundary")
                       return
                       mbBoundary
@@ -453,7 +292,7 @@ handleMultipart uploadPolicy origPartHandler = do
         rq <- getRequest
         let n = Map.size $ rqPostParams rq
         when (n >= maxFormVars) $
-          throw $ PolicyViolationException $
+          throwIO $ PolicyViolationException $
           T.concat [ "number of form inputs exceeded maximum of "
                    , T.pack $ show maxFormVars ]
         putRequest $ modifyParams (ins k v) rq
@@ -737,8 +576,8 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
     fieldName = partFieldName partInfo
 
     handler (e :: SomeException) =
-        maybe (throw e)
-              (const $ throw $ PolicyViolationException $
+        maybe (throwIO e)
+              (const $ throwIO $ PolicyViolationException $
                      T.concat [ "form input '"
                               , TE.decodeUtf8 fieldName
                               , "' exceeded maximum permissible size ("
@@ -801,7 +640,7 @@ internalHandleMultipart boundary clientHandler stream = go
             liftM toHeaders $ parseFromStream pHeadersWithSeparator str'
 
         handler (_ :: TooManyBytesReadException) =
-            throw $ BadPartException "headers exceeded maximum size"
+            throwIO $ BadPartException "headers exceeded maximum size"
 
     --------------------------------------------------------------------------
     goPart str = do
@@ -812,7 +651,7 @@ internalHandleMultipart boundary clientHandler stream = go
         let (fieldName, fileName)    = getFieldName hdrs
 
         if contentType == "multipart/mixed"
-          then maybe (throw $ BadPartException $
+          then maybe (throwIO $ BadPartException $
                       "got multipart/mixed without boundary")
                      (processMixed fieldName str)
                      mboundary
@@ -949,113 +788,13 @@ mAX_HDRS_SIZE :: Int64
 mAX_HDRS_SIZE = 32768
 
 
-{-
-------------------------------------------------------------------------------
--- We need some code to keep track of the files we have already successfully
--- created in case an exception is thrown by the request body enumerator or
--- one of the client iteratees.
-data UploadedFilesState = UploadedFilesState {
-      -- | This is the file which is currently being written to. If the
-      -- calling function gets an exception here, it is responsible for
-      -- closing and deleting this file.
-      _currentFile :: Maybe (FilePath, Handle)
-
-      -- | .. and these files have already been successfully read and closed.
-    , _alreadyReadFiles :: [FilePath]
-}
-
-
-------------------------------------------------------------------------------
-emptyUploadedFilesState :: UploadedFilesState
-emptyUploadedFilesState = UploadedFilesState Nothing []
-
-
-------------------------------------------------------------------------------
-data UploadedFiles = UploadedFiles (IORef UploadedFilesState)
-                                   (MVar ())
-
-
-------------------------------------------------------------------------------
-newUploadedFiles :: MonadIO m => m UploadedFiles
-newUploadedFiles = liftIO $ do
-    r <- newIORef emptyUploadedFilesState
-    m <- newMVar ()
-    let u = UploadedFiles r m
-    addMVarFinalizer m $ cleanupUploadedFiles u
-    return u
-
-
-------------------------------------------------------------------------------
-cleanupUploadedFiles :: (MonadIO m) => UploadedFiles -> m ()
-cleanupUploadedFiles (UploadedFiles stateRef _) = liftIO $ do
-    state <- readIORef stateRef
-    killOpenFile state
-    mapM_ killFile $ _alreadyReadFiles state
-    writeIORef stateRef emptyUploadedFilesState
-
-  where
-    killFile = eatException . removeFile
-
-    killOpenFile state = maybe (return ())
-                               (\(fp,h) -> do
-                                    eatException $ hClose h
-                                    eatException $ removeFile fp)
-                               (_currentFile state)
-
-
-------------------------------------------------------------------------------
-openFileForUpload :: (MonadIO m) =>
-                     UploadedFiles
-                  -> FilePath
-                  -> m (FilePath, Handle)
-openFileForUpload ufs@(UploadedFiles stateRef _) tmpdir = liftIO $ do
-    state <- readIORef stateRef
-
-    -- It should be an error to open a new file with this interface if there
-    -- is already a file handle active.
-    when (isJust $ _currentFile state) $ do
-        cleanupUploadedFiles ufs
-        throw $ GenericFileUploadException alreadyOpenMsg
-
-    fph@(_,h) <- makeTempFile tmpdir "snap-"
-    hSetBuffering h NoBuffering
-
-    writeIORef stateRef $ state { _currentFile = Just fph }
-    return fph
-
-  where
-    alreadyOpenMsg =
-        T.concat [ "Internal error! UploadedFiles: "
-                 , "opened new file with pre-existing open handle" ]
-
-
-------------------------------------------------------------------------------
-closeActiveFile :: (MonadIO m) => UploadedFiles -> m ()
-closeActiveFile (UploadedFiles stateRef _) = liftIO $ do
-    state <- readIORef stateRef
-    let m = _currentFile state
-    maybe (return ())
-          (\(fp,h) -> do
-               eatException $ hClose h
-               writeIORef stateRef $
-                 state { _currentFile = Nothing
-                       , _alreadyReadFiles = fp:(_alreadyReadFiles state) })
-          m
-
-
-------------------------------------------------------------------------------
-eatException :: (MonadCatchIO m) => m a -> m ()
-eatException m =
-    (m >> return ()) `catch` (\(_ :: SomeException) -> return ())
--}
-
 ------------------------------------------------------------------------------
 withTempFile :: FilePath
              -> String
              -> ((FilePath, Handle) -> IO a)
              -> IO a
 withTempFile tmpl temp handler =
-    E.mask $ \restore -> bracket make cleanup (restore . handler)
+    mask $ \restore -> bracket make cleanup (restore . handler)
 
   where
     make           = mkstemp $ tmpl </> (temp ++ "XXXXXXX")
