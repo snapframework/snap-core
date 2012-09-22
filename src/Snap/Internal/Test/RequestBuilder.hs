@@ -39,7 +39,6 @@ import           Blaze.ByteString.Builder.Char8
 import           Control.Monad
 import           Control.Monad.State.Strict hiding (get, put)
 import qualified Control.Monad.State.Strict as State
-import           Control.Monad.IO.Class
 import           Data.Bits
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S

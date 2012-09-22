@@ -12,7 +12,7 @@ import           Control.Concurrent.MVar
 import           Control.DeepSeq
 import           Control.Exception.Lifted ( ErrorCall(..)
                                           , Exception
-                                          , SomeException
+                                          , SomeException(..)
                                           , catch
                                           , fromException
                                           , mask
@@ -39,7 +39,6 @@ import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit hiding (Test, path)
 import           Test.QuickCheck(oneof, variant, elements, Gen, arbitrary)
 
-import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types
@@ -257,11 +256,16 @@ testEscapeHttp = testCase "types/escapeHttp" $ flip catch catchEscape $ do
     (_, _) <- go (escapeHttp escaper)
     assertFailure "HTTP escape was ignored"
   where
-    escaper _ _ = liftIO $ assert True
-    tickle _    = return ()
+    escaper _ _ _ = liftIO $ assert True
+    tickle _      = return ()
 
-    catchEscape (EscapeHttpException iter) =
-        Streams.nullOutput >>= iter tickle
+    catchEscape (ex :: EscapeSnap) =
+        case ex of
+          EscapeHttp e -> do
+              input  <- Streams.nullInput
+              output <- Streams.nullOutput
+              e tickle input output
+          _ -> assertFailure "got TerminateConnection"
 
 
 isLeft :: Either a b -> Bool
@@ -392,15 +396,18 @@ testRqBodyException = testCase "types/requestBodyException" $ do
 testRqBodyTermination :: Test
 testRqBodyTermination = testCase "types/requestBodyTermination" $ do
     str <- Streams.fromList ["the", "quick", "brown", "fox"]
-    expectExceptionH $ goEnum str hndlr
+    expectExceptionH $ goEnum str h0
 
   where
-    h0 = runRequestBody $ \str -> do
-             !_ <- Streams.read str
-             terminateConnection $ ErrorCall "foo"
+    h0 = (runRequestBody $ \str -> do
+              !_ <- Streams.read str
+              throwIO $ TerminateConnection
+                      $ SomeException $ ErrorCall "foo")
+           `catch` tc
 
-    hndlr = h0 `catch` \(_::SomeException) -> writeBS "OK"
-
+    tc (ex :: EscapeSnap) = case ex of
+                              TerminateConnection e -> terminateConnection e
+                              _                     -> throwIO ex
 
 
 testTrivials :: Test

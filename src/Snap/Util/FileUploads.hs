@@ -268,7 +268,8 @@ handleMultipart uploadPolicy origPartHandler = do
                       return
                       mbBoundary
 
-    captures <- runRequestBody (proc bumpTimeout boundary partHandler)
+    captures <- runRequestBody (proc bumpTimeout boundary partHandler) `catch`
+                terminateSlow
     procCaptures captures id
 
   where
@@ -278,12 +279,12 @@ handleMultipart uploadPolicy origPartHandler = do
     maxFormVars = maximumNumberOfFormInputs uploadPolicy
 
     --------------------------------------------------------------------------
+    terminateSlow (e :: RateTooSlowException) = terminateConnection e
+
+    --------------------------------------------------------------------------
     proc bumpTimeout boundary partHandler stream = do
         str <- Streams.throwIfTooSlow bumpTimeout uploadRate uploadSecs stream
-        internalHandleMultipart boundary partHandler str `catch` errHandler
-
-      where
-        errHandler (e :: RateTooSlowException) = terminateConnection e
+        internalHandleMultipart boundary partHandler str
 
     --------------------------------------------------------------------------
     procCaptures []                 dl = return $! dl []

@@ -33,7 +33,6 @@ import           Test.Framework.Providers.HUnit
 import           Test.HUnit hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
-import           Snap.Internal.Exceptions
 import           Snap.Internal.Types
 import qualified Snap.Test as Test
 import           Snap.Test.Common
@@ -280,9 +279,9 @@ testSlowEnumerator = testCase "fileUploads/tooSlow" $
                      (harness' goSlowEnumerator tmpdir hndl mixedTestBody
                                `catches` [Handler h0])
   where
-    h0 (e :: ConnectionTerminatedException) = do
+    h0 (e :: EscapeSnap) = do
         putStrLn "hi"
-        let (ConnectionTerminatedException se) = e
+        let (TerminateConnection se) = e
             (me :: Maybe RateTooSlowException) = fromException se
         maybe (throw e) h me
 

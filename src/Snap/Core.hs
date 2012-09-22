@@ -17,11 +17,12 @@ module Snap.Core
   , finishWith
   , catchFinishWith
   , pass
-  , terminateConnection
 
     -- *** Escaping HTTP
   , EscapeHttpHandler
+  , EscapeSnap(..)
   , escapeHttp
+  , terminateConnection
 
     -- ** Routing
   , method
@@ -158,7 +159,6 @@ module Snap.Core
   ) where
 
 ------------------------------------------------------------------------------
-import           Snap.Internal.Exceptions (EscapeHttpHandler)
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Instances ()
 import           Snap.Internal.Parsing

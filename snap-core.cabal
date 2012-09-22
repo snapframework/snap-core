@@ -98,7 +98,6 @@ Library
     Snap.Core,
     Snap.Types,
     Snap.Internal.Debug,
-    Snap.Internal.Exceptions,
     Snap.Internal.Http.Types,
     Snap.Internal.Parsing,
     Snap.Test,

@@ -23,7 +23,6 @@ import           Control.Exception.Lifted (catch,
                                            mask,
                                            onException,
                                            throwIO,
-                                           toException,
                                            Handler(..),
                                            Exception,
                                            SomeException(..),
@@ -52,8 +51,8 @@ import qualified System.IO.Streams as Streams
 #endif
 import           System.PosixCompat.Files hiding (setFileSize)
 import           System.Posix.Types (FileOffset)
+import           Unsafe.Coerce
 ------------------------------------------------------------------------------
-import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
 import qualified Snap.Types.Headers as H
 import           Snap.Util.Readable
@@ -150,8 +149,33 @@ class (Monad m, MonadIO m, MonadBaseControl IO m, MonadPlus m, Functor m,
 
 ------------------------------------------------------------------------------
 data SnapResult a = SnapValue a
-                  | PassOnProcessing String
-                  | EarlyTermination Response
+                  | Zero Zero
+
+
+------------------------------------------------------------------------------
+type EscapeHttpHandler =  ((Int -> Int) -> IO ())    -- ^ timeout modifier
+                       -> InputStream ByteString     -- ^ socket read end
+                       -> OutputStream ByteString    -- ^ socket write end
+                       -> IO ()
+
+
+------------------------------------------------------------------------------
+data EscapeSnap = TerminateConnection SomeException
+                | EscapeHttp EscapeHttpHandler
+  deriving (Typeable)
+
+instance Exception EscapeSnap
+
+instance Show EscapeSnap where
+    show (TerminateConnection e) = "<terminated: " ++ show e ++ ">"
+    show (EscapeHttp _)          = "<escape http>"
+
+
+------------------------------------------------------------------------------
+data Zero = PassOnProcessing String
+          | EarlyTermination Response
+          | EscapeSnap EscapeSnap
+
 
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
@@ -182,8 +206,7 @@ snapBind (Snap m) f = Snap $ do
 
     case res of
       SnapValue a        -> unSnap $! f a
-      PassOnProcessing r -> return $! PassOnProcessing r
-      EarlyTermination r -> return $! EarlyTermination r
+      z@(Zero _)         -> return $! unsafeCoerce z
 {-# INLINE snapBind #-}
 
 
@@ -193,7 +216,7 @@ snapReturn = Snap . return . SnapValue
 
 
 snapFail :: String -> Snap a
-snapFail !m = Snap $! return $! PassOnProcessing m
+snapFail !m = Snap $! return $! Zero (PassOnProcessing m)
 {-# INLINE snapFail #-}
 
 
@@ -224,16 +247,16 @@ instance (MonadBaseControl IO) Snap where
 
 ------------------------------------------------------------------------------
 instance MonadPlus Snap where
-    mzero = Snap $! return $! PassOnProcessing ""
+    mzero = Snap $! return $! Zero $! PassOnProcessing ""
 
     a `mplus` b =
         Snap $! do
             r <- unSnap a
             -- redundant just in case ordering by frequency helps here.
             case r of
-              SnapValue _        -> return r
-              PassOnProcessing _ -> unSnap b
-              _                  -> return r
+              SnapValue _                 -> return r
+              (Zero (PassOnProcessing _)) -> unSnap b
+              _                           -> return r
 
 
 ------------------------------------------------------------------------------
@@ -309,15 +332,15 @@ runRequestBody proc = do
     req         <- getRequest
     body        <- liftIO $ Streams.throwIfTooSlow bumpTimeout 500 5 $
                             rqBody req
-    liftIO $ run body
+    run body
 
   where
-    skip body = Streams.skipToEof body `catch` tooSlow
+    skip body = liftIO (Streams.skipToEof body) `catch` tooSlow
 
     tooSlow (e :: Streams.RateTooSlowException) =
-        throwIO $ ConnectionTerminatedException $ SomeException e
+        terminateConnection e
 
-    run body = (do
+    run body = (liftIO $ do
         x <- proc body
         Streams.skipToEof body
         return x) `catches` handlers
@@ -371,7 +394,7 @@ transformRequestBody trans = do
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
 finishWith :: MonadSnap m => Response -> m a
-finishWith = liftSnap . Snap . return . EarlyTermination
+finishWith = liftSnap . Snap . return . Zero . EarlyTermination
 {-# INLINE finishWith #-}
 
 
@@ -386,9 +409,9 @@ catchFinishWith :: Snap a -> Snap (Either Response a)
 catchFinishWith (Snap m) = Snap $ do
     r <- m
     case r of
-      SnapValue a           -> return $! SnapValue $! Right a
-      PassOnProcessing e    -> return $! PassOnProcessing e
-      EarlyTermination resp -> return $! SnapValue $! Left resp
+      SnapValue a                    -> return $! SnapValue $! Right a
+      (Zero (EarlyTermination resp)) -> return $! SnapValue $! Left resp
+      (Zero _)                       -> return $ unsafeCoerce r
 {-# INLINE catchFinishWith #-}
 
 
@@ -829,8 +852,10 @@ instance Exception NoHandlerException
 
 ------------------------------------------------------------------------------
 -- | Terminate the HTTP session with the given exception.
-terminateConnection :: (Exception e, MonadBaseControl IO m) => e -> m a
-terminateConnection = throwIO . ConnectionTerminatedException . toException
+terminateConnection :: (Exception e, MonadSnap m) => e -> m a
+terminateConnection =
+    liftSnap . Snap . return . Zero . EscapeSnap . TerminateConnection
+             . SomeException
 
 
 ------------------------------------------------------------------------------
@@ -839,14 +864,15 @@ terminateConnection = throwIO . ConnectionTerminatedException . toException
 --
 -- The external handler takes two arguments: a function to modify the thread's
 -- timeout, and a write end to the socket.
-escapeHttp :: MonadBaseControl IO m =>
+escapeHttp :: MonadSnap m =>
               EscapeHttpHandler
            -> m ()
-escapeHttp = throwIO . EscapeHttpException
+escapeHttp = liftSnap . Snap . return . Zero . EscapeSnap . EscapeHttp
 
 
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
+
 runSnap :: Snap a
         -> (ByteString -> IO ())
         -> ((Int -> Int) -> IO ())
@@ -855,10 +881,11 @@ runSnap :: Snap a
 runSnap (Snap m) logerr timeoutAction req = do
     (r, ss') <- runStateT m ss
 
-    let resp = case r of
-                 SnapValue _        -> _snapResponse ss'
-                 PassOnProcessing _ -> fourohfour
-                 EarlyTermination x -> x
+    resp <- case r of
+              SnapValue _               -> return $ _snapResponse ss'
+              Zero (PassOnProcessing _) -> return $ fourohfour
+              Zero (EarlyTermination x) -> return $ x
+              Zero (EscapeSnap e)       -> throwIO e
 
     let req' = _snapRequest ss'
 
@@ -966,9 +993,10 @@ evalSnap (Snap m) logerr timeoutAction req = do
     (r, _) <- runStateT m ss
 
     case r of
-      SnapValue x        -> return x
-      PassOnProcessing e -> liftIO $ throwIO $ NoHandlerException e
-      EarlyTermination _ -> liftIO $ throwIO $ ErrorCall "no value"
+      SnapValue x               -> return x
+      Zero (PassOnProcessing e) -> throwIO $ NoHandlerException e
+      Zero (EarlyTermination _) -> throwIO $ ErrorCall "no value"
+      Zero (EscapeSnap e)       -> throwIO e
 
   where
     dresp = emptyResponse { rspHttpVersion = rqVersion req }
