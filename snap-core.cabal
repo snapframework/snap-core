@@ -143,15 +143,13 @@ Library
     HUnit                     >= 1.2     && < 2,
     MonadCatchIO-transformers >= 0.2.1   && < 0.4,
     mtl                       >= 2.0     && < 2.2,
-    old-locale                >= 1       && < 2,
     random                    >= 1       && < 2,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.0     && < 1.5,
-    transformers              >= 0.2     && < 0.4,
     unix-compat               >= 0.2     && < 0.5,
     unordered-containers      >= 0.1.4.3 && < 0.3,
-    vector                    >= 0.6     && < 0.10,
+    vector                    >= 0.6     && < 0.11,
     zlib-enum                 >= 0.2.1   && < 0.3
 
   extensions:
