@@ -93,6 +93,7 @@ Library
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
+    build-depends: old-locale >= 1 && <2
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
