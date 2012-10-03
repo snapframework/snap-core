@@ -52,7 +52,7 @@ Executable testsuite
     transformers,
     unix-compat                >= 0.2      && <0.5,
     unordered-containers       >= 0.1.4.3  && <0.3,
-    vector                     >= 0.6      && <0.10,
+    vector                     >= 0.6      && <0.11,
     zlib,
     zlib-enum                  >= 0.2.1    && <0.3
 
