@@ -723,8 +723,8 @@ partStream st = StreamsI.sourceToStream go
   where
     go = StreamsI.withDefaultPushback $ do
         x <- Streams.read st >>= maybe (return Nothing) f
-        return $! maybe (StreamsI.nullSource, Nothing)
-                        (const $! (go, x))
+        return $! maybe (StreamsI.SP StreamsI.nullSource Nothing)
+                        (const $! StreamsI.SP go x)
                         x
 
     f (NoMatch s) = return $ Just s
