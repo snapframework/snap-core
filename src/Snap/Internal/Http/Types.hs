@@ -289,8 +289,8 @@ data Request = Request
       -- | The parameter mapping decoded from the POST body. Note that Snap
       -- only auto-decodes POST request bodies when the request's
       -- @Content-Type@ is @application/x-www-form-urlencoded@.
-      -- For @multipart/form-data@ use 'handleFileUploads' to decode the
-      -- POST request and fill this mapping.
+      -- For @multipart/form-data@ use 'Snap.Util.FileUploads.handleFileUploads'
+      -- to decode the POST request and fill this mapping.
     , rqPostParams     :: Params
     }
 
