@@ -13,7 +13,6 @@ import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Identity
 import           Control.Monad.Trans
-import qualified Data.ByteString.Base16 as B16
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import qualified Data.ByteString.Lazy.Char8 as L
@@ -425,10 +424,7 @@ testBMH = testProperty "iteratee/BoyerMooreHorspool" $
           monadicIO $ forAllM arbitrary prop
   where
     prop :: (ByteString, [ByteString]) -> PropertyM IO ()
-    prop (needle', haystack') = do
-        let needle = B16.encode needle'
-        let haystack = Prelude.map B16.encode haystack'
-
+    prop (needle, haystack) = do
         let lneedle = L.fromChunks [needle]
         let lhaystack = L.fromChunks haystack
 

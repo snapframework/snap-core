@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns      #-}
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE MagicHash         #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -10,18 +11,14 @@ import           Control.Applicative
 import           Control.Arrow (first, second)
 import           Control.Monad
 import           Data.Attoparsec.Char8
-import           Data.Attoparsec.Types (IResult(..))
 import           Data.Bits
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Internal (c2w, w2c)
 import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.ByteString.Nums.Careless.Hex as Cvt
 import qualified Data.CaseInsensitive as CI
 import           Data.CaseInsensitive (CI)
 import           Data.Char hiding (isDigit, isSpace)
-import           Data.DList (DList)
-import qualified Data.DList as DL
 import           Data.Int
 import           Data.List (intersperse)
 import           Data.Map (Map)
@@ -274,10 +271,12 @@ parseToCompletion p s = toResult $ finish r
 
 
 ------------------------------------------------------------------------------
+type DList a = [a] -> [a]
+
 pUrlEscaped :: Parser ByteString
 pUrlEscaped = do
-    sq <- nextChunk DL.empty
-    return $! S.concat $ DL.toList sq
+    sq <- nextChunk id
+    return $! S.concat $ sq []
 
   where
     --------------------------------------------------------------------------
@@ -296,21 +295,21 @@ pUrlEscaped = do
         when (S.length hx /= 2 || (not $ S.all isHexDigit hx)) $
              fail "bad hex in url"
 
-        let code = w2c ((Cvt.hex hx) :: Word8)
-        nextChunk $ DL.snoc l (S.singleton code)
+        let code = w2c ((unsafeFromHex hx) :: Word8)
+        nextChunk $ l . ((S.singleton code) :)
 
     --------------------------------------------------------------------------
     unEncoded :: Char -> DList ByteString -> Parser (DList ByteString)
     unEncoded !c !l' = do
-        let l = DL.snoc l' (S.singleton c)
+        let l = l' . ((S.singleton c) :)
         bs   <- takeTill (flip elem "%+")
         if S.null bs
           then nextChunk l
-          else nextChunk $ DL.snoc l bs
+          else nextChunk $ l . (bs :)
 
     --------------------------------------------------------------------------
     plusSpace :: DList ByteString -> Parser (DList ByteString)
-    plusSpace l = nextChunk (DL.snoc l (S.singleton ' '))
+    plusSpace l = nextChunk (l . ((S.singleton ' ') :))
 
 
 ------------------------------------------------------------------------------
@@ -464,3 +463,29 @@ parseCookie = parseToCompletion pCookies
 ------------------------------------------------------------------------------
 strictize :: L.ByteString -> ByteString
 strictize = S.concat . L.toChunks
+
+------------------------------------------------------------------------------
+unsafeFromHex :: (Enum a, Num a, Bits a) => ByteString -> a
+unsafeFromHex = S.foldl' f 0
+  where
+#if MIN_VERSION_base(4,5,0)
+    sl = unsafeShiftL
+#else
+    sl = shiftL
+#endif
+
+    f !cnt !i = sl cnt 4 .|. nybble i
+
+    nybble c | c >= '0' && c <= '9' = toEnum $! fromEnum c - fromEnum '0'
+             | c >= 'a' && c <= 'f' = toEnum $! 10 + fromEnum c - fromEnum 'a'
+             | c >= 'A' && c <= 'F' = toEnum $! 10 + fromEnum c - fromEnum 'A'
+             | otherwise            = error $ "bad hex digit: " ++ show c
+{-# INLINE unsafeFromHex #-}
+
+
+------------------------------------------------------------------------------
+unsafeFromInt :: (Enum a, Num a, Bits a) => ByteString -> a
+unsafeFromInt = S.foldl' f 0
+  where
+    f !cnt !i = cnt * 10 + toEnum (digitToInt i)
+{-# INLINE unsafeFromInt #-}

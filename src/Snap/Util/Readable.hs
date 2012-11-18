@@ -34,3 +34,4 @@ instance Readable Integer where
     fromBS = either fail checkComplete . decimal . decodeUtf8
 instance Readable Double where
     fromBS = either fail checkComplete . double . decodeUtf8
+

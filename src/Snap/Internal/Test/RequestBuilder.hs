@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE Rank2Types                 #-}
@@ -37,16 +38,18 @@ import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Monad.State            hiding (get, put)
 import qualified Control.Monad.State            as State
-import qualified Data.ByteString.Base16         as B16
+import           Data.Bits
 import           Data.ByteString.Char8          (ByteString)
 import qualified Data.ByteString.Char8          as S
+import qualified Data.ByteString                as S8
 import           Data.CaseInsensitive           (CI)
 import           Data.IORef
 import qualified Data.Map                       as Map
 import           Data.Monoid
 import           Data.Word
+import qualified Data.Vector                    as V
 import           System.PosixCompat.Time
-import           System.Random.MWC
+import           System.Random
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types hiding (addHeader,
                                                   setContentType,
@@ -227,10 +230,30 @@ setRequestType (UrlEncodedPostRequest fp) = do
 ------------------------------------------------------------------------------
 makeBoundary :: MonadIO m => m ByteString
 makeBoundary = do
-    xs <- liftIO $ withSystemRandom $ \rng ->
-          replicateM 16 ((uniform rng) :: IO Word8)
+    xs  <- liftIO $ replicateM 16 randomWord8
     let x = S.pack $ map (toEnum . fromEnum) xs
-    return $ S.concat [ "snap-boundary-", B16.encode x ]
+    return $ S.concat [ "snap-boundary-", encode x ]
+
+  where
+    randomWord8 :: IO Word8
+    randomWord8 = liftM (\c -> toEnum $ c .&. 0xff) randomIO
+
+    table = V.fromList [ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'
+                       , 'a', 'b', 'c', 'd', 'e', 'f' ]
+
+    encode = toByteString . S8.foldl' f mempty
+
+#if MIN_VERSION_base(4,5,0)
+    shR = unsafeShiftR
+#else
+    shR = shiftR
+#endif
+
+    f m c = let low = c .&. 0xf
+                hi  = (c .&. 0xf0) `shR` 4
+                k   = \i -> fromWord8 $! toEnum $! fromEnum $!
+                            V.unsafeIndex table (fromEnum i)
+            in m `mappend` k hi `mappend` k low
 
 
 ------------------------------------------------------------------------------

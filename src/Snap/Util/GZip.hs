@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings         #-}
@@ -24,7 +25,11 @@ import           Data.Monoid
 import qualified Data.Set as Set
 import           Data.Set (Set)
 import           Data.Typeable
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (takeWhile)
+#else
 import           Prelude hiding (catch, takeWhile)
+#endif
 
 
 ----------------------------------------------------------------------------
@@ -38,7 +43,7 @@ import qualified Snap.Iteratee as I
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' web handler with compression if available.
 --
--- If the client has indicated support for @gzip@ or @compress@ in its
+-- If the client has indicated support for @gzip@ or @deflate@ in its
 -- @Accept-Encoding@ header, and the @Content-Type@ in the response is one of
 -- the following types:
 --
@@ -115,12 +120,12 @@ withCompression' mimeTable action = do
         chooseType types
 
 
-    chooseType []               = return $! ()
-    chooseType ("gzip":_)       = gzipCompression "gzip"
-    chooseType ("compress":_)   = compressCompression "compress"
-    chooseType ("x-gzip":_)     = gzipCompression "x-gzip"
-    chooseType ("x-compress":_) = compressCompression "x-compress"
-    chooseType (_:xs)           = chooseType xs
+    chooseType []              = return $! ()
+    chooseType ("gzip":_)      = gzipCompression "gzip"
+    chooseType ("deflate":_)   = compressCompression "deflate"
+    chooseType ("x-gzip":_)    = gzipCompression "x-gzip"
+    chooseType ("x-deflate":_) = compressCompression "x-deflate"
+    chooseType (_:xs)          = chooseType xs
 
 
 ------------------------------------------------------------------------------

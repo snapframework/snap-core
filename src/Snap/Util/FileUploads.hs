@@ -80,7 +80,6 @@ import qualified Data.ByteString.Char8 as S
 import           Data.ByteString.Char8 (ByteString)
 import           Data.ByteString.Internal (c2w)
 import qualified Data.CaseInsensitive as CI
-import qualified Data.DList as D
 import           Data.Enumerator.Binary (iterHandle)
 import           Data.IORef
 import           Data.Int
@@ -91,7 +90,11 @@ import qualified Data.Text as T
 import           Data.Text (Text)
 import qualified Data.Text.Encoding as TE
 import           Data.Typeable
+#if MIN_VERSION_base(4,6,0)
+import           Prelude hiding (getLine, takeWhile)
+#else
 import           Prelude hiding (catch, getLine, takeWhile)
+#endif
 import           System.Directory
 import           System.IO hiding (isEOF)
 ------------------------------------------------------------------------------
@@ -796,7 +799,7 @@ processPart st = {-# SCC "pPart/outer" #-}
 -- list of the resulting values.
 processParts :: Iteratee ByteString IO a
              -> Iteratee MatchInfo IO [a]
-processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
+processParts partIter = iterateeDebugWrapper "processParts" $ go id
   where
     iter = {-# SCC "processParts/iter" #-} do
         isLast <- bParser
@@ -811,7 +814,7 @@ processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
       b <- isEOF
 
       if b
-        then return $! D.toList soFar
+        then return $ soFar []
         else do
            -- processPart $$ iter
            --   :: Iteratee MatchInfo m (Step ByteString m a)
@@ -821,8 +824,8 @@ processParts partIter = iterateeDebugWrapper "processParts" $ go D.empty
            output <- lift $ run_ $ returnI innerStep
 
            case output of
-             Just x  -> go (D.append soFar $ D.singleton x)
-             Nothing -> return $! D.toList soFar
+             Just x  -> go (soFar . (x:))
+             Nothing -> return $ soFar []
 
     bParser = iterateeDebugWrapper "boundary debugger" $
                   iterParser $ pBoundaryEnd
