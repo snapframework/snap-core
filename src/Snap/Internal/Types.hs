@@ -871,13 +871,12 @@ escapeHttp = liftSnap . Snap . return . Zero . EscapeSnap . EscapeHttp
 
 
 ------------------------------------------------------------------------------
--- | Runs a 'Snap' monad action in the 'Iteratee IO' monad.
-
+-- | Runs a 'Snap' monad action.
 runSnap :: Snap a
         -> (ByteString -> IO ())
         -> ((Int -> Int) -> IO ())
         -> Request
-        -> IO (Request,Response)
+        -> IO (Request, Response)
 runSnap (Snap m) logerr timeoutAction req = do
     (r, ss') <- runStateT m ss
 
