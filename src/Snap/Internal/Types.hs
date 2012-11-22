@@ -46,9 +46,9 @@ import           Data.Typeable
 import           Prelude hiding (take)
 #else
 import           Prelude hiding (catch, take)
+#endif
 import           System.IO.Streams (InputStream, OutputStream)
 import qualified System.IO.Streams as Streams
-#endif
 import           System.PosixCompat.Files hiding (setFileSize)
 import           System.Posix.Types (FileOffset)
 import           Unsafe.Coerce
