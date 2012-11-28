@@ -8,33 +8,33 @@ module Snap.Util.FileUploads.Tests
 
 ------------------------------------------------------------------------------
 import           Control.Applicative
-import           Control.Concurrent (threadDelay)
+import           Control.Concurrent             (threadDelay)
 import           Control.DeepSeq
 import           Control.Exception.Lifted
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as S
+import           Data.ByteString                (ByteString)
+import qualified Data.ByteString.Char8          as S
 import           Data.IORef
-import           Data.List (foldl')
-import qualified Data.Map as Map
+import           Data.List                      (foldl')
+import qualified Data.Map                       as Map
 import           Data.Maybe
-import qualified Data.Text as T
+import qualified Data.Text                      as T
 import           Data.Typeable
-import           Prelude hiding (catch)
+import           Prelude                        hiding (catch)
 import           System.Directory
-import qualified System.IO.Streams.Internal as StreamsInt
-import           System.IO.Streams.Internal (withDefaultPushback)
-import           System.IO.Streams (RateTooSlowException)
+import           System.IO.Streams              (RateTooSlowException)
+import           System.IO.Streams.Internal     (SP (..), withDefaultPushback)
+import qualified System.IO.Streams.Internal     as StreamsInt
 import           System.Mem
 import           System.Timeout
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
-import           Test.HUnit hiding (Test, path)
+import           Test.HUnit                     hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
-import qualified Snap.Test as Test
+import qualified Snap.Test                      as Test
 import           Snap.Test.Common
 import           Snap.Util.FileUploads
 
@@ -377,9 +377,9 @@ mkDamagedRequest body = do
 
   where
     ct = S.append "multipart/form-data; boundary=" boundaryValue
-    enum = withDefaultPushback $ do
-        return (withDefaultPushback $ throw TestException,
-                Just $ S.take (S.length body - 1) body)
+    enum = withDefaultPushback $
+           return $! SP (withDefaultPushback $ throw TestException)
+                        (Just $ S.take (S.length body - 1) body)
 
 
 ------------------------------------------------------------------------------
@@ -419,10 +419,11 @@ goSlowEnumerator m s = do
 
     slowInput = withDefaultPushback $ goo body
       where
-        goo []     = return (StreamsInt.nullSource, Nothing)
+        goo []     = return $! SP StreamsInt.nullSource Nothing
         goo (x:xs) = do
             waitabit
-            return (withDefaultPushback $ goo xs, Just $ S.singleton x)
+            return $! SP (withDefaultPushback $ goo xs)
+                         (Just $ S.singleton x)
 
 
 ------------------------------------------------------------------------------
