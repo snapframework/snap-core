@@ -1,4 +1,6 @@
 *~
+TAGS
+test/TAGS
 cabal-dev
 dist/
 *.tix
