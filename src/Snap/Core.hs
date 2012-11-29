@@ -78,10 +78,10 @@ module Snap.Core
 
     -- ** Requests
   , rqServerName
-  , rqServerPort
   , rqRemoteAddr
   , rqRemotePort
   , rqLocalAddr
+  , rqLocalPort
   , rqLocalHostname
   , rqIsSecure
   , rqContentLength

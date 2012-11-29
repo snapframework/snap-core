@@ -37,31 +37,28 @@ module Snap.Internal.Test.RequestBuilder
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Monad
-import           Control.Monad.State.Strict hiding (get, put)
-import qualified Control.Monad.State.Strict as State
+import           Control.Monad.State.Strict     hiding (get, put)
+import qualified Control.Monad.State.Strict     as State
 import           Data.Bits
-import           Data.ByteString.Char8            (ByteString)
-import qualified Data.ByteString.Char8            as S
-import qualified Data.ByteString                  as S8
-import           Data.CaseInsensitive             (CI)
-import qualified Data.Map                         as Map
+import qualified Data.ByteString                as S8
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import           Data.CaseInsensitive           (CI)
+import qualified Data.Map                       as Map
 import           Data.Monoid
+import qualified Data.Vector                    as V
 import           Data.Word
-import qualified Data.Vector                      as V
-import qualified System.IO.Streams                as Streams
+import qualified System.IO.Streams              as Streams
 import           System.PosixCompat.Time
 import           System.Random
 ------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types hiding (addHeader,
-                                                  setContentType,
-                                                  setHeader)
-import qualified Snap.Internal.Http.Types         as H
-import           Snap.Internal.Parsing
-import           Snap.Internal.Types              (evalSnap)
-import           Snap.Core                      hiding ( addHeader
-                                                       , setContentType
-                                                       , setHeader )
-import qualified Snap.Types.Headers               as H
+import           Snap.Core                      hiding (addHeader,
+                                                 setContentType, setHeader)
+import           Snap.Internal.Http.Types       hiding (addHeader,
+                                                 setContentType, setHeader)
+import qualified Snap.Internal.Http.Types       as H
+import           Snap.Internal.Types            (evalSnap)
+import qualified Snap.Types.Headers             as H
 
 
 ------------------------------------------------------------------------------
@@ -76,7 +73,6 @@ mkDefaultRequest :: IO Request
 mkDefaultRequest = do
     b <- Streams.fromList []
     return $ Request "localhost"
-                     8080
                      "127.0.0.1"
                      60000
                      "127.0.0.1"
@@ -220,7 +216,7 @@ setRequestType (RequestWithRawBody m b) = do
     rq <- rGet
     body <- liftIO $ Streams.fromList [ b ]
     rPut $ rq { rqMethod        = m
-              , rqContentLength = Just $ S.length b
+              , rqContentLength = Just $ fromIntegral $ S.length b
               , rqBody          = body
               }
 
@@ -233,7 +229,7 @@ setRequestType (UrlEncodedPostRequest fp) = do
     body <- liftIO $ Streams.fromList [b]
 
     rPut $ rq { rqMethod        = POST
-              , rqContentLength = Just $ S.length b
+              , rqContentLength = Just $ fromIntegral $ S.length b
               , rqBody          = body
               }
 
@@ -385,7 +381,7 @@ encodeMultipart kvps = do
                rq0
 
     rPut $ rq { rqMethod        = POST
-              , rqContentLength = Just $ S.length b
+              , rqContentLength = Just $ fromIntegral $ S.length b
               , rqBody          = body
               }
 

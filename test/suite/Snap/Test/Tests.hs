@@ -173,7 +173,7 @@ testMultipart :: Test
 testMultipart = testCase "test/requestBuilder/testMultipart" $ do
     request0        <- buildRequest rq
     (request,rbody) <- peekRqBody request0
-    assertEqual "content-length" (Just (S.length rbody)) $
+    assertEqual "content-length" (Just (fromIntegral $ S.length rbody)) $
                 rqContentLength request
 
     (_,response) <- runSnap handler (const $ return $! ())
@@ -224,7 +224,8 @@ testPost = testCase "test/requestBuilder/testPost" $ do
 
     body <- getRqBody request
     assertEqual "body" "foo=foo1&foo=foo2" body
-    assertEqual "len" (Just (S.length body)) $ rqContentLength request
+    assertEqual "len" (Just (fromIntegral $ S.length body))
+                      (rqContentLength request)
     assertEqual "contentType" (Just "application/x-www-form-urlencoded") $
                 getHeader "Content-Type" request
 

@@ -199,37 +199,37 @@ data Request = Request
       -- @Host:@ header.
       rqServerName    :: ByteString
 
-      -- | Returns the port number the HTTP server is listening on.
-    , rqServerPort    :: !Int
-
       -- | The remote IP address.
     , rqRemoteAddr    :: ByteString
 
       -- | The remote TCP port number.
-    , rqRemotePort    :: Int
+    , rqRemotePort    :: {-# UNPACK #-} !Int
 
       -- | The local IP address for this request.
     , rqLocalAddr     :: ByteString
 
-      -- | Returns the port number the HTTP server is listening on.
-    , rqLocalPort     :: Int
+      -- | Returns the port number the HTTP server is listening on. This may be
+      -- useless from the perspective of external requests, e.g. if the server
+      -- is running behind a proxy.
+    , rqLocalPort     :: {-# UNPACK #-} !Int
 
-      -- | Returns the HTTP server's idea of its local hostname.
+      -- | Returns the HTTP server's idea of its local hostname, including
+      -- port.
     , rqLocalHostname :: ByteString
 
       -- | Returns @True@ if this is an @HTTPS@ session.
-    , rqIsSecure      :: Bool
+    , rqIsSecure      :: !Bool
     , rqHeaders       :: Headers
-    , rqBody          :: !(InputStream ByteString)
+    , rqBody          :: InputStream ByteString
 
       -- | Returns the @Content-Length@ of the HTTP request body.
-    , rqContentLength :: !(Maybe Int)
+    , rqContentLength :: !(Maybe Int64)
 
       -- | Returns the HTTP request method.
     , rqMethod        :: !Method
 
       -- | Returns the HTTP version used by the client.
-    , rqVersion       :: HttpVersion
+    , rqVersion       :: {-# UNPACK #-} !HttpVersion
 
       -- | Returns a list of the cookies that came in from the HTTP request
       -- headers.
@@ -249,20 +249,20 @@ data Request = Request
       -- >                            then ""
       -- >                            else S.append "?" q
       -- >                     ]
-    , rqPathInfo      :: !ByteString
+    , rqPathInfo      :: ByteString
 
       -- | The \"context path\" of the request; catenating 'rqContextPath',
       -- and 'rqPathInfo' should get you back to the original 'rqURI'
       -- (ignoring query strings). The 'rqContextPath' always begins and ends
       -- with a slash (@\"\/\"@) character, and represents the path (relative
       -- to your component\/snaplet) you took to get to your handler.
-    , rqContextPath   :: !ByteString
+    , rqContextPath   :: ByteString
 
       -- | Returns the @URI@ requested by the client.
-    , rqURI           :: !ByteString
+    , rqURI           :: ByteString
 
       -- | Returns the HTTP query string for this 'Request'.
-    , rqQueryString   :: !ByteString
+    , rqQueryString   :: ByteString
 
       -- | Returns the parameters mapping for this 'Request'. \"Parameters\"
       -- are automatically decoded from the URI's query string and @POST@ body
@@ -312,7 +312,7 @@ instance Show Request where
       local         = concat [ "local: "
                              , toStr $ rqLocalAddr r
                              , ":"
-                             , show $ rqServerPort r
+                             , show $ rqLocalPort r
                              ]
       beginheaders  =
           "Headers:\n      ========================================"
