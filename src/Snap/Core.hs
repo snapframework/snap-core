@@ -71,7 +71,6 @@ module Snap.Core
   , addHeader
   , setHeader
   , getHeader
-  , getHeaders
   , listHeaders
   , deleteHeader
   , ipHeaderFilter
@@ -160,11 +159,11 @@ module Snap.Core
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
-import           Snap.Internal.Instances ()
+import           Snap.Internal.Instances  ()
 import           Snap.Internal.Parsing
 import           Snap.Internal.Routing
 import           Snap.Internal.Types
-import           Snap.Types.Headers (Headers)
+import           Snap.Types.Headers       (Headers)
 ------------------------------------------------------------------------------
 
 -- $httpDoc

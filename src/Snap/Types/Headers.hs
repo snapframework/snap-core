@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns #-}
 
 -- | An opaque data type for HTTP headers. Intended to be imported qualified,
 -- i.e:
@@ -40,16 +39,18 @@ module Snap.Types.Headers
 
   ) where
 
+------------------------------------------------------------------------------
 import           Data.ByteString.Char8 (ByteString)
-import           Data.CaseInsensitive   (CI)
-import           Data.List (foldl')
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as Map
-import           Data.Maybe (isJust)
-import           Prelude hiding (null, lookup)
+import qualified Data.ByteString.Char8 as S
+import           Data.CaseInsensitive  (CI)
+import           Data.HashMap.Strict   (HashMap)
+import qualified Data.HashMap.Strict   as Map
+import           Data.List             (foldl')
+import           Data.Maybe            (isJust)
+import           Prelude               hiding (lookup, null)
 
 ------------------------------------------------------------------------------
-newtype Headers = H { unH :: HashMap (CI ByteString) [ByteString] }
+newtype Headers = H { unH :: HashMap (CI ByteString) ByteString }
   deriving (Show)
 
 
@@ -73,24 +74,24 @@ member k = f . unH
 
 
 ------------------------------------------------------------------------------
-lookup :: CI ByteString -> Headers -> Maybe [ByteString]
+lookup :: CI ByteString -> Headers -> Maybe ByteString
 lookup k (H m) = Map.lookup k m
 {-# INLINE lookup #-}
 
 
 ------------------------------------------------------------------------------
-lookupWithDefault :: ByteString -> CI ByteString -> Headers -> [ByteString]
-lookupWithDefault d k (H m) = Map.lookupDefault [d] k m
+lookupWithDefault :: ByteString -> CI ByteString -> Headers -> ByteString
+lookupWithDefault d k (H m) = Map.lookupDefault d k m
 
 
 ------------------------------------------------------------------------------
 insert :: CI ByteString -> ByteString -> Headers -> Headers
-insert k v (H m) = H $ Map.insertWith (flip (++)) k [v] m
+insert k v (H m) = H $ Map.insertWith concatHeaderValues k v m
 
 
 ------------------------------------------------------------------------------
 set :: CI ByteString -> ByteString -> Headers -> Headers
-set k v (H m) = H $ Map.insert k [v] m
+set k v (H m) = H $ Map.insert k v m
 
 
 ------------------------------------------------------------------------------
@@ -99,7 +100,7 @@ delete k (H m) = H $ Map.delete k m
 
 
 ------------------------------------------------------------------------------
-fold :: (a -> CI ByteString -> [ByteString] -> a)
+fold :: (a -> CI ByteString -> ByteString -> a)
      -> a
      -> Headers
      -> a
@@ -108,13 +109,16 @@ fold f a (H m) = Map.foldlWithKey' f a m
 
 ------------------------------------------------------------------------------
 toList :: Headers -> [(CI ByteString, ByteString)]
-toList (H m) = (Map.foldlWithKey' f id m) []
-  where
-    f !dl k vs = dl . ((map (\v -> (k,v)) vs) ++)
+toList = Map.toList . unH
 
 
 ------------------------------------------------------------------------------
 fromList :: [(CI ByteString, ByteString)] -> Headers
 fromList = foldl' f empty
   where
-    f m (k,v) = insert k v m
+    f m (k, v) = insert k v m
+
+
+------------------------------------------------------------------------------
+concatHeaderValues :: ByteString -> ByteString -> ByteString
+concatHeaderValues new old = S.concat [old, ",", new]

@@ -10,39 +10,36 @@ import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
-import           Control.Exception.Lifted ( ErrorCall(..)
-                                          , Exception
-                                          , SomeException(..)
-                                          , catch
-                                          , fromException
-                                          , mask
-                                          , throwIO
-                                          , try
-                                          )
+import           Control.Exception.Lifted             (ErrorCall (..),
+                                                       Exception,
+                                                       SomeException (..),
+                                                       catch, fromException,
+                                                       mask, throwIO, try)
 import           Control.Monad
-import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.IO.Class               (liftIO)
 import           Control.Parallel.Strategies
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.IntMap as IM
+import           Data.ByteString.Char8                (ByteString)
+import qualified Data.ByteString.Lazy.Char8           as L
+import qualified Data.IntMap                          as IM
 import           Data.IORef
-import           Data.Maybe (isJust)
-import           Data.Text ()
-import           Data.Text.Lazy ()
-import qualified Data.Map as Map
-import           Prelude hiding (catch)
-import qualified System.IO.Streams as Streams
-import           System.IO.Streams (InputStream)
+import qualified Data.Map                             as Map
+import           Data.Maybe                           (isJust)
+import           Data.Text                            ()
+import           Data.Text.Lazy                       ()
+import           Prelude                              hiding (catch)
+import           System.IO.Streams                    (InputStream)
+import qualified System.IO.Streams                    as Streams
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
-import           Test.HUnit hiding (Test, path)
-import           Test.QuickCheck(oneof, variant, elements, Gen, arbitrary)
+import           Test.HUnit                           hiding (Test, path)
+import           Test.QuickCheck                      (Gen, arbitrary, elements,
+                                                       oneof, variant)
 
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types
-import qualified Snap.Test as Test
+import qualified Snap.Test                            as Test
 import           Snap.Test.Common
 
 
@@ -234,7 +231,7 @@ testAlternative = testCase "types/alternative" $ do
                        <|> setFoo "Bar"
                        <|> setFoo "Baz")
     assertEqual "alternative chooses correct branch"
-                (Just ["Bar"]) $ getHeaders "Foo" resp2
+                (Just "Bar") $ getHeader "Foo" resp2
 
   where
     fail2 :: Snap ()
@@ -248,7 +245,7 @@ sampleResponse = addHeader "Foo" "Quux" $ emptyResponse
 testEarlyTermination :: Test
 testEarlyTermination = testCase "types/earlyTermination" $ do
     (_,resp) <- go (finishWith sampleResponse >>= \_ -> setFoo "Bar")
-    assertEqual "foo" (Just ["Quux"]) $ getHeaders "Foo" resp
+    assertEqual "foo" (Just "Quux") $ getHeader "Foo" resp
 
 
 testEscapeHttp :: Test

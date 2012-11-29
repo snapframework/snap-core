@@ -5,22 +5,23 @@ module Snap.Test.Tests
   ) where
 
 ------------------------------------------------------------------------------
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.Map as Map
 import           Control.Monad
-import           Control.Monad.IO.Class (liftIO)
-import qualified System.IO.Streams as Streams
-import           Test.Framework (Test)
+import           Control.Monad.IO.Class         (liftIO)
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import qualified Data.Map                       as Map
+import qualified System.IO.Streams              as Streams
+import           Test.Framework                 (Test)
 import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit (assertEqual, assertBool)
-import           Text.Regex.Posix ((=~))
+import           Test.HUnit                     (assertBool, assertEqual)
+import           Text.Regex.Posix               ((=~))
 ------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types (Request(..))
-import qualified Snap.Internal.Http.Types as T
+import           Snap.Core                      hiding (addHeader,
+                                                 setContentType, setHeader)
+import           Snap.Internal.Http.Types       (Request (..))
+import qualified Snap.Internal.Http.Types       as T
 import           Snap.Test
 import           Snap.Test.Common
-import           Snap.Core hiding (setHeader, addHeader, setContentType)
 import           Snap.Util.FileUploads
 
 ------------------------------------------------------------------------------
@@ -112,7 +113,7 @@ testHeaders = testCase "test/requestBuilder/testHeaders" $ do
                    addHeader "bar" "bar2"
                    setContentType "image/gif"  -- this should get deleted
     assertEqual "setHeader" (Just "foo") $ getHeader "foo" request
-    assertEqual "addHeader" (Just ["bar","bar2"]) $ T.getHeaders "bar" request
+    assertEqual "addHeader" (Just "bar,bar2") $ T.getHeader "bar" request
     assertEqual "contentType" Nothing $ T.getHeader "Content-Type" request
     assertEqual "contentLength" Nothing $ rqContentLength request
     assertEqual "contentLengthHdr" Nothing $ getHeader "Content-Length" request

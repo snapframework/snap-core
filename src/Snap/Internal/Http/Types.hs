@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE EmptyDataDecls            #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -19,42 +18,42 @@ module Snap.Internal.Http.Types where
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
-import           Control.Monad (liftM, unless)
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as B
-import           Data.ByteString.Internal (c2w,w2c)
-import qualified Data.ByteString as S
-import           Data.CaseInsensitive   (CI)
-import qualified Data.CaseInsensitive as CI
+import           Control.Monad            (unless)
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString          as S
+import qualified Data.ByteString.Char8    as B
+import           Data.ByteString.Internal (c2w, w2c)
+import           Data.CaseInsensitive     (CI)
+import qualified Data.CaseInsensitive     as CI
 import           Data.Int
-import qualified Data.IntMap as IM
-import           Data.List hiding (take)
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import qualified Data.IntMap              as IM
+import           Data.List                hiding (take)
+import           Data.Map                 (Map)
+import qualified Data.Map                 as Map
 import           Data.Maybe
 import           Data.Time.Clock
 import           Foreign.C.Types
-import           Prelude hiding (take)
+import           Prelude                  hiding (take)
 import           System.IO
-import           System.IO.Streams (InputStream, OutputStream)
-import qualified System.IO.Streams as Streams
+import           System.IO.Streams        (InputStream, OutputStream)
+import qualified System.IO.Streams        as Streams
 
 ------------------------------------------------------------------------------
 #ifdef PORTABLE
+import           Data.Time.Clock.POSIX
 import           Data.Time.Format
 import           Data.Time.LocalTime
-import           Data.Time.Clock.POSIX
-import           System.Locale (defaultTimeLocale)
+import           System.Locale            (defaultTimeLocale)
 #else
-import           Data.Time.Format ()
+import qualified Data.ByteString.Unsafe   as S
+import           Data.Time.Format         ()
 import           Foreign
-import qualified Data.ByteString.Unsafe as S
 import           Foreign.C.String
 #endif
 
 ------------------------------------------------------------------------------
-import           Snap.Types.Headers (Headers)
-import qualified Snap.Types.Headers as H
+import           Snap.Types.Headers       (Headers)
+import qualified Snap.Types.Headers       as H
 
 
 #ifndef PORTABLE
@@ -102,16 +101,9 @@ setHeader k v = updateHeaders $ H.set k v
 
 
 ------------------------------------------------------------------------------
--- | Gets all of the values for a given header.
-getHeaders :: (HasHeaders a) => CI ByteString -> a -> Maybe [ByteString]
-getHeaders k a = H.lookup k $ headers a
-
-
-------------------------------------------------------------------------------
--- | Gets a header value out of a 'HasHeaders' datatype. If many headers came
--- in with the same name, they will be catenated together.
+-- | Gets a header value out of a 'HasHeaders' datatype.
 getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
-getHeader k a = liftM (S.intercalate ",") (H.lookup k $ headers a)
+getHeader k a = H.lookup k $ headers a
 
 
 ------------------------------------------------------------------------------
@@ -166,25 +158,25 @@ type HttpVersion = (Int,Int)
 -- | A datatype representing an HTTP cookie.
 data Cookie = Cookie {
       -- | The name of the cookie.
-      cookieName      :: !ByteString
+      cookieName     :: !ByteString
 
       -- | The cookie's string value.
-    , cookieValue     :: !ByteString
+    , cookieValue    :: !ByteString
 
       -- | The cookie's expiration value, if it has one.
-    , cookieExpires   :: !(Maybe UTCTime)
+    , cookieExpires  :: !(Maybe UTCTime)
 
       -- | The cookie's \"domain\" value, if it has one.
-    , cookieDomain    :: !(Maybe ByteString)
+    , cookieDomain   :: !(Maybe ByteString)
 
       -- | The cookie path.
-    , cookiePath      :: !(Maybe ByteString)
+    , cookiePath     :: !(Maybe ByteString)
 
       -- | Tag as secure cookie?
-    , cookieSecure    :: !Bool
+    , cookieSecure   :: !Bool
 
       -- | HttpOnly?
-    , cookieHttpOnly  :: !Bool
+    , cookieHttpOnly :: !Bool
 } deriving (Eq, Show)
 
 
@@ -205,43 +197,43 @@ type Params = Map ByteString [ByteString]
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
       -- @Host:@ header.
-      rqServerName     :: ByteString
+      rqServerName    :: ByteString
 
       -- | Returns the port number the HTTP server is listening on.
-    , rqServerPort     :: !Int
+    , rqServerPort    :: !Int
 
       -- | The remote IP address.
-    , rqRemoteAddr     :: ByteString
+    , rqRemoteAddr    :: ByteString
 
       -- | The remote TCP port number.
-    , rqRemotePort     :: Int
+    , rqRemotePort    :: Int
 
       -- | The local IP address for this request.
-    , rqLocalAddr      :: ByteString
+    , rqLocalAddr     :: ByteString
 
       -- | Returns the port number the HTTP server is listening on.
-    , rqLocalPort      :: Int
+    , rqLocalPort     :: Int
 
       -- | Returns the HTTP server's idea of its local hostname.
-    , rqLocalHostname  :: ByteString
+    , rqLocalHostname :: ByteString
 
       -- | Returns @True@ if this is an @HTTPS@ session.
-    , rqIsSecure       :: Bool
-    , rqHeaders        :: Headers
-    , rqBody           :: !(InputStream ByteString)
+    , rqIsSecure      :: Bool
+    , rqHeaders       :: Headers
+    , rqBody          :: !(InputStream ByteString)
 
       -- | Returns the @Content-Length@ of the HTTP request body.
-    , rqContentLength  :: !(Maybe Int)
+    , rqContentLength :: !(Maybe Int)
 
       -- | Returns the HTTP request method.
-    , rqMethod         :: !Method
+    , rqMethod        :: !Method
 
       -- | Returns the HTTP version used by the client.
-    , rqVersion        :: HttpVersion
+    , rqVersion       :: HttpVersion
 
       -- | Returns a list of the cookies that came in from the HTTP request
       -- headers.
-    , rqCookies        :: [Cookie]
+    , rqCookies       :: [Cookie]
 
       -- | Handlers can be hung on a @URI@ \"entry point\"; this is called the
       -- \"context path\". If a handler is hung on the context path
@@ -257,34 +249,34 @@ data Request = Request
       -- >                            then ""
       -- >                            else S.append "?" q
       -- >                     ]
-    , rqPathInfo       :: !ByteString
+    , rqPathInfo      :: !ByteString
 
       -- | The \"context path\" of the request; catenating 'rqContextPath',
       -- and 'rqPathInfo' should get you back to the original 'rqURI'
       -- (ignoring query strings). The 'rqContextPath' always begins and ends
       -- with a slash (@\"\/\"@) character, and represents the path (relative
       -- to your component\/snaplet) you took to get to your handler.
-    , rqContextPath    :: !ByteString
+    , rqContextPath   :: !ByteString
 
       -- | Returns the @URI@ requested by the client.
-    , rqURI            :: !ByteString
+    , rqURI           :: !ByteString
 
       -- | Returns the HTTP query string for this 'Request'.
-    , rqQueryString    :: !ByteString
+    , rqQueryString   :: !ByteString
 
       -- | Returns the parameters mapping for this 'Request'. \"Parameters\"
       -- are automatically decoded from the URI's query string and @POST@ body
       -- and entered into this mapping. The 'rqParams' value is thus a union of
       -- 'rqQueryParams' and 'rqPostParams'.
-    , rqParams         :: Params
+    , rqParams        :: Params
 
       -- | The parameter mapping decoded from the URI's query string.
-    , rqQueryParams    :: Params
+    , rqQueryParams   :: Params
 
       -- | The parameter mapping decoded from the POST body. Note that Snap
       -- only auto-decodes POST request bodies when the request's
       -- @Content-Type@ is @application/x-www-form-urlencoded@.
-    , rqPostParams     :: Params
+    , rqPostParams    :: Params
     }
 
 

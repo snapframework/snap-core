@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Snap.Internal.Http.Types.Tests
   ( tests ) where
@@ -6,22 +6,22 @@ module Snap.Internal.Http.Types.Tests
 import           Blaze.ByteString.Builder
 import           Control.Monad
 import           Control.Parallel.Strategies
-import           Data.ByteString.Char8 (ByteString)
-import           Data.ByteString.Lazy.Char8 ()
-import qualified Data.Map as Map
+import           Data.ByteString.Char8          (ByteString)
+import           Data.ByteString.Lazy.Char8     ()
+import qualified Data.Map                       as Map
 import           Data.Time.Calendar
 import           Data.Time.Clock
-import           Prelude hiding (take)
-import qualified System.IO.Streams as Streams
+import           Prelude                        hiding (take)
+import qualified System.IO.Streams              as Streams
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
-import           Test.HUnit hiding (Test, path)
+import           Test.HUnit                     hiding (Test, path)
 import           Text.Regex.Posix
 
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
-import qualified Snap.Types.Headers as H
-import qualified Snap.Test as Test
+import qualified Snap.Test                      as Test
+import qualified Snap.Types.Headers             as H
 
 
 tests :: [Test]
@@ -82,7 +82,7 @@ testTypes = testCase "show" $ do
     assertBool "show" $ a /= b
     assertEqual "rqParam" (Just ["bar"]) (rqParam "foo" req)
     assertEqual "lookup" (Just ["bbb"]) (Map.lookup "zzz" $ rqParams req)
-    assertEqual "lookup 2" (Just ["bbb"]) (H.lookup "zzz" $ headers req)
+    assertEqual "lookup 2" (Just "bbb") (H.lookup "zzz" $ headers req)
 
     assertEqual "response status" 555 $ rspStatus resp
     assertEqual "response status reason" "bogus" $ rspStatusReason resp
