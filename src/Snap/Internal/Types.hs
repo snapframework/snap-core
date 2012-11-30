@@ -155,7 +155,7 @@ data SnapResult a = SnapValue a
 ------------------------------------------------------------------------------
 type EscapeHttpHandler =  ((Int -> Int) -> IO ())    -- ^ timeout modifier
                        -> InputStream ByteString     -- ^ socket read end
-                       -> OutputStream ByteString    -- ^ socket write end
+                       -> OutputStream Builder       -- ^ socket write end
                        -> IO ()
 
 
