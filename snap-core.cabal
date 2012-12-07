@@ -129,7 +129,7 @@ Library
     directory                 >= 1       && < 2,
     filepath                  >= 1.1     && < 2.0,
     HUnit                     >= 1.2     && < 2,
-    lifted-base               >= 0.1     && < 0.2,
+    lifted-base               >= 0.1     && < 0.3,
     io-streams                >= 0.1     && < 0.2,
     monad-control             >= 0.3     && < 0.4,
     mtl                       >= 2.0     && < 2.2,
