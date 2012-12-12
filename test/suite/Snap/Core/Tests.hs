@@ -606,7 +606,7 @@ testIpHeaderFilter = testCase "types/ipHeaderFilter" $ do
   where
     f = do
         ipHeaderFilter
-        ip <- liftM rqRemoteAddr getRequest
+        ip <- liftM rqClientAddr getRequest
         writeBS ip
 
 
