@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns, MagicHash #-}
+{-# LANGUAGE MagicHash #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -35,14 +35,15 @@ module Snap.Internal.Parsing.FastSet
     , charClass
     ) where
 
-import Data.Bits ((.&.), (.|.))
-import Foreign.Storable (peekByteOff, pokeByteOff)
-import GHC.Base (Int(I#), iShiftRA#, narrow8Word#, shiftL#)
-import GHC.Word (Word8(W8#))
-import qualified Data.ByteString as B
-import qualified Data.ByteString.Char8 as B8
+import           Data.Bits                ((.&.), (.|.))
+import qualified Data.ByteString          as B
+import qualified Data.ByteString.Char8    as B8
 import qualified Data.ByteString.Internal as I
-import qualified Data.ByteString.Unsafe as U
+import qualified Data.ByteString.Unsafe   as U
+import           Foreign.Storable         (peekByteOff, pokeByteOff)
+import           GHC.Base                 (Int (I#), iShiftRA#, narrow8Word#,
+                                           shiftL#)
+import           GHC.Word                 (Word8 (W8#))
 
 data FastSet = Sorted { fromSet :: !B.ByteString }
              | Table  { fromSet :: !B.ByteString }
@@ -102,7 +103,7 @@ mkTable :: B.ByteString -> B.ByteString
 mkTable s = I.unsafeCreate 32 $ \t -> do
             _ <- I.memset t 0 32
             U.unsafeUseAsCStringLen s $ \(p, l) ->
-              let loop n | n == l = return ()
+              let loop n | n == l = return $! ()
                          | otherwise = do
                     c <- peekByteOff p n :: IO Word8
                     let I byte bit = index (fromIntegral c)
