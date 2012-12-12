@@ -197,25 +197,25 @@ type Params = Map ByteString [ByteString]
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
       -- @Host:@ header.
-      rqServerName    :: ByteString
+      rqHostName    :: ByteString
 
       -- | The remote IP address.
-    , rqRemoteAddr    :: ByteString
+    , rqClientAddr    :: ByteString
 
       -- | The remote TCP port number.
-    , rqRemotePort    :: {-# UNPACK #-} !Int
+    , rqClientPort    :: {-# UNPACK #-} !Int
 
       -- | The local IP address for this request.
-    , rqLocalAddr     :: ByteString
+    , rqServerAddr     :: ByteString
 
       -- | Returns the port number the HTTP server is listening on. This may be
       -- useless from the perspective of external requests, e.g. if the server
       -- is running behind a proxy.
-    , rqLocalPort     :: {-# UNPACK #-} !Int
+    , rqServerPort     :: {-# UNPACK #-} !Int
 
       -- | Returns the HTTP server's idea of its local hostname, including
-      -- port.
-    , rqLocalHostname :: ByteString
+      -- port. This is as configured with the @Config@ object at startup.
+    , rqServerName :: ByteString
 
       -- | Returns @True@ if this is an @HTTPS@ session.
     , rqIsSecure      :: !Bool
@@ -305,14 +305,14 @@ instance Show Request where
 
       sname         = concat [ "server-name: ", toStr $ rqServerName r ]
       remote        = concat [ "remote: "
-                             , toStr $ rqRemoteAddr r
+                             , toStr $ rqClientAddr r
                              , ":"
-                             , show (rqRemotePort r)
+                             , show (rqClientPort r)
                              ]
       local         = concat [ "local: "
-                             , toStr $ rqLocalAddr r
+                             , toStr $ rqServerAddr r
                              , ":"
-                             , show $ rqLocalPort r
+                             , show $ rqServerPort r
                              ]
       beginheaders  =
           "Headers:\n      ========================================"
