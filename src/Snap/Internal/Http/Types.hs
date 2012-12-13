@@ -22,7 +22,7 @@ import           Control.Monad            (unless)
 import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as S
 import qualified Data.ByteString.Char8    as B
-import           Data.ByteString.Internal (c2w, w2c)
+import           Data.ByteString.Internal (w2c)
 import           Data.CaseInsensitive     (CI)
 import qualified Data.CaseInsensitive     as CI
 import           Data.Int
@@ -671,6 +671,13 @@ parseHttpTime :: ByteString -> IO CTime
 #ifdef PORTABLE
 
 ------------------------------------------------------------------------------
+-- local definitions
+fromStr :: String -> ByteString
+fromStr = B.pack
+{-# INLINE fromStr #-}
+
+
+------------------------------------------------------------------------------
 formatHttpTime = return . format . toUTCTime
   where
     format :: UTCTime -> ByteString
@@ -725,12 +732,6 @@ parseHttpTime s = S.unsafeUseAsCString s $ \ptr ->
 
 #endif
 
-
-------------------------------------------------------------------------------
--- local definitions
-fromStr :: String -> ByteString
-fromStr = S.pack . map c2w
-{-# INLINE fromStr #-}
 
 ------------------------------------------------------------------------------
 -- private helper functions

@@ -8,6 +8,7 @@ import           Control.Monad
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8          (ByteString)
 import           Data.ByteString.Lazy.Char8     ()
+import           Data.List                      (sort)
 import qualified Data.Map                       as Map
 import           Data.Time.Calendar
 import           Data.Time.Clock
@@ -56,6 +57,14 @@ testAddHeader = testCase "addHeader" $ do
 
     let x = getHeader "foo" req
     assertEqual "addHeader x 2" (Just "baz,bar") x
+    assertEqual "listHeaders" [("foo","baz,bar")] $
+                listHeaders req
+
+    let hdrs = updateHeaders (H.set "zzz" "bbb") $ headers req
+    assertEqual "listHeaders 2"
+                [ ("foo", "baz,bar")
+                , ("zzz", "bbb") ]
+                (sort (listHeaders $ headers hdrs))
 
 
 testUrlDecode :: Test
@@ -94,11 +103,9 @@ testTypes = testCase "show" $ do
     let !_ = show GET
     let !_ = GET == POST
     let !_ = headers $ headers defReq
-
     let !_ = show resp2 `using` rdeepseq
 
-
-    return ()
+    assertEqual "999" "Unknown" (rspStatusReason resp3)
 
   where
     enum os = Streams.write (Just $ fromByteString "PING") os >> return os
@@ -114,6 +121,8 @@ testTypes = testCase "show" $ do
 
     resp2 = addResponseCookie cook2 resp
 
+    resp3 = setResponseCode 999 resp2
+
     utc   = UTCTime (ModifiedJulianDay 55226) 0
     cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False False
     cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") False False
@@ -128,6 +137,7 @@ testCookies = testCase "cookies" $ do
     assertEqual "removed cookie" Nothing nilCook
     assertEqual "multiple cookies" [cook, cook2] cks
     assertEqual "cookie modification" (Just cook3) rCook3Mod
+    assertEqual "modify nothing" Nothing (getResponseCookie "boo" resp5)
 
     return ()
 
@@ -136,13 +146,14 @@ testCookies = testCase "cookies" $ do
            setContentType "text/plain" $
            emptyResponse
 
-    f _ = cook3
+    f !_ = cook3
 
     resp' = deleteResponseCookie "foo" resp
     resp'' = modifyResponseCookie "foo" f resp
     resp2 = addResponseCookie cook2 resp
     resp3 = addResponseCookie cook3 resp2
     resp4 = addResponseCookie cook3 emptyResponse
+    resp5 = modifyResponseCookie "boo" id emptyResponse
 
     utc   = UTCTime (ModifiedJulianDay 55226) 0
     cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False True
@@ -157,7 +168,3 @@ testCookies = testCase "cookies" $ do
     rCook3Mod = getResponseCookie "boo" resp''
 
     cks = getResponseCookies resp2
-
-
-
-

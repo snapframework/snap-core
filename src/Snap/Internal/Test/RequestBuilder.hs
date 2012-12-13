@@ -651,7 +651,7 @@ responseToString resp = do
     let act = rspBodyToEnum $ rspBody resp
 
     (listOut, grab) <- Streams.listOutputStream
-    act listOut
+    void $ act listOut
     builder <- liftM mconcat grab
 
     return $ toByteString $ fromShow resp `mappend` builder

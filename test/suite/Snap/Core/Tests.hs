@@ -17,6 +17,15 @@ import           Control.Exception.Lifted             (ErrorCall (..),
                                                        mask, throwIO, try)
 import           Control.Monad
 import           Control.Monad.IO.Class               (liftIO)
+import           Control.Monad.Trans.Error
+import           Control.Monad.Trans.List
+import           Control.Monad.Trans.Reader
+import qualified Control.Monad.Trans.RWS.Lazy         as LRWS
+import           Control.Monad.Trans.RWS.Strict       hiding (pass)
+import qualified Control.Monad.Trans.State.Lazy       as LState
+import           Control.Monad.Trans.State.Strict
+import qualified Control.Monad.Trans.Writer.Lazy      as LWriter
+import           Control.Monad.Trans.Writer.Strict    hiding (pass)
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8                (ByteString)
 import qualified Data.ByteString.Lazy.Char8           as L
@@ -70,7 +79,9 @@ tests = [ testFail
         , testEvalSnap
         , testLocalRequest
         , testRedirect
-        , testBracketSnap ]
+        , testBracketSnap
+        , testCoverInstances
+        ]
 
 
 expectSpecificException :: Exception e => e -> IO a -> IO ()
@@ -133,7 +144,7 @@ mkRqWithEnum str = do
     return $! rq { rqBody = str }
 
 testCatchIO :: Test
-testCatchIO = testCase "types/catchIO" $ do
+testCatchIO = testCase "core/catchIO" $ do
     (_,rsp)  <- go f
     (_,rsp2) <- go g
 
@@ -222,7 +233,7 @@ setFoo s = do
 
 
 testAlternative :: Test
-testAlternative = testCase "types/alternative" $ do
+testAlternative = testCase "core/alternative" $ do
     (_,resp) <- go (pass <|> setFoo "Bar")
     assertEqual "foo present" (Just "Bar") $ getHeader "Foo" resp
 
@@ -243,13 +254,13 @@ sampleResponse = addHeader "Foo" "Quux" $ emptyResponse
 
 
 testEarlyTermination :: Test
-testEarlyTermination = testCase "types/earlyTermination" $ do
+testEarlyTermination = testCase "core/earlyTermination" $ do
     (_,resp) <- go (finishWith sampleResponse >>= \_ -> setFoo "Bar")
     assertEqual "foo" (Just "Quux") $ getHeader "Foo" resp
 
 
 testEscapeHttp :: Test
-testEscapeHttp = testCase "types/escapeHttp" $ flip catch catchEscape $ do
+testEscapeHttp = testCase "core/escapeHttp" $ flip catch catchEscape $ do
     (_, _) <- go (escapeHttp escaper)
     assertFailure "HTTP escape was ignored"
   where
@@ -275,7 +286,7 @@ isRight _         = False
 
 
 testBracketSnap :: Test
-testBracketSnap = testCase "types/bracketSnap" $ do
+testBracketSnap = testCase "core/bracketSnap" $ do
     rq <- mkZomgRq
 
     ref <- newIORef 0
@@ -316,7 +327,7 @@ testBracketSnap = testCase "types/bracketSnap" $ do
 
 
 testCatchFinishWith :: Test
-testCatchFinishWith = testCase "types/catchFinishWith" $ do
+testCatchFinishWith = testCase "core/catchFinishWith" $ do
     rq <- mkZomgRq
     x <- evalSnap (catchFinishWith $ finishWith emptyResponse)
                   (const $ return ())
@@ -331,7 +342,7 @@ testCatchFinishWith = testCase "types/catchFinishWith" $ do
 
 
 testRqBody :: Test
-testRqBody = testCase "types/requestBodies" $ do
+testRqBody = testCase "core/requestBodies" $ do
     mvar1 <- newEmptyMVar
     mvar2 <- newEmptyMVar
 
@@ -358,7 +369,7 @@ testRqBody = testCase "types/requestBodies" $ do
 
 
 testRqBodyTooLong :: Test
-testRqBodyTooLong = testCase "types/requestBodyTooLong" $ do
+testRqBodyTooLong = testCase "core/requestBodyTooLong" $ do
     expectExceptionH $ goBody $ f 2
     (_, rsp) <- goBody $ f 200000
     bd       <- getBody rsp
@@ -371,7 +382,7 @@ testRqBodyTooLong = testCase "types/requestBodyTooLong" $ do
 
 
 testRqBodyException :: Test
-testRqBodyException = testCase "types/requestBodyException" $ do
+testRqBodyException = testCase "core/requestBodyException" $ do
     str <- Streams.fromList listData
     (req,resp) <- goEnum str hndlr
     bd         <- getBody resp
@@ -391,7 +402,7 @@ testRqBodyException = testCase "types/requestBodyException" $ do
 
 
 testRqBodyTermination :: Test
-testRqBodyTermination = testCase "types/requestBodyTermination" $ do
+testRqBodyTermination = testCase "core/requestBodyTermination" $ do
     str <- Streams.fromList ["the", "quick", "brown", "fox"]
     expectExceptionH $ goEnum str h0
 
@@ -408,7 +419,7 @@ testRqBodyTermination = testCase "types/requestBodyTermination" $ do
 
 
 testTrivials :: Test
-testTrivials = testCase "types/trivials" $ do
+testTrivials = testCase "core/trivials" $ do
     (rq,rsp) <- go $ do
         req <- getRequest
         putRequest $ req { rqIsSecure=True }
@@ -456,12 +467,12 @@ testTrivials = testCase "types/trivials" $ do
 
 
 testMethod :: Test
-testMethod = testCase "types/method" $ do
+testMethod = testCase "core/method" $ do
    expect404 $ go (method POST $ return ())
    expectNo404 $ go (method GET $ return ())
 
 testMethods :: Test
-testMethods = testCase "types/methods" $ do
+testMethods = testCase "core/methods" $ do
    expect404 $ go (methods [POST,PUT,PATCH,Method "MOVE"] $ return ())
    expectNo404 $ go (methods [GET] $ return ())
    expectNo404 $ go (methods [POST,GET] $ return ())
@@ -489,7 +500,7 @@ methodGen n = variant n $ oneof
               ]
 
 testMethodEq :: Test
-testMethodEq = testProperty "types/Method/eq" $ prop
+testMethodEq = testProperty "core/Method/eq" $ prop
   where
     prop n = do
       m <- methodGen n
@@ -507,7 +518,7 @@ testMethodEq = testProperty "types/Method/eq" $ prop
 
 
 testMethodNotEq :: Test
-testMethodNotEq = testProperty "types/Method/noteq" $ prop
+testMethodNotEq = testProperty "core/Method/noteq" $ prop
   where
     prop n = do
       m <- methodGen n
@@ -516,7 +527,7 @@ testMethodNotEq = testProperty "types/Method/noteq" $ prop
 
 
 testDir :: Test
-testDir = testCase "types/dir" $ do
+testDir = testCase "core/dir" $ do
    expect404 $ goPath "foo/bar" (dir "zzz" $ return ())
    expectNo404 $ goPath "foo/bar" (dir "foo" $ return ())
    expect404 $ goPath "fooz/bar" (dir "foo" $ return ())
@@ -527,7 +538,7 @@ testDir = testCase "types/dir" $ do
 
 
 testParam :: Test
-testParam = testCase "types/getParam" $ do
+testParam = testCase "core/getParam" $ do
     expect404 $ goPath "/foo" f
     expectNo404 $ goPathQuery "/foo" "param" ["foo"] f
     expectNo404 $ goPathQuery "/foo" "param" ["foo"] fQ
@@ -550,7 +561,7 @@ getBody r = liftM (L.fromChunks . (:[])) $ Test.getResponseBody r
 
 
 testWrites :: Test
-testWrites = testCase "types/writes" $ do
+testWrites = testCase "core/writes" $ do
     (_,r) <- go h
     b <- getBody r
     assertEqual "output functions" "Foo1Foo2Foo3" b
@@ -566,20 +577,20 @@ testWrites = testCase "types/writes" $ do
         return str
 
 testURLEncode1 :: Test
-testURLEncode1 = testCase "types/urlEncoding1" $ do
+testURLEncode1 = testCase "core/urlEncoding1" $ do
     let b = urlEncode "the quick brown fox~#"
     assertEqual "url encoding 1" "the+quick+brown+fox%7e%23" b
     assertEqual "fail" Nothing $ urlDecode "%"
 
 
 testURLEncode2 :: Test
-testURLEncode2 = testProperty "types/urlEncoding2" prop
+testURLEncode2 = testProperty "core/urlEncoding2" prop
   where
     prop s = (urlDecode $ urlEncode s) == Just s
 
 
 testDir2 :: Test
-testDir2 = testCase "types/dir2" $ do
+testDir2 = testCase "core/dir2" $ do
     (_,resp) <- goPath "foo/bar" f
     b <- getBody resp
     assertEqual "context path" "/foo/bar/" b
@@ -593,7 +604,7 @@ testDir2 = testCase "types/dir2" $ do
 
 
 testIpHeaderFilter :: Test
-testIpHeaderFilter = testCase "types/ipHeaderFilter" $ do
+testIpHeaderFilter = testCase "core/ipHeaderFilter" $ do
     (_,r) <- goIP f
     b <- getBody r
     assertEqual "ipHeaderFilter" "1.2.3.4" b
@@ -611,14 +622,14 @@ testIpHeaderFilter = testCase "types/ipHeaderFilter" $ do
 
 
 testMZero404 :: Test
-testMZero404 = testCase "types/mzero404" $ do
+testMZero404 = testCase "core/mzero404" $ do
     (_,r) <- go mzero
     b <- getBody r
     assertBool "mzero 404" ("<!DOCTYPE html" `L.isPrefixOf` b)
 
 
 testEvalSnap :: Test
-testEvalSnap = testCase "types/evalSnap-exception" $ do
+testEvalSnap = testCase "core/evalSnap-exception" $ do
     rq <- mkZomgRq
     expectExceptionH (evalSnap f
                              (const $ return ())
@@ -633,7 +644,7 @@ testEvalSnap = testCase "types/evalSnap-exception" $ do
 
 
 testLocalRequest :: Test
-testLocalRequest = testCase "types/localRequest" $ do
+testLocalRequest = testCase "core/localRequest" $ do
     rq1 <- mkZomgRq
     rq2 <- mkRequest "zzz/zz/z"
 
@@ -649,7 +660,7 @@ testLocalRequest = testCase "types/localRequest" $ do
 
 
 testRedirect :: Test
-testRedirect = testCase "types/redirect" $ do
+testRedirect = testCase "core/redirect" $ do
     (_,rsp)  <- go (redirect "/foo/bar")
 
     b <- getBody rsp
@@ -665,3 +676,49 @@ testRedirect = testCase "types/redirect" $ do
     assertEqual "redirect path" (Just "/bar/foo") $ getHeader "Location" rsp2
     assertEqual "redirect status" 307 $ rspStatus rsp2
     assertEqual "status description" "Temporary Redirect" $ rspStatusReason rsp2
+
+
+testCoverInstances :: Test
+testCoverInstances = testCase "core/instances" $ do
+    coverErrorT
+    coverListT
+    coverRWST
+    coverLRWS
+    coverReaderT
+    coverStateT
+    coverLStateT
+    coverWriterT
+    coverLWriterT
+
+  where
+    snap :: MonadSnap m => m ()
+    snap = liftSnap $ writeBS "OK"
+
+    cover :: MonadSnap m => (m () -> Snap ()) -> IO ()
+    cover runFunc = do
+        !_ <- Test.runHandler (return ()) (runFunc snap)
+        return ()
+
+    rwst :: RWST () () () Snap () -> Snap ()
+    rwst m = void $ runRWST m () ()
+
+    lrwst :: LRWS.RWST () () () Snap () -> Snap ()
+    lrwst m = void $ LRWS.runRWST m () ()
+
+    wt :: WriterT () Snap () -> Snap ()
+    wt m = void $ runWriterT m
+
+    lwt :: LWriter.WriterT () Snap () -> Snap ()
+    lwt m = void $ LWriter.runWriterT m
+
+    coverErrorT   = cover (\m -> do
+                               (_ :: Either String ()) <- runErrorT m
+                               return ())
+    coverListT    = cover (void . runListT)
+    coverRWST     = cover rwst
+    coverLRWS     = cover lrwst
+    coverReaderT  = cover (flip runReaderT ())
+    coverStateT   = cover (flip evalStateT ())
+    coverLStateT  = cover (flip LState.evalStateT ())
+    coverWriterT  = cover wt
+    coverLWriterT = cover lwt
