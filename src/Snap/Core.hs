@@ -77,11 +77,11 @@ module Snap.Core
   , ipHeaderFilter'
 
     -- ** Requests
-  , rqServerName
-  , rqRemoteAddr
-  , rqRemotePort
-  , rqLocalAddr
-  , rqLocalPort
+  , rqHostName
+  , rqClientAddr
+  , rqClientPort
+  , rqServerAddr
+  , rqServerPort
   , rqLocalHostname
   , rqIsSecure
   , rqContentLength
