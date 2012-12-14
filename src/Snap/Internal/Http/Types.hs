@@ -215,7 +215,7 @@ data Request = Request
 
       -- | Returns the HTTP server's idea of its local hostname, including
       -- port. This is as configured with the @Config@ object at startup.
-    , rqServerName :: ByteString
+    , rqLocalHostname :: ByteString
 
       -- | Returns @True@ if this is an @HTTPS@ session.
     , rqIsSecure      :: !Bool
@@ -303,7 +303,7 @@ instance Show Request where
                     , params
                     ]
 
-      sname         = concat [ "server-name: ", toStr $ rqServerName r ]
+      sname         = concat [ "server-name: ", toStr $ rqLocalHostname r ]
       remote        = concat [ "remote: "
                              , toStr $ rqClientAddr r
                              , ":"

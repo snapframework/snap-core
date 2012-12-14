@@ -82,7 +82,7 @@ module Snap.Core
   , rqClientPort
   , rqServerAddr
   , rqServerPort
-  , rqServerName
+  , rqLocalHostname
   , rqIsSecure
   , rqContentLength
   , rqMethod
