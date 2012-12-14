@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | This module provides facilities for patching incoming 'Requests' to
--- correct the value of 'rqRemoteAddr' if the snap server is running behind a
+-- correct the value of 'rqClientAddr' if the snap server is running behind a
 -- proxy.
 --
 -- Example usage:
@@ -43,7 +43,7 @@ data ProxyType = NoProxy          -- ^ no proxy, leave the request alone
 
 
 ------------------------------------------------------------------------------
--- | Rewrite 'rqRemoteAddr' if we're behind a proxy.
+-- | Rewrite 'rqClientAddr' if we're behind a proxy.
 behindProxy :: MonadSnap m => ProxyType -> m a -> m a
 behindProxy NoProxy         = id
 behindProxy X_Forwarded_For = ((modifyRequest xForwardedFor) >>)
@@ -52,13 +52,13 @@ behindProxy X_Forwarded_For = ((modifyRequest xForwardedFor) >>)
 
 ------------------------------------------------------------------------------
 xForwardedFor :: Request -> Request
-xForwardedFor req = req { rqRemoteAddr = ip
-                        , rqRemotePort = port
+xForwardedFor req = req { rqClientAddr = ip
+                        , rqClientPort = port
                         }
   where
     proxyString  = getHeader "Forwarded-For"   req <|>
                    getHeader "X-Forwarded-For" req <|>
-                   Just (rqRemoteAddr req)
+                   Just (rqClientAddr req)
 
     proxyAddr    = trim . snd . S.breakEnd (== ',') . fromJust $ proxyString
 
@@ -67,5 +67,5 @@ xForwardedFor req = req { rqRemoteAddr = ip
     (ip,portStr) = second (S.drop 1) . S.break (== ':') $ proxyAddr
 
     port         = fromJust (fst <$> S.readInt portStr <|>
-                             Just (rqRemotePort req))
+                             Just (rqClientPort req))
 {-# INLINE xForwardedFor #-}

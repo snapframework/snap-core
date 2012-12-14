@@ -803,7 +803,7 @@ ipHeaderFilter' header = do
         trim f s = f (`elem` s)
 
         clean = trim S.takeWhile ipChrs . trim S.dropWhile whitespace
-        setIP ip = modifyRequest $ \rq -> rq { rqRemoteAddr = clean ip }
+        setIP ip = modifyRequest $ \rq -> rq { rqClientAddr = clean ip }
     maybe (return ()) setIP headerContents
 
 

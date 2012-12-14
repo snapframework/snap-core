@@ -113,20 +113,20 @@ testTrivials = testCase "proxy/trivials" $ do
 mkReq :: RequestBuilder IO () -> RequestBuilder IO ()
 mkReq m = do
     get "/" Map.empty
-    modify $ \req -> req { rqRemoteAddr = initialAddr
-                         , rqRemotePort = initialPort
+    modify $ \req -> req { rqClientAddr = initialAddr
+                         , rqClientPort = initialPort
                          }
     m
 
 
 ------------------------------------------------------------------------------
 reportRemoteAddr :: Snap ByteString
-reportRemoteAddr = withRequest $ \req -> return $ rqRemoteAddr req
+reportRemoteAddr = withRequest $ \req -> return $ rqClientAddr req
 
 
 ------------------------------------------------------------------------------
 reportRemotePort :: Snap Int
-reportRemotePort = withRequest $ \req -> return $ rqRemotePort req
+reportRemotePort = withRequest $ \req -> return $ rqClientPort req
 
 
 ------------------------------------------------------------------------------
