@@ -1,31 +1,31 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE Rank2Types #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Util.GZip.Tests
   ( tests ) where
 
 import           Blaze.ByteString.Builder
-import qualified Codec.Compression.GZip as GZip
-import qualified Codec.Compression.Zlib as Zlib
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
-import           Data.CaseInsensitive           (CI)
+import qualified Codec.Compression.GZip               as GZip
+import qualified Codec.Compression.Zlib               as Zlib
+import           Data.ByteString.Char8                (ByteString)
+import qualified Data.ByteString.Char8                as S
+import qualified Data.ByteString.Lazy.Char8           as L
+import           Data.CaseInsensitive                 (CI)
 import           Data.Digest.Pure.MD5
-import           Data.Serialize (encode)
-import qualified System.IO.Streams as Streams
+import           Data.Serialize                       (encode)
+import qualified System.IO.Streams                    as Streams
 import           Test.Framework
-import           Test.Framework.Providers.QuickCheck2
-import           Test.QuickCheck
-import           Test.QuickCheck.Monadic hiding (run)
 import           Test.Framework.Providers.HUnit
-import qualified Test.HUnit as H
-import           Test.HUnit (assertEqual)
+import           Test.Framework.Providers.QuickCheck2
+import           Test.HUnit                           (assertEqual)
+import qualified Test.HUnit                           as H
+import           Test.QuickCheck
+import           Test.QuickCheck.Monadic              hiding (run)
 
 import           Snap.Core
-import qualified Snap.Test as Test
+import qualified Snap.Test                            as Test
 import           Snap.Test.Common
 import           Snap.Util.GZip
 
@@ -40,19 +40,23 @@ tests = [ testIdentity1
         , testIdentity5
         , testNoHeaders
         , testNoAcceptEncoding
+        , testAcceptEncodingBad
         , testNopWhenContentEncodingSet
         , testCompositionDoesn'tExplode
         , testGzipLotsaChunks
         , testNoCompression
-        , testBadHeaders ]
+        , testBadHeaders
+        , testTrivials
+        ]
 
 
 ------------------------------------------------------------------------------
-gzipHdrs, xGzipHdrs, badHdrs, deflateHdrs, xDeflateHdrs
+gzipHdrs, xGzipHdrs, xGzipHdrs2, badHdrs, deflateHdrs, xDeflateHdrs
     :: (CI ByteString, ByteString)
 
-gzipHdrs     = ("Accept-Encoding", "froz,gzip, x-gzip" )
+gzipHdrs     = ("Accept-Encoding", "deflate,froz,gzip,glorble, x-gzip" )
 xGzipHdrs    = ("Accept-Encoding", "x-gzip;q=1.0"      )
+xGzipHdrs2   = ("Accept-Encoding", "x-gzip;q=1"        )
 badHdrs      = ("Accept-Encoding", "*&%^&^$%&%&*^\023" )
 deflateHdrs  = ("Accept-Encoding", "deflate"           )
 xDeflateHdrs = ("Accept-Encoding", "x-deflate"         )
@@ -71,6 +75,11 @@ mkGzipRq = Test.buildRequest $ uncurry Test.setHeader gzipHdrs
 ------------------------------------------------------------------------------
 mkXGzipRq :: IO Request
 mkXGzipRq = Test.buildRequest $ uncurry Test.setHeader xGzipHdrs
+
+
+------------------------------------------------------------------------------
+mkXGzip2Rq :: IO Request
+mkXGzip2Rq = Test.buildRequest $ uncurry Test.setHeader xGzipHdrs2
 
 
 ------------------------------------------------------------------------------
@@ -105,12 +114,13 @@ goGeneric mkRq m = do
     d = (const $ return ())
 
 
-goGZip, goDeflate, goXGZip     :: Snap a -> IO (Request,Response)
+goGZip, goDeflate, goXGZip, goXGZip2 :: Snap a -> IO (Request,Response)
 goNoHeaders, goXDeflate, goBad :: Snap a -> IO (Request,Response)
 
 goGZip      = goGeneric mkGzipRq
 goDeflate   = goGeneric mkDeflateRq
 goXGZip     = goGeneric mkXGzipRq
+goXGZip2    = goGeneric mkXGzip2Rq
 goXDeflate  = goGeneric mkXDeflateRq
 goBad       = goGeneric mkBadRq
 goNoHeaders = goGeneric mkNoHeaders
@@ -178,6 +188,19 @@ testNoAcceptEncoding = testProperty "gzip/noAcceptEncoding" $
 
         body <- Test.getResponseBody rsp
         assertEqual "" s $ L.fromChunks [body]
+
+
+------------------------------------------------------------------------------
+testAcceptEncodingBad :: Test
+testAcceptEncodingBad = testCase "gzip/acceptEncodingBad" $ do
+    expectExceptionH $ Test.runHandler (Test.setHeader "Accept-Encoding" "$")
+                                       snap
+    expectExceptionH $ Test.runHandler
+                         (Test.setHeader "Accept-Encoding" "gzip;q=^") snap
+  where
+    snap = withCompression $ do
+               modifyResponse $ setHeader "Content-Type" "text/plain"
+               writeBS "ok"
 
 
 ------------------------------------------------------------------------------
@@ -251,6 +274,12 @@ testIdentity4 = testProperty "gzip/identity4" $ monadicIO $ forAllM arbitrary pr
         body <- Test.getResponseBody rsp
         let s1 = GZip.decompress $ L.fromChunks [body]
         assertEqual "identity" s s1
+
+        (!_,!rsp2) <- goXGZip2 (seqSnap $ withCompression $ textPlain s)
+        assertEqual "encoding" (Just "x-gzip") (getHeader "Content-Encoding" rsp2)
+        body2 <- Test.getResponseBody rsp2
+        let s2 = GZip.decompress $ L.fromChunks [body2]
+        assertEqual "identity2" s s2
 
 
 ------------------------------------------------------------------------------
@@ -348,5 +377,7 @@ testNoCompression = testProperty "gzip/noCompression" $
         assertEqual "body matches" (S.concat $ L.toChunks s) body
 
 
-
-
+------------------------------------------------------------------------------
+testTrivials :: Test
+testTrivials = testCase "gzip/trivials" $ do
+    coverTypeableInstance (undefined :: BadAcceptEncodingException)

@@ -6,9 +6,11 @@
 {-# LANGUAGE ScopedTypeVariables       #-}
 
 module Snap.Util.GZip
-( withCompression
-, withCompression'
-, noCompression ) where
+  ( withCompression
+  , withCompression'
+  , noCompression
+  , BadAcceptEncodingException
+  ) where
 
 import           Blaze.ByteString.Builder
 import           Control.Applicative
@@ -16,20 +18,20 @@ import           Control.Exception
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Attoparsec.Char8
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.Char as Char
+import           Data.ByteString.Char8    (ByteString)
+import qualified Data.ByteString.Char8    as S
+import qualified Data.Char                as Char
 import           Data.Maybe
-import qualified Data.Set as Set
-import           Data.Set (Set)
+import           Data.Set                 (Set)
+import qualified Data.Set                 as Set
 import           Data.Typeable
 #if MIN_VERSION_base(4,6,0)
-import           Prelude hiding (takeWhile, read)
+import           Prelude                  hiding (read, takeWhile)
 #else
-import           Prelude hiding (catch, takeWhile, read)
+import           Prelude                  hiding (catch, read, takeWhile)
 #endif
-import           System.IO.Streams (OutputStream)
-import qualified System.IO.Streams as Streams
+import           System.IO.Streams        (OutputStream)
+import qualified System.IO.Streams        as Streams
 ----------------------------------------------------------------------------
 import           Snap.Core
 import           Snap.Internal.Debug
@@ -115,16 +117,15 @@ withCompression' mimeTable action = do
 
         chooseType Nothing types
 
-
-    chooseType m []              = maybe (return $! ()) id m
-    chooseType _ ("gzip":_)      = gzipCompression "gzip"
-    chooseType m ("deflate":xs)  =
+    chooseType !m []               = maybe (return $! ()) id m
+    chooseType !_ ("gzip":_)       = gzipCompression "gzip"
+    chooseType !m ("deflate":xs)   =
         chooseType (m `mplus` Just (compressCompression "deflate")) xs
 
-    chooseType _ ("x-gzip":_)     = gzipCompression "x-gzip"
-    chooseType m ("x-deflate":xs) =
+    chooseType !_ ("x-gzip":_)     = gzipCompression "x-gzip"
+    chooseType !m ("x-deflate":xs) =
         chooseType (m `mplus` Just (compressCompression "x-deflate")) xs
-    chooseType m (_:xs)          = chooseType m xs
+    chooseType !m (_:xs)           = chooseType m xs
 
 
 ------------------------------------------------------------------------------
@@ -192,7 +193,7 @@ ccompress body stream = Streams.compressBuilder 5 stream >>= body
 -- that order.
 acceptParser :: Parser [ByteString]
 acceptParser = do
-    xs <- option [] $ (:[]) <$> encoding
+    xs <- ((:[]) <$> encoding) <|> (return $! [])
     ys <- many (char ',' *> encoding)
     endOfInput
     return $! xs ++ ys
@@ -201,7 +202,7 @@ acceptParser = do
 
     c = do
         x <- coding
-        option () qvalue
+        qvalue <|> (return $! ())
         return x
 
     qvalue = do
@@ -212,14 +213,14 @@ acceptParser = do
         skipSpace
         void $! char '='
         float
-        return ()
+        return $! ()
 
-    coding = string "*" <|> takeWhile isCodingChar
+    coding = string "*" <|> takeWhile1 isCodingChar
 
     isCodingChar ch = isDigit ch || isAlpha_ascii ch || ch == '-' || ch == '_'
 
     float = takeWhile isDigit >>
-            option () (char '.' >> takeWhile isDigit >> pure ())
+            (char '.' >> takeWhile isDigit >> (pure $! ())) <|> (pure $! ())
 
 
 ------------------------------------------------------------------------------
