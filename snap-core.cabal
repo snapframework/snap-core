@@ -60,6 +60,7 @@ extra-source-files:
   test/suite/Snap/Internal/Parsing/Tests.hs,
   test/suite/Snap/Internal/Routing/Tests.hs,
   test/suite/Snap/Test/Common.hs,
+  test/suite/Snap/Types/Headers/Tests.hs,
   test/suite/Snap/Util/FileServe/Tests.hs,
   test/suite/Snap/Util/FileUploads/Tests.hs,
   test/suite/Snap/Util/GZip/Tests.hs,

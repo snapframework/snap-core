@@ -44,6 +44,7 @@ Snap.Iteratee.Tests
 Snap.Test.Common
 Snap.Test.Tests
 Snap.Types.Tests
+Snap.Types.Headers.Tests
 Snap.Util.FileServe.Tests
 Snap.Util.FileUploads.Tests
 Snap.Util.GZip.Tests
