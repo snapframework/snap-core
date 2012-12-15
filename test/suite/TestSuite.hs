@@ -1,17 +1,18 @@
 module Main where
 
-import Test.Framework (defaultMain, testGroup)
+import           Test.Framework                 (defaultMain, testGroup)
 
 ------------------------------------------------------------------------------
 import qualified Snap.Core.Tests
 import qualified Snap.Internal.Http.Types.Tests
 import qualified Snap.Internal.Parsing.Tests
 import qualified Snap.Internal.Routing.Tests
+import qualified Snap.Test.Tests
 import qualified Snap.Util.FileServe.Tests
 import qualified Snap.Util.FileUploads.Tests
 import qualified Snap.Util.GZip.Tests
 import qualified Snap.Util.Proxy.Tests
-import qualified Snap.Test.Tests
+import qualified Snap.Util.Readable.Tests
 
 
 ------------------------------------------------------------------------------
@@ -30,10 +31,12 @@ main = defaultMain tests
                         Snap.Util.FileServe.Tests.tests
             , testGroup "Snap.Util.FileUploads.Tests"
                         Snap.Util.FileUploads.Tests.tests
-            , testGroup "Snap.Util.Proxy.Tests"
-                        Snap.Util.Proxy.Tests.tests
             , testGroup "Snap.Util.GZip.Tests"
                         Snap.Util.GZip.Tests.tests
+            , testGroup "Snap.Util.Proxy.Tests"
+                        Snap.Util.Proxy.Tests.tests
+            , testGroup "Snap.Util.Readable.Tests"
+                        Snap.Util.Readable.Tests.tests
             , testGroup "Snap.Test.Tests"
                         Snap.Test.Tests.tests
             ]

@@ -63,7 +63,8 @@ extra-source-files:
   test/suite/Snap/Util/FileServe/Tests.hs,
   test/suite/Snap/Util/FileUploads/Tests.hs,
   test/suite/Snap/Util/GZip/Tests.hs,
-  test/suite/Snap/Util/Proxy/Tests.hs
+  test/suite/Snap/Util/Proxy/Tests.hs,
+  test/suite/Snap/Util/Readable/Tests.hs
 
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or

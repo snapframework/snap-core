@@ -48,6 +48,7 @@ Snap.Util.FileServe.Tests
 Snap.Util.FileUploads.Tests
 Snap.Util.GZip.Tests
 Snap.Util.Proxy.Tests
+Snap.Util.Readable.Tests
 Text.Snap.Templates.Tests'
 
 EXCL=""
