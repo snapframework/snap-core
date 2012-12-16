@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -27,27 +26,25 @@ module Snap.Util.FileServe
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
-import           Control.Exception.Lifted ( SomeException
-                                          , catch
-                                          , evaluate)
+import           Control.Exception.Lifted       (SomeException, catch, evaluate)
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Data.Attoparsec.Char8
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Char8 (ByteString)
-import           Data.ByteString.Internal (c2w)
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import           Data.ByteString.Internal       (c2w)
+import           Data.HashMap.Strict            (HashMap)
+import qualified Data.HashMap.Strict            as Map
 import           Data.Int
 import           Data.List
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as Map
-import           Data.Maybe (fromMaybe, isNothing)
+import           Data.Maybe                     (fromMaybe, isNothing)
 import           Data.Monoid
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import qualified Data.Text                      as T
+import qualified Data.Text.Encoding             as T
 #if MIN_VERSION_base(4,6,0)
-import           Prelude hiding (show, Show)
+import           Prelude                        hiding (Show, show)
 #else
-import           Prelude hiding (catch, show, Show)
+import           Prelude                        hiding (Show, catch, show)
 #endif
 import qualified Prelude
 import           System.Directory
@@ -598,7 +595,6 @@ data RangeReq = RangeReq { _rangeFirst :: !Int64
                          , _rangeLast  :: !(Maybe Int64)
                          }
               | SuffixRangeReq { _suffixLength :: !Int64 }
-  deriving (Eq, Prelude.Show)
 
 
 ------------------------------------------------------------------------------
@@ -621,7 +617,6 @@ rangeParser = string "bytes=" *>
 checkRangeReq :: (MonadSnap m) => Request -> FilePath -> Int64 -> m Bool
 checkRangeReq req fp sz = do
     -- TODO/FIXME: multiple ranges
-    dbg $ "checkRangeReq, fp=" ++ fp ++ ", sz=" ++ Prelude.show sz
     maybe (return False)
           (\s -> either (const $ return False)
                         withRange
@@ -629,8 +624,7 @@ checkRangeReq req fp sz = do
           (getHeader "range" req)
 
   where
-    withRange rng@(RangeReq start mend) = do
-        dbg $ "withRange: got Range request: " ++ Prelude.show rng
+    withRange (RangeReq start mend) = do
         let end = fromMaybe (sz-1) mend
         dbg $ "withRange: start=" ++ Prelude.show start
                   ++ ", end=" ++ Prelude.show end
@@ -639,8 +633,7 @@ checkRangeReq req fp sz = do
            then send416
            else send206 start end
 
-    withRange rng@(SuffixRangeReq nbytes) = do
-        dbg $ "withRange: got Range request: " ++ Prelude.show rng
+    withRange (SuffixRangeReq nbytes) = do
         let end   = sz-1
         let start = sz - nbytes
 
