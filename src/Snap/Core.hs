@@ -143,7 +143,6 @@ module Snap.Core
   , setTimeout
   , extendTimeout
   , modifyTimeout
-  , getTimeoutAction
   , getTimeoutModifier
 
     -- * HTTP utilities

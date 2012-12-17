@@ -639,7 +639,7 @@ modifyResponseCookie cn f r = maybe r modify $ getResponseCookie cn r
 -- HTTP\/1.1 clients, Snap will switch to the chunked transfer encoding if
 -- @Content-Length@ is not specified.
 setContentLength    :: Int64 -> Response -> Response
-setContentLength l r = r { rspContentLength = Just l }
+setContentLength !l r = r { rspContentLength = Just l }
 {-# INLINE setContentLength #-}
 
 

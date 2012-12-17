@@ -16,6 +16,7 @@ import           Control.Exception.Lifted             (ErrorCall (..),
                                                        catch, fromException,
                                                        mask, throwIO, try)
 import           Control.Monad
+import           Control.Monad.Base
 import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.Trans.Error
 import           Control.Monad.Trans.List
@@ -216,9 +217,7 @@ goEnum :: InputStream ByteString
        -> IO (Request,Response)
 goEnum enum m = do
     rq <- mkRqWithEnum enum
-    runSnap m dummy (const (return ())) rq
-  where
-    dummy = const $ return ()
+    runSnap m logerr tout rq
 
 
 testFail :: Test
@@ -230,6 +229,8 @@ setFoo s = do
     modifyResponse (addHeader "Foo" s)
     fmap id $ pure ()
     pure id <*> (liftIO $ return ())
+    !x <- liftBase $! return $! ()
+    return $! x
 
 
 testAlternative :: Test
@@ -284,6 +285,12 @@ isRight :: Either a b -> Bool
 isRight (Right _) = True
 isRight _         = False
 
+logerr :: ByteString -> IO ()
+logerr !_ = return $! ()
+
+tout :: (Int -> Int) -> IO ()
+tout !f = let !_ = f 2 in return $! ()
+
 
 testBracketSnap :: Test
 testBracketSnap = testCase "core/bracketSnap" $ do
@@ -292,15 +299,15 @@ testBracketSnap = testCase "core/bracketSnap" $ do
     ref <- newIORef 0
 
     expectSpecificException (NoHandlerException "") $
-        evalSnap (act ref) (const $ return ()) (const $ return ()) rq
+        evalSnap (act ref) logerr tout rq
 
     y <- readIORef ref
     assertEqual "bracketSnap/after1" (1::Int) y
 
     expectSpecificException (ErrorCall "no value") $
         evalSnap (act ref <|> finishWith emptyResponse)
-                 (const $ return ())
-                 (const $ return ())
+                 logerr
+                 tout
                  rq
 
     y' <- readIORef ref
@@ -309,8 +316,8 @@ testBracketSnap = testCase "core/bracketSnap" $ do
 
     expectSpecificException (ErrorCall "foo") $
         evalSnap (act2 ref)
-                 (const $ return ())
-                 (const $ return ())
+                 logerr
+                 tout
                  rq
 
     y'' <- readIORef ref
@@ -330,15 +337,18 @@ testCatchFinishWith :: Test
 testCatchFinishWith = testCase "core/catchFinishWith" $ do
     rq <- mkZomgRq
     x <- evalSnap (catchFinishWith $ finishWith emptyResponse)
-                  (const $ return ())
-                  (const $ return ())
-                  rq
+                  logerr tout rq
     assertBool "catchFinishWith" $ isLeft x
-    y <- evalSnap (catchFinishWith $ return ())
-                  (const $ return ())
-                  (const $ return ())
-                  rq
+    let (Left resp) = x
+    assertEqual "code" 200 (rspStatus resp)
+
+    y <- evalSnap (catchFinishWith $ return $! ())
+                  logerr tout rq
     assertBool "catchFinishWith" $ isRight y
+    let (Right val) = y
+    assertEqual "val" () val
+
+    expectExceptionH $ evalSnap (catchFinishWith pass) logerr tout rq
 
 
 testRqBody :: Test
@@ -426,6 +436,8 @@ testTrivials = testCase "core/trivials" $ do
         putResponse $ setResponseStatus 333 "333" sampleResponse
         r <- getResponse
         liftIO $ assertEqual "rsp status" 333 $ rspStatus r
+        code <- getsResponse rspStatus
+        liftIO $ assertEqual "rsp status 2" 333 code
         !_ <- localRequest (\x -> x {rqIsSecure=False}) $ do
             q <- getRequest
             liftIO $ assertEqual "localrq" False $ rqIsSecure q
@@ -464,6 +476,8 @@ testTrivials = testCase "core/trivials" $ do
 
     assertEqual "rq secure" True $ rqIsSecure rq
     assertEqual "rsp status" 333 $ rspStatus rsp
+    coverTypeableInstance (undefined :: Snap ())
+    coverShowInstance (EscapeHttp undefined)
 
 
 testMethod :: Test
@@ -631,10 +645,7 @@ testMZero404 = testCase "core/mzero404" $ do
 testEvalSnap :: Test
 testEvalSnap = testCase "core/evalSnap-exception" $ do
     rq <- mkZomgRq
-    expectExceptionH (evalSnap f
-                             (const $ return ())
-                             (const $ return ())
-                             rq >> return ())
+    expectExceptionH (evalSnap f logerr tout rq >> return ())
   where
     f = do
         logError "zzz"

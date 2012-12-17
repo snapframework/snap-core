@@ -1,26 +1,28 @@
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Snap.Util.FileServe.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
+import           Control.Applicative            ((<|>))
 import           Control.Monad
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.HashMap.Strict as HashMap
-import qualified Data.Map as Map
+import           Data.ByteString                (ByteString)
+import qualified Data.ByteString.Char8          as S
+import qualified Data.HashMap.Strict            as HashMap
+import qualified Data.Map                       as Map
 import           Data.Maybe
-import           Prelude hiding (take)
+import           Prelude                        hiding (take)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
-import           Test.HUnit hiding (Test, path)
+import           Test.HUnit                     hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
+import qualified Snap.Test                      as Test
+import           Snap.Test.Common
 import           Snap.Util.FileServe
-import qualified Snap.Test as Test
 ------------------------------------------------------------------------------
 
 
@@ -30,6 +32,7 @@ tests = [ testFooBin
         , testFooTxt
         , testFooHtml
         , testFooBinBinBin
+        , testDirectoryPasses
         , test404s
         , testFsSingle
         , testFsCfgA
@@ -41,6 +44,7 @@ tests = [ testFooBin
         , testRangeBad
         , testMultiRange
         , testIfRange
+        , testBadUrl
         ]
 
 
@@ -300,7 +304,7 @@ cfgA = DirectoryConfig {
        , indexGenerator  = const pass
        , dynamicHandlers = HashMap.empty
        , mimeTypes       = defaultMimeTypes
-       , preServeHook    = const $ return ()
+       , preServeHook    = \x -> x `seq` (return $! ())
        }
 
 cfgB = DirectoryConfig {
@@ -308,7 +312,7 @@ cfgB = DirectoryConfig {
        , indexGenerator  = const pass
        , dynamicHandlers = HashMap.empty
        , mimeTypes       = defaultMimeTypes
-       , preServeHook    = const $ return ()
+       , preServeHook    = \x -> x `seq` (return $! ())
        }
 
 cfgC = DirectoryConfig {
@@ -316,7 +320,7 @@ cfgC = DirectoryConfig {
        , indexGenerator  = printName
        , dynamicHandlers = HashMap.empty
        , mimeTypes       = defaultMimeTypes
-       , preServeHook    = const $ return ()
+       , preServeHook    = \x -> x `seq` (return $! ())
        }
 
 cfgD = DirectoryConfig {
@@ -324,7 +328,7 @@ cfgD = DirectoryConfig {
        , indexGenerator  = const pass
        , dynamicHandlers = HashMap.fromList [ (".txt", printName) ]
        , mimeTypes       = defaultMimeTypes
-       , preServeHook    = const $ return ()
+       , preServeHook    = \x -> x `seq` (return $! ())
        }
 
 
@@ -463,15 +467,18 @@ testFsCfgFancy :: Test
 testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
     -- Request for directory with autogen index
     rE1 <- go (fsCfg fancyDirectoryConfig) "mydir2/"
+    assertEqual "index-type" (Just "text/html; charset=utf-8")
+                             (getHeader "content-type" rE1)
     bE1 <- Test.getResponseBody rE1
 
     assertBool "autogen-sub-index" $
         "Directory Listing: /mydir2/" `S.isInfixOf` bE1
     assertBool "autogen-sub-parent" $
         "<a href='../'" `S.isInfixOf` bE1
+    assertBool "autogen-sub-dir" $
+        "<a href='dir/'" `S.isInfixOf` bE1
     assertBool "autogen-sub-file" $
         "<a href='foo.txt'" `S.isInfixOf` bE1
-
 
     -- Request for directory with autogen index
     rE2 <- go (fsCfg fancyDirectoryConfig) "mydir2/?z=z"
@@ -483,6 +490,9 @@ testFsCfgFancy = testCase "fileServe/cfgFancy" $ do
         "<a href='../'" `S.isInfixOf` bE2
     assertBool "autogen-sub-file" $
         "<a href='foo.txt'" `S.isInfixOf` bE2
+
+    rE3 <- go (fsCfg fancyDirectoryConfig) "mydir2/foo.txt"
+    assertEqual "c-t" (Just "text/plain") (getHeader "content-type" rE3)
 
 
 ------------------------------------------------------------------------------
@@ -514,6 +524,8 @@ testRangeOK = testCase "fileServe/range/ok" $ do
 
     r2 <- goRangeSuffix fsSingle "foo.html" 3
     assertEqual "foo.html 206" 206 $ rspStatus r2
+    assertEqual "c-l" (Just 3) (rspContentLength r2)
+    assertEqual "c-l hdr" (Just "3") (getHeader "content-length" r2)
     b2 <- Test.getResponseBody r2
     assertEqual "foo.html partial suffix" "OO\n" b2
 
@@ -576,3 +588,19 @@ testIfRange = testCase "fileServe/range/if-range" $ do
     assertEqual "foo.bin 200" 200 $ rspStatus r3
     b3 <- Test.getResponseBody r3
     assertEqual "foo.bin" "FOO\n" b3
+
+
+------------------------------------------------------------------------------
+testBadUrl :: Test
+testBadUrl = testCase "fileServe/badUrl" $ do
+    expectExceptionH $ go (fs <|> error "foo") "%$z%%%%%%%%"
+    expectExceptionH $ go (fs <|> error "foo") "//etc/passwd"
+
+
+------------------------------------------------------------------------------
+testDirectoryPasses :: Test
+testDirectoryPasses = testCase "fileServe/directory-passes" $ do
+    expectExceptionH $ go (fs <|> error "foo") ""
+    expectExceptionH $ go (fsCfg simpleDirectoryConfig <|> error "foo") ""
+    r <- go (fsCfg simpleDirectoryConfig) "foo.txt"
+    assertEqual "c-t" (Just "text/plain") (getHeader "content-type" r)

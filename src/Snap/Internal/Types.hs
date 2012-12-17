@@ -172,7 +172,7 @@ instance Show EscapeSnap where
 
 
 ------------------------------------------------------------------------------
-data Zero = PassOnProcessing String
+data Zero = PassOnProcessing
           | EarlyTermination Response
           | EscapeSnap EscapeSnap
 
@@ -216,7 +216,7 @@ snapReturn = Snap . return . SnapValue
 
 
 snapFail :: String -> Snap a
-snapFail !m = Snap $! return $! Zero (PassOnProcessing m)
+snapFail !_ = Snap $! return $! Zero PassOnProcessing
 {-# INLINE snapFail #-}
 
 
@@ -247,33 +247,16 @@ instance (MonadBaseControl IO) Snap where
 
 ------------------------------------------------------------------------------
 instance MonadPlus Snap where
-    mzero = Snap $! return $! Zero $! PassOnProcessing ""
+    mzero = Snap $! return $! Zero $! PassOnProcessing
 
     a `mplus` b =
         Snap $! do
             r <- unSnap a
             -- redundant just in case ordering by frequency helps here.
             case r of
-              SnapValue _                 -> return r
-              (Zero (PassOnProcessing _)) -> unSnap b
-              _                           -> return r
-
-
-------------------------------------------------------------------------------
-{-
-
-we dumped mtl...
-
-instance (EC.MonadError String) Snap where
-    throwError = fail
-    catchError act hndl = Snap $ do
-        r <- unSnap act
-        -- redundant just in case ordering by frequency helps here.
-        case r of
-          SnapValue _        -> return r
-          PassOnProcessing m -> unSnap $ hndl m
-          _                  -> return r
--}
+              SnapValue _           -> return r
+              Zero PassOnProcessing -> unSnap b
+              _                     -> return r
 
 
 ------------------------------------------------------------------------------
@@ -347,6 +330,7 @@ runRequestBody proc = do
       where
         handlers = [ Handler tooSlow, Handler other ]
         other (e :: SomeException) = skip body >> throwIO e
+
 
 ------------------------------------------------------------------------------
 -- | Returns the request body as a lazy bytestring. /New in 0.6./
@@ -632,7 +616,7 @@ redirect' target status = do
 -- | Log an error message in the 'Snap' monad
 logError :: MonadSnap m => ByteString -> m ()
 logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
-                                       >>  return (SnapValue ())
+                                       >>  return (SnapValue $! ())
 {-# INLINE logError #-}
 
 
@@ -804,7 +788,7 @@ ipHeaderFilter' header = do
 
         clean = trim S.takeWhile ipChrs . trim S.dropWhile whitespace
         setIP ip = modifyRequest $ \rq -> rq { rqClientAddr = clean ip }
-    maybe (return ()) setIP headerContents
+    maybe (return $! ()) setIP headerContents
 
 
 ------------------------------------------------------------------------------
@@ -882,7 +866,7 @@ runSnap (Snap m) logerr timeoutAction req = do
 
     resp <- case r of
               SnapValue _               -> return $ _snapResponse ss'
-              Zero (PassOnProcessing _) -> return $ fourohfour
+              Zero PassOnProcessing     -> return $ fourohfour
               Zero (EarlyTermination x) -> return $ x
               Zero (EscapeSnap e)       -> throwIO e
 
@@ -993,7 +977,7 @@ evalSnap (Snap m) logerr timeoutAction req = do
 
     case r of
       SnapValue x               -> return x
-      Zero (PassOnProcessing e) -> throwIO $ NoHandlerException e
+      Zero PassOnProcessing     -> throwIO $ NoHandlerException "pass"
       Zero (EarlyTermination _) -> throwIO $ ErrorCall "no value"
       Zero (EscapeSnap e)       -> throwIO e
 
@@ -1129,17 +1113,6 @@ modifyTimeout :: MonadSnap m => (Int -> Int) -> m ()
 modifyTimeout f = do
     m <- getTimeoutModifier
     liftIO $ m f
-
-
-------------------------------------------------------------------------------
--- | Returns an 'IO' action which you can use to set the handling thread's
--- timeout value.
-getTimeoutAction :: MonadSnap m => m (Int -> IO ())
-getTimeoutAction = do
-    modifier <- liftSnap $ liftM _snapModifyTimeout sget
-    return $! modifier . const
-{-# DEPRECATED getTimeoutAction
-      "use getTimeoutModifier instead. Since 0.8." #-}
 
 
 ------------------------------------------------------------------------------

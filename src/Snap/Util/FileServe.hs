@@ -345,7 +345,7 @@ defaultIndexGenerator mm styles d = do
         writeBS "</tr>"
 
     writeBS "</table></div><div class=\"footer\">Powered by "
-    writeBS "<b><a href=\"http://snapframework.com\">Snap</a></b></div>"
+    writeBS "<b><a href=\"http://snapframework.com/\">Snap</a></b></div>"
     writeBS "</body>"
   where
     packFn fp = do
@@ -368,11 +368,11 @@ defaultIndexGenerator mm styles d = do
 -- index generator, dynamic file handlers, or 'preServeHook'.
 simpleDirectoryConfig :: MonadSnap m => DirectoryConfig m
 simpleDirectoryConfig = DirectoryConfig {
-    indexFiles = [],
-    indexGenerator = const pass,
+    indexFiles      = [],
+    indexGenerator  = const pass,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes,
-    preServeHook = const $ return ()
+    mimeTypes       = defaultMimeTypes,
+    preServeHook    = const $ return $! ()
     }
 
 
@@ -384,11 +384,11 @@ simpleDirectoryConfig = DirectoryConfig {
 -- will not do anything.
 defaultDirectoryConfig :: MonadSnap m => DirectoryConfig m
 defaultDirectoryConfig = DirectoryConfig {
-    indexFiles = ["index.html", "index.htm"],
-    indexGenerator = const pass,
+    indexFiles      = ["index.html", "index.htm"],
+    indexGenerator  = const pass,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes,
-    preServeHook = const $ return ()
+    mimeTypes       = defaultMimeTypes,
+    preServeHook    = const $ return $! ()
     }
 
 
@@ -403,11 +403,11 @@ defaultDirectoryConfig = DirectoryConfig {
 -- @default.html@, @default.htm@, @home.html@
 fancyDirectoryConfig :: MonadSnap m => DirectoryConfig m
 fancyDirectoryConfig = DirectoryConfig {
-    indexFiles = ["index.html", "index.htm"],
-    indexGenerator = defaultIndexGenerator defaultMimeTypes snapIndexStyles,
+    indexFiles      = ["index.html", "index.htm"],
+    indexGenerator  = defaultIndexGenerator defaultMimeTypes snapIndexStyles,
     dynamicHandlers = Map.empty,
-    mimeTypes = defaultMimeTypes,
-    preServeHook = const $ return ()
+    mimeTypes       = defaultMimeTypes,
+    preServeHook    = const $ return $! ()
     }
 
 
@@ -647,7 +647,7 @@ checkRangeReq req fp sz = do
     -- note: start and end INCLUSIVE here
     send206 start end = do
         dbg "inside send206"
-        let len = end-start+1
+        let !len = end-start+1
         let crng = toByteString $
                    mconcat [ fromByteString "bytes "
                            , fromShow start
