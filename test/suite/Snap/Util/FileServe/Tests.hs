@@ -6,13 +6,14 @@ module Snap.Util.FileServe.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative            ((<|>))
+import           Control.Applicative            ((<$>), (<|>))
 import           Control.Monad
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S
 import qualified Data.HashMap.Strict            as HashMap
 import qualified Data.Map                       as Map
 import           Data.Maybe
+import qualified Data.Text                      as T
 import           Prelude                        hiding (take)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
@@ -20,9 +21,9 @@ import           Test.HUnit                     hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
+import           Snap.Internal.Util.FileServe
 import qualified Snap.Test                      as Test
 import           Snap.Test.Common
-import           Snap.Util.FileServe
 ------------------------------------------------------------------------------
 
 
@@ -45,6 +46,7 @@ tests = [ testFooBin
         , testMultiRange
         , testIfRange
         , testBadUrl
+        , testDecodeFilePath
         ]
 
 
@@ -604,3 +606,17 @@ testDirectoryPasses = testCase "fileServe/directory-passes" $ do
     expectExceptionH $ go (fsCfg simpleDirectoryConfig <|> error "foo") ""
     r <- go (fsCfg simpleDirectoryConfig) "foo.txt"
     assertEqual "c-t" (Just "text/plain") (getHeader "content-type" r)
+
+
+------------------------------------------------------------------------------
+testDecodeFilePath :: Test
+testDecodeFilePath = testCase "fileServe/decodeFilePath" $ do
+    forM_ table $ \(nm, inp, expected) -> do
+        out <- (map fromEnum . T.unpack) <$> decodeFilePath inp
+        assertEqual nm expected out
+  where
+    table = [ ("bad"     ,  "\x00\xd8\x00\xd8"       , [0, 0xd8, 0, 0xd8]   )
+            , ("bom"     , "\xfe\xff"                , [0xfe, 0xff]         )
+            , ("ok"      , "ok"                      , [fromEnum 'o',
+                                                        fromEnum 'k']       )
+            ]

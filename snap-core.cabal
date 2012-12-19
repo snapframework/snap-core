@@ -117,7 +117,8 @@ Library
     Snap.Internal.Routing,
     Snap.Internal.Types,
     Snap.Internal.Test.RequestBuilder,
-    Snap.Internal.Test.Assertions
+    Snap.Internal.Test.Assertions,
+    Snap.Internal.Util.FileServe
 
 
   build-depends:

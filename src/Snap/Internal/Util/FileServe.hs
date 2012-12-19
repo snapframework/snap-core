@@ -3,7 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 
 -- | Contains web handlers to serve files from a directory.
-module Snap.Util.FileServe
+module Snap.Internal.Util.FileServe
   ( getSafePath
     -- * Configuration for directory serving
   , MimeMap
@@ -20,6 +20,8 @@ module Snap.Util.FileServe
   , serveDirectoryWith
   , serveFile
   , serveFileAs
+    -- * Internal functions
+  , decodeFilePath
   ) where
 
 ------------------------------------------------------------------------------
@@ -323,7 +325,8 @@ defaultIndexGenerator mm styles d = do
     files   <- liftIO $ filterM (doesFileExist . (d </>)) entries
 
     forM_ (sort $ filter (not . (`elem` ["..", "."])) dirs) $ \f0 -> do
-        f <- liftIO $ liftM (\s -> T.encodeUtf8 s `mappend` "/") $ packFn f0
+        f <- liftIO $ liftM (\s -> T.encodeUtf8 s `mappend` "/")
+                    $ decodeFilePath f0
         writeBS "<tr><td class='filename'><a href='"
         writeBS f
         writeBS "'>"
@@ -331,7 +334,7 @@ defaultIndexGenerator mm styles d = do
         writeBS "</a></td><td class='type' colspan=2>DIR</td></tr>"
 
     forM_ (sort files) $ \f0 -> do
-        f <- liftIO $ liftM T.encodeUtf8 $ packFn f0
+        f <- liftIO $ liftM T.encodeUtf8 $ decodeFilePath f0
         stat <- liftIO $ getFileStatus (d </> f0)
         tm   <- liftIO $ formatHttpTime (modificationTime stat)
         writeBS "<tr><td class='filename'><a href='"
@@ -347,20 +350,15 @@ defaultIndexGenerator mm styles d = do
     writeBS "</table></div><div class=\"footer\">Powered by "
     writeBS "<b><a href=\"http://snapframework.com/\">Snap</a></b></div>"
     writeBS "</body>"
-  where
-    packFn fp = do
-        tryFirst [ T.decodeUtf8
-                 , T.decodeUtf16LE
-                 , T.decodeUtf16BE
-                 , T.decodeUtf32LE
-                 , T.decodeUtf32BE
-                 , const (T.pack fp) ]
-      where
-        tryFirst []     = error "No valid decoding"
-        tryFirst (f:fs) =
-            evaluate (f bs) `catch` \(_::SomeException) -> tryFirst fs
 
-        bs = S.pack fp
+
+------------------------------------------------------------------------------
+decodeFilePath :: FilePath -> IO T.Text
+decodeFilePath fp = do
+    evaluate (T.decodeUtf8 bs) `catch`
+        (\(_::SomeException) -> return (T.pack fp))
+  where
+    bs = S.pack fp
 
 ------------------------------------------------------------------------------
 -- | A very simple configuration for directory serving.  This configuration
@@ -437,7 +435,6 @@ serveDirectoryWith cfg base = do
     when (not b) pass
 
   where
-
     idxs     = indexFiles cfg
     generate = indexGenerator cfg
     mimes    = mimeTypes cfg
@@ -449,7 +446,7 @@ serveDirectoryWith cfg base = do
         liftIO (doesFileExist f) >>= flip unless pass
         let fname          = takeFileName f
         let staticServe f' = pshook f >> serveFileAs (fileType mimes fname) f'
-        lookupExt staticServe dyns fname f >> return True <|> return False
+        lookupExt staticServe dyns fname f >> return True
 
     -- Serves a directory via indices if available.  Returns True on success,
     -- False on failure to find an index.  Passes /only/ if the request was
