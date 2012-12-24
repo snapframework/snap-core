@@ -3,9 +3,9 @@
 {-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-module Snap.Core.Tests
-  ( tests ) where
-
+------------------------------------------------------------------------------
+module Snap.Core.Tests ( tests ) where
+------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Concurrent.MVar
@@ -45,12 +45,13 @@ import           Test.Framework.Providers.QuickCheck2
 import           Test.HUnit                           hiding (Test, path)
 import           Test.QuickCheck                      (Gen, arbitrary, elements,
                                                        oneof, variant)
-
+------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types
 import qualified Snap.Test                            as Test
 import           Snap.Test.Common
+------------------------------------------------------------------------------
 
 
 tests :: [Test]
@@ -85,6 +86,7 @@ tests = [ testFail
         ]
 
 
+------------------------------------------------------------------------------
 expectSpecificException :: Exception e => e -> IO a -> IO ()
 expectSpecificException e0 m = do
     r <- try m
@@ -96,12 +98,14 @@ expectSpecificException e0 m = do
     assertBool ("expected specific exception: " ++ show e0) b
 
 
+------------------------------------------------------------------------------
 expect404 :: IO (Request,Response) -> IO ()
 expect404 m = do
     (_,r) <- m
     assertBool "expected 404" (rspStatus r == 404)
 
 
+------------------------------------------------------------------------------
 expectNo404 :: IO (Request,Response) -> IO ()
 expectNo404 m = do
     (_,r) <- m
@@ -109,23 +113,30 @@ expectNo404 m = do
                (rspStatus r /= 404)
 
 
+------------------------------------------------------------------------------
 mkRequest :: ByteString -> IO Request
 mkRequest uri = Test.buildRequest $ Test.get uri Map.empty
 
 
+------------------------------------------------------------------------------
 mkRequestQuery :: ByteString -> ByteString -> [ByteString] -> IO Request
 mkRequestQuery uri k v =
     Test.buildRequest $ Test.get uri $ Map.fromList [(k,v)]
 
 
+------------------------------------------------------------------------------
 mkZomgRq :: IO Request
 mkZomgRq = Test.buildRequest $ Test.get "/" Map.empty
 
+
+------------------------------------------------------------------------------
 mkMethodRq :: Method -> IO Request
 mkMethodRq m = Test.buildRequest $ do
                    Test.get "/" Map.empty
                    Test.setRequestType $ Test.RequestWithRawBody m ""
 
+
+------------------------------------------------------------------------------
 mkIpHeaderRq :: IO Request
 mkIpHeaderRq = do
     rq <- mkZomgRq
@@ -134,16 +145,20 @@ mkIpHeaderRq = do
            $ setHeader "X-Forwarded-For" "1.2.3.4" rq
 
 
+------------------------------------------------------------------------------
 mkRqWithBody :: IO Request
 mkRqWithBody = Test.buildRequest $ Test.postRaw "/" "text/plain" "zazzle"
 
 
+------------------------------------------------------------------------------
 mkRqWithEnum :: (InputStream ByteString) -> IO Request
 mkRqWithEnum str = do
     rq <- Test.buildRequest $ Test.postRaw "/" "text/plain" ""
 
     return $! rq { rqBody = str }
 
+
+------------------------------------------------------------------------------
 testCatchIO :: Test
 testCatchIO = testCase "core/catchIO" $ do
     (_,rsp)  <- go f
@@ -163,6 +178,8 @@ testCatchIO = testCase "core/catchIO" $ do
     h :: SomeException -> Snap ()
     h e = e `seq` modifyResponse $ addHeader "foo" "bar"
 
+
+------------------------------------------------------------------------------
 go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
@@ -170,6 +187,8 @@ go m = do
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
+
+------------------------------------------------------------------------------
 goMeth :: Method -> Snap a -> IO (Request,Response)
 goMeth m s = do
     methRq <- mkMethodRq m
@@ -177,6 +196,8 @@ goMeth m s = do
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
 
+
+------------------------------------------------------------------------------
 goIP :: Snap a -> IO (Request,Response)
 goIP m = do
     rq <- mkIpHeaderRq
@@ -184,6 +205,8 @@ goIP m = do
   where
     dummy = const $ return ()
 
+
+------------------------------------------------------------------------------
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
@@ -192,6 +215,7 @@ goPath s m = do
     dummy = const $ return ()
 
 
+------------------------------------------------------------------------------
 goPathQuery :: ByteString
             -> ByteString
             -> [ByteString]
@@ -204,6 +228,7 @@ goPathQuery s k v m = do
     dummy = const $ return ()
 
 
+------------------------------------------------------------------------------
 goBody :: Snap a -> IO (Request,Response)
 goBody m = do
     rq <- mkRqWithBody
@@ -212,6 +237,7 @@ goBody m = do
     dummy = const $ return ()
 
 
+------------------------------------------------------------------------------
 goEnum :: InputStream ByteString
        -> Snap b
        -> IO (Request,Response)
@@ -220,10 +246,12 @@ goEnum enum m = do
     runSnap m logerr tout rq
 
 
+------------------------------------------------------------------------------
 testFail :: Test
 testFail = testCase "failure" $ expect404 (go pass)
 
 
+------------------------------------------------------------------------------
 setFoo :: ByteString -> Snap ()
 setFoo s = do
     modifyResponse (addHeader "Foo" s)
@@ -233,6 +261,7 @@ setFoo s = do
     return $! x
 
 
+------------------------------------------------------------------------------
 testAlternative :: Test
 testAlternative = testCase "core/alternative" $ do
     (_,resp) <- go (pass <|> setFoo "Bar")
@@ -250,16 +279,19 @@ testAlternative = testCase "core/alternative" $ do
     fail2 = pass >>= \_ -> return ()
 
 
+------------------------------------------------------------------------------
 sampleResponse :: Response
 sampleResponse = addHeader "Foo" "Quux" $ emptyResponse
 
 
+------------------------------------------------------------------------------
 testEarlyTermination :: Test
 testEarlyTermination = testCase "core/earlyTermination" $ do
     (_,resp) <- go (finishWith sampleResponse >>= \_ -> setFoo "Bar")
     assertEqual "foo" (Just "Quux") $ getHeader "Foo" resp
 
 
+------------------------------------------------------------------------------
 testEscapeHttp :: Test
 testEscapeHttp = testCase "core/escapeHttp" $ flip catch catchEscape $ do
     (_, _) <- go (escapeHttp escaper)
@@ -277,21 +309,29 @@ testEscapeHttp = testCase "core/escapeHttp" $ flip catch catchEscape $ do
           _ -> assertFailure "got TerminateConnection"
 
 
+------------------------------------------------------------------------------
 isLeft :: Either a b -> Bool
 isLeft (Left _) = True
 isLeft _        = False
 
+
+------------------------------------------------------------------------------
 isRight :: Either a b -> Bool
 isRight (Right _) = True
 isRight _         = False
 
+
+------------------------------------------------------------------------------
 logerr :: ByteString -> IO ()
 logerr !_ = return $! ()
 
+
+------------------------------------------------------------------------------
 tout :: (Int -> Int) -> IO ()
 tout !f = let !_ = f 2 in return $! ()
 
 
+------------------------------------------------------------------------------
 testBracketSnap :: Test
 testBracketSnap = testCase "core/bracketSnap" $ do
     rq <- mkZomgRq
@@ -333,6 +373,7 @@ testBracketSnap = testCase "core/bracketSnap" $ do
                            (\z -> z `seq` liftIO $ throwIO $ ErrorCall "foo")
 
 
+------------------------------------------------------------------------------
 testCatchFinishWith :: Test
 testCatchFinishWith = testCase "core/catchFinishWith" $ do
     rq <- mkZomgRq
@@ -351,6 +392,7 @@ testCatchFinishWith = testCase "core/catchFinishWith" $ do
     expectExceptionH $ evalSnap (catchFinishWith pass) logerr tout rq
 
 
+------------------------------------------------------------------------------
 testRqBody :: Test
 testRqBody = testCase "core/requestBodies" $ do
     mvar1 <- newEmptyMVar
@@ -378,29 +420,26 @@ testRqBody = testCase "core/requestBodies" $ do
     g = transformRequestBody (return . id)
 
 
+------------------------------------------------------------------------------
 testRqBodyTooLong :: Test
 testRqBodyTooLong = testCase "core/requestBodyTooLong" $ do
     expectExceptionH $ goBody $ f 2
     (_, rsp) <- goBody $ f 200000
     bd       <- getBody rsp
-
     assertEqual "detached rq body" "zazzle" bd
-
-
   where
     f sz = readRequestBody sz >>= writeLBS
 
 
+------------------------------------------------------------------------------
 testRqBodyException :: Test
 testRqBodyException = testCase "core/requestBodyException" $ do
     str <- Streams.fromList listData
     (req,resp) <- goEnum str hndlr
     bd         <- getBody resp
-
-    b' <- Streams.toList $ rqBody req
+    b'         <- Streams.toList $ rqBody req
     assertEqual "request body was consumed" [] b'
     assertEqual "response body was produced" "OK" bd
-
   where
     listData = ["the", "quick", "brown", "fox"]
 
@@ -411,11 +450,11 @@ testRqBodyException = testCase "core/requestBodyException" $ do
     hndlr = h0 `catch` \(_::SomeException) -> writeBS "OK"
 
 
+------------------------------------------------------------------------------
 testRqBodyTermination :: Test
 testRqBodyTermination = testCase "core/requestBodyTermination" $ do
     str <- Streams.fromList ["the", "quick", "brown", "fox"]
     expectExceptionH $ goEnum str h0
-
   where
     h0 = (runRequestBody $ \str -> do
               !_ <- Streams.read str
@@ -428,6 +467,7 @@ testRqBodyTermination = testCase "core/requestBodyTermination" $ do
                               _                     -> throwIO ex
 
 
+------------------------------------------------------------------------------
 testTrivials :: Test
 testTrivials = testCase "core/trivials" $ do
     (rq,rsp) <- go $ do
@@ -480,11 +520,14 @@ testTrivials = testCase "core/trivials" $ do
     coverShowInstance (EscapeHttp undefined)
 
 
+------------------------------------------------------------------------------
 testMethod :: Test
 testMethod = testCase "core/method" $ do
    expect404 $ go (method POST $ return ())
    expectNo404 $ go (method GET $ return ())
 
+
+------------------------------------------------------------------------------
 testMethods :: Test
 testMethods = testCase "core/methods" $ do
    expect404 $ go (methods [POST,PUT,PATCH,Method "MOVE"] $ return ())
@@ -506,6 +549,7 @@ testMethods = testCase "core/methods" $ do
    expectNo404 $ goMeth (Method "GET") (method GET $ return ())
 
 
+------------------------------------------------------------------------------
 methodGen :: Int -> Gen Method
 methodGen n = variant n $ oneof
               [ elements [ GET, HEAD, POST, PUT, DELETE
@@ -513,6 +557,8 @@ methodGen n = variant n $ oneof
               , Method <$> arbitrary
               ]
 
+
+------------------------------------------------------------------------------
 testMethodEq :: Test
 testMethodEq = testProperty "core/Method/eq" $ prop
   where
@@ -531,6 +577,7 @@ testMethodEq = testProperty "core/Method/eq" $ prop
     toMeth (Method a) = Method a
 
 
+------------------------------------------------------------------------------
 testMethodNotEq :: Test
 testMethodNotEq = testProperty "core/Method/noteq" $ prop
   where
@@ -540,6 +587,7 @@ testMethodNotEq = testProperty "core/Method/noteq" $ prop
       return $ (m /= m') == not (m == m')
 
 
+------------------------------------------------------------------------------
 testDir :: Test
 testDir = testCase "core/dir" $ do
    expect404 $ goPath "foo/bar" (dir "zzz" $ return ())
@@ -551,6 +599,7 @@ testDir = testCase "core/dir" $ do
    expect404 $ goPath "a" (ifTop $ return ())
 
 
+------------------------------------------------------------------------------
 testParam :: Test
 testParam = testCase "core/getParam" $ do
     expect404 $ goPath "/foo" f
@@ -570,10 +619,12 @@ testParam = testCase "core/getParam" $ do
     fP = p getPostParam
 
 
+------------------------------------------------------------------------------
 getBody :: Response -> IO L.ByteString
 getBody r = liftM (L.fromChunks . (:[])) $ Test.getResponseBody r
 
 
+------------------------------------------------------------------------------
 testWrites :: Test
 testWrites = testCase "core/writes" $ do
     (_,r) <- go h
@@ -590,6 +641,8 @@ testWrites = testCase "core/writes" $ do
         Streams.write (Just $ fromByteString "Foo1") str
         return str
 
+
+------------------------------------------------------------------------------
 testURLEncode1 :: Test
 testURLEncode1 = testCase "core/urlEncoding1" $ do
     let b = urlEncode "the quick brown fox~#"
@@ -597,12 +650,14 @@ testURLEncode1 = testCase "core/urlEncoding1" $ do
     assertEqual "fail" Nothing $ urlDecode "%"
 
 
+------------------------------------------------------------------------------
 testURLEncode2 :: Test
 testURLEncode2 = testProperty "core/urlEncoding2" prop
   where
     prop s = (urlDecode $ urlEncode s) == Just s
 
 
+------------------------------------------------------------------------------
 testDir2 :: Test
 testDir2 = testCase "core/dir2" $ do
     (_,resp) <- goPath "foo/bar" f
@@ -617,6 +672,7 @@ testDir2 = testCase "core/dir2" $ do
                 return s
 
 
+------------------------------------------------------------------------------
 testIpHeaderFilter :: Test
 testIpHeaderFilter = testCase "core/ipHeaderFilter" $ do
     (_,r) <- goIP f
@@ -635,6 +691,7 @@ testIpHeaderFilter = testCase "core/ipHeaderFilter" $ do
         writeBS ip
 
 
+------------------------------------------------------------------------------
 testMZero404 :: Test
 testMZero404 = testCase "core/mzero404" $ do
     (_,r) <- go mzero
@@ -654,6 +711,7 @@ testEvalSnap = testCase "core/evalSnap-exception" $ do
         finishWith emptyResponse
 
 
+------------------------------------------------------------------------------
 testLocalRequest :: Test
 testLocalRequest = testCase "core/localRequest" $ do
     rq1 <- mkZomgRq
@@ -669,7 +727,7 @@ testLocalRequest = testCase "core/localRequest" $ do
     assertEqual "localRequest backtrack" u1 u2
 
 
-
+------------------------------------------------------------------------------
 testRedirect :: Test
 testRedirect = testCase "core/redirect" $ do
     (_,rsp)  <- go (redirect "/foo/bar")
@@ -686,9 +744,11 @@ testRedirect = testCase "core/redirect" $ do
 
     assertEqual "redirect path" (Just "/bar/foo") $ getHeader "Location" rsp2
     assertEqual "redirect status" 307 $ rspStatus rsp2
-    assertEqual "status description" "Temporary Redirect" $ rspStatusReason rsp2
+    assertEqual "status description" "Temporary Redirect" $
+                rspStatusReason rsp2
 
 
+------------------------------------------------------------------------------
 testCoverInstances :: Test
 testCoverInstances = testCase "core/instances" $ do
     coverErrorT

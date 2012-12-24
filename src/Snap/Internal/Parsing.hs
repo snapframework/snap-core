@@ -3,32 +3,31 @@
 {-# LANGUAGE MagicHash         #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+------------------------------------------------------------------------------
 module Snap.Internal.Parsing where
-
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Control.Applicative
-import           Control.Arrow (first, second)
+import           Control.Arrow                 (first, second)
 import           Control.Monad
 import           Data.Attoparsec.Char8
 import           Data.Bits
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Internal (c2w, w2c)
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.CaseInsensitive as CI
-import           Data.CaseInsensitive (CI)
-import           Data.Char hiding (isDigit, isSpace)
+import           Data.ByteString.Char8         (ByteString)
+import qualified Data.ByteString.Char8         as S
+import           Data.ByteString.Internal      (c2w, w2c)
+import           Data.CaseInsensitive          (CI)
+import qualified Data.CaseInsensitive          as CI
+import           Data.Char                     hiding (isDigit, isSpace)
 import           Data.Int
-import           Data.List (intersperse)
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.List                     (intersperse)
+import           Data.Map                      (Map)
+import qualified Data.Map                      as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Word
 import           GHC.Exts
-import           GHC.Word (Word8(..))
-import           Prelude hiding (head, take, takeWhile)
+import           GHC.Word                      (Word8 (..))
+import           Prelude                       hiding (head, take, takeWhile)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing.FastSet (FastSet)
@@ -55,10 +54,8 @@ parseNum = decimal
 
 ------------------------------------------------------------------------------
 -- | Parsers for different tokens in an HTTP request.
-sp, digit, letter :: Parser Char
+sp :: Parser Char
 sp       = char ' '
-digit    = satisfy isDigit
-letter   = satisfy isAlpha
 
 
 ------------------------------------------------------------------------------
@@ -117,7 +114,7 @@ pHeaders = many header
 
     --------------------------------------------------------------------------
     fieldName         = {-# SCC "pHeaders/fieldName" #-}
-                        liftA2 S.cons letter fieldChars
+                        liftA2 S.cons letter_ascii fieldChars
 
     --------------------------------------------------------------------------
     contents          = {-# SCC "pHeaders/contents" #-}
@@ -293,7 +290,7 @@ pUrlEscaped = do
     percentEncoded !l = do
         hx <- take 2
         when (S.length hx /= 2 || (not $ S.all isHexDigit hx)) $
-             fail "bad hex in url"
+             mzero
 
         let code = w2c ((unsafeFromHex hx) :: Word8)
         nextChunk $ l . ((S.singleton code) :)
@@ -459,10 +456,6 @@ parseCookie = parseToCompletion pCookies
                             -----------------------
                             -- utility functions --
                             -----------------------
-
-------------------------------------------------------------------------------
-strictize :: L.ByteString -> ByteString
-strictize = S.concat . L.toChunks
 
 ------------------------------------------------------------------------------
 unsafeFromHex :: (Enum a, Num a, Bits a) => ByteString -> a

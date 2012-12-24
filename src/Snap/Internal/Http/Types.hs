@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE EmptyDataDecls            #-}
 {-# LANGUAGE ExistentialQuantification #-}
@@ -197,7 +198,7 @@ type Params = Map ByteString [ByteString]
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
       -- @Host:@ header.
-      rqHostName    :: ByteString
+      rqHostName      :: ByteString
 
       -- | The remote IP address.
     , rqClientAddr    :: ByteString
@@ -206,12 +207,12 @@ data Request = Request
     , rqClientPort    :: {-# UNPACK #-} !Int
 
       -- | The local IP address for this request.
-    , rqServerAddr     :: ByteString
+    , rqServerAddr    :: ByteString
 
       -- | Returns the port number the HTTP server is listening on. This may be
       -- useless from the perspective of external requests, e.g. if the server
       -- is running behind a proxy.
-    , rqServerPort     :: {-# UNPACK #-} !Int
+    , rqServerPort    :: {-# UNPACK #-} !Int
 
       -- | Returns the HTTP server's idea of its local hostname, including
       -- port. This is as configured with the @Config@ object at startup.

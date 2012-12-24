@@ -67,55 +67,47 @@ module Snap.Util.FileUploads
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Arrow
 import           Control.Applicative
-import           Control.Exception.Lifted ( Exception
-                                          , Handler(..)
-                                          , SomeException(..)
-                                          , throwIO
-                                          , catch
-                                          , catches
-                                          , mask
-                                          , bracket
-                                          , fromException
-                                          , toException
-                                          )
+import           Control.Arrow
+import           Control.Exception.Lifted     (Exception, Handler (..),
+                                               SomeException (..), bracket,
+                                               catch, catches, fromException,
+                                               mask, throwIO, toException)
 import           Control.Monad
-import qualified Data.Attoparsec.Char8 as Atto
 import           Data.Attoparsec.Char8
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Char8 (ByteString)
-import           Data.ByteString.Internal (c2w)
-import qualified Data.CaseInsensitive as CI
+import qualified Data.Attoparsec.Char8        as Atto
+import           Data.ByteString.Char8        (ByteString)
+import qualified Data.ByteString.Char8        as S
+import           Data.ByteString.Internal     (c2w)
+import qualified Data.CaseInsensitive         as CI
 import           Data.Int
-import           Data.List hiding (takeWhile)
-import qualified Data.Map as Map
+import           Data.List                    hiding (takeWhile)
+import qualified Data.Map                     as Map
 import           Data.Maybe
-import qualified Data.Text as T
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as TE
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
+import qualified Data.Text.Encoding           as TE
 import           Data.Typeable
 #if MIN_VERSION_base(4,6,0)
-import           Prelude hiding (getLine, takeWhile)
+import           Prelude                      hiding (getLine, takeWhile)
 #else
-import           Prelude hiding (catch, getLine, takeWhile)
+import           Prelude                      hiding (catch, getLine, takeWhile)
 #endif
 import           System.Directory
-import           System.IO hiding (isEOF)
-import qualified System.IO.Streams as Streams
-import qualified System.IO.Streams.Internal as StreamsI
-import           System.IO.Streams ( InputStream
-                                   , MatchInfo(..)
-                                   , search
-                                   , RateTooSlowException
-                                   , TooManyBytesReadException )
+import           System.FilePath              ((</>))
+import           System.IO                    hiding (isEOF)
+import           System.IO.Streams            (InputStream, MatchInfo (..),
+                                               RateTooSlowException,
+                                               TooManyBytesReadException,
+                                               search)
+import qualified System.IO.Streams            as Streams
 import           System.IO.Streams.Attoparsec
-import           System.FilePath ((</>))
-import           System.PosixCompat.Temp (mkstemp)
+import qualified System.IO.Streams.Internal   as StreamsI
+import           System.PosixCompat.Temp      (mkstemp)
 ------------------------------------------------------------------------------
 import           Snap.Core
 import           Snap.Internal.Parsing
-import qualified Snap.Types.Headers as H
+import qualified Snap.Types.Headers           as H
 
 
 ------------------------------------------------------------------------------
@@ -332,7 +324,7 @@ data FileUploadException =
     }
   | forall e . (Exception e, Show e) =>
     WrappedFileUploadException {
-      _wrappedFileUploadException :: e
+      _wrappedFileUploadException       :: e
     , _wrappedFileUploadExceptionReason :: Text
     }
   deriving (Typeable)
@@ -703,7 +695,7 @@ getFieldName hdrs = (fieldName, fileName)
 
     eDisposition = fullyParse contentDispositionValue pValueWithParameters
 
-    (_, dispositionParameters) =
+    (!_, dispositionParameters) =
         either (const ("", [])) id eDisposition
 
     fieldName = fromMaybe "" $ findParam "name" dispositionParameters

@@ -1,12 +1,13 @@
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Snap.Internal.Http.Types.Tests
-  ( tests ) where
 
+------------------------------------------------------------------------------
+module Snap.Internal.Http.Types.Tests ( tests ) where
+------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Control.Monad
 import           Control.Parallel.Strategies
-import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
 import           Data.ByteString.Lazy.Char8     ()
 import           Data.List                      (sort)
 import qualified Data.Map                       as Map
@@ -18,35 +19,40 @@ import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.HUnit                     hiding (Test, path)
 import           Text.Regex.Posix
-
+------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import qualified Snap.Test                      as Test
 import qualified Snap.Types.Headers             as H
 
 
+------------------------------------------------------------------------------
 tests :: [Test]
 tests = [ testTypes
         , testCookies
         , testUrlDecode
         , testFormatLogTime
-        , testAddHeader ]
+        , testAddHeader
+        ]
 
 
+------------------------------------------------------------------------------
 mkRq :: IO Request
 mkRq = Test.buildRequest $ Test.get "/" Map.empty
 
 
+------------------------------------------------------------------------------
 testFormatLogTime :: Test
 testFormatLogTime = testCase "formatLogTime" $ do
     b <- formatLogTime 3804938
 
-    let re = ("^[0-9]{1,2}/[A-Za-z]{3}/[0-9]{4}:[0-9]{2}:[0-9]{2}:[0-9]{2} (-|\\+)[0-9]{4}$"
-                  :: ByteString)
+    let re = S.concat [ "^[0-9]{1,2}/[A-Za-z]{3}/[0-9]{4}:[0-9]{2}:[0-9]{2}"
+                      , ":[0-9]{2} (-|\\+)[0-9]{4}$" ]
 
     assertBool "formatLogTime" $ b =~ re
 
 
+------------------------------------------------------------------------------
 testAddHeader :: Test
 testAddHeader = testCase "addHeader" $ do
     defReq <- mkRq
@@ -67,11 +73,13 @@ testAddHeader = testCase "addHeader" $ do
                 (sort (listHeaders $ headers hdrs))
 
 
+------------------------------------------------------------------------------
 testUrlDecode :: Test
 testUrlDecode = testCase "urlDecode" $ do
     assertEqual "bad hex" Nothing $ urlDecode "%qq"
 
 
+------------------------------------------------------------------------------
 testTypes :: Test
 testTypes = testCase "show" $ do
     defReq <- mkRq
@@ -128,6 +136,7 @@ testTypes = testCase "show" $ do
     cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") False False
 
 
+------------------------------------------------------------------------------
 testCookies :: Test
 testCookies = testCase "cookies" $ do
     assertEqual "cookie" (Just cook) rCook
