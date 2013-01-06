@@ -359,10 +359,9 @@ readRequestBody sz = liftM L.fromChunks $ runRequestBody f
 -- cookies, etc. before you call this function.
 --
 transformRequestBody :: (InputStream ByteString -> IO (InputStream ByteString))
-                         -- ^ the output 'Iteratee' is passed to this
-                         -- 'Enumerator', and then the resulting 'Iteratee' is
-                         -- fed the request body stream. Your 'Enumerator' is
-                         -- responsible for transforming the input.
+                         -- ^ the 'InputStream' from the 'Request' is passed to
+                         -- this function, and then the resulting 'InputStream'
+                         -- is fed to the output.
                      -> Snap ()
 transformRequestBody trans = do
     req     <- getRequest
