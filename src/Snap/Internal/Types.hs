@@ -55,7 +55,7 @@ import           Unsafe.Coerce
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import qualified Snap.Types.Headers as H
-import           Snap.Util.Readable
+import qualified Data.Readable as R
 ------------------------------------------------------------------------------
 
 
@@ -491,13 +491,13 @@ path = pathWith (==)
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only when the first path component is
 -- successfully parsed as the argument to the supplied handler function.
-pathArg :: (Readable a, MonadSnap m)
+pathArg :: (R.Readable a, MonadSnap m)
         => (a -> m b)
         -> m b
 pathArg f = do
     req <- getRequest
     let (p,_) = S.break (=='/') (rqPathInfo req)
-    a <- fromBS p
+    a <- R.fromBS p
     localRequest (updateContextPath $ S.length p) (f a)
 
 
@@ -1074,10 +1074,10 @@ getCookie name = withRequest $
 ------------------------------------------------------------------------------
 -- | Gets the HTTP 'Cookie' with the specified name and decodes it.  If the
 -- decoding fails, the handler calls pass.
-readCookie :: (MonadSnap m, Readable a)
+readCookie :: (MonadSnap m, R.Readable a)
            => ByteString
            -> m a
-readCookie name = maybe pass (fromBS . cookieValue) =<< getCookie name
+readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 
 
 ------------------------------------------------------------------------------
