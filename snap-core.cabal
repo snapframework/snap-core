@@ -64,8 +64,7 @@ extra-source-files:
   test/suite/Snap/Util/FileServe/Tests.hs,
   test/suite/Snap/Util/FileUploads/Tests.hs,
   test/suite/Snap/Util/GZip/Tests.hs,
-  test/suite/Snap/Util/Proxy/Tests.hs,
-  test/suite/Snap/Util/Readable/Tests.hs
+  test/suite/Snap/Util/Proxy/Tests.hs
 
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
@@ -108,8 +107,7 @@ Library
     Snap.Util.FileServe,
     Snap.Util.FileUploads,
     Snap.Util.GZip,
-    Snap.Util.Proxy,
-    Snap.Util.Readable
+    Snap.Util.Proxy
 
   other-modules:
     Snap.Internal.Instances,
@@ -126,17 +124,18 @@ Library
     base                      >= 4       && < 5,
     blaze-builder             >= 0.2.1.4 && < 0.4,
     bytestring                >= 0.9     && < 0.11,
-    case-insensitive          >= 0.3     && < 1.1,
+    case-insensitive          >= 1.0     && < 1.1,
     containers                >= 0.3     && < 1.0,
     deepseq                   >= 1.1     && < 1.4,
     directory                 >= 1       && < 2,
     filepath                  >= 1.1     && < 2.0,
     HUnit                     >= 1.2     && < 2,
     lifted-base               >= 0.1     && < 0.3,
-    io-streams                >= 0.1     && < 0.2,
+    io-streams                >= 1.0     && < 1.1,
     monad-control             >= 0.3     && < 0.4,
     mtl                       >= 2.0     && < 2.2,
     random                    >= 1       && < 2,
+    readable                  >= 0.1     && < 0.2,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.0     && < 1.5,

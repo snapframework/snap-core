@@ -17,7 +17,8 @@ import qualified Data.ByteString.Char8         as S
 import           Data.ByteString.Internal      (c2w, w2c)
 import           Data.CaseInsensitive          (CI)
 import qualified Data.CaseInsensitive          as CI
-import           Data.Char                     hiding (isDigit, isSpace)
+import           Data.Char                     hiding (digitToInt, isDigit,
+                                                isSpace)
 import           Data.Int
 import           Data.List                     (intersperse)
 import           Data.Map                      (Map)
@@ -477,8 +478,16 @@ unsafeFromHex = S.foldl' f 0
 
 
 ------------------------------------------------------------------------------
-unsafeFromInt :: (Enum a, Num a, Bits a) => ByteString -> a
-unsafeFromInt = S.foldl' f 0
+-- | Note: only works for nonnegative naturals
+unsafeFromNat :: (Enum a, Num a, Bits a) => ByteString -> a
+unsafeFromNat = S.foldl' f 0
   where
+    zero = ord '0'
     f !cnt !i = cnt * 10 + toEnum (digitToInt i)
-{-# INLINE unsafeFromInt #-}
+
+    digitToInt c = if d >= 0 && d <= 9
+                     then d
+                     else error $ "bad digit: '" ++ [c] ++ "'"
+      where
+        !d = ord c - zero
+{-# INLINE unsafeFromNat #-}

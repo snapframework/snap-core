@@ -386,8 +386,7 @@ rspBodyMap f b = Stream $ f $ rspBodyToEnum b
 
 
 ------------------------------------------------------------------------------
-rspBodyToEnum :: ResponseBody
-              -> (OutputStream Builder -> IO (OutputStream Builder))
+rspBodyToEnum :: ResponseBody -> StreamProc
 rspBodyToEnum (Stream e) = e
 
 rspBodyToEnum (SendFile fp Nothing) = \out ->

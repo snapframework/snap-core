@@ -140,9 +140,9 @@ testUnsafeFromHex = testCase "parsing/unsafeFromHex" $ do
 
 ------------------------------------------------------------------------------
 testUnsafeFromInt :: Test
-testUnsafeFromInt = testCase "parsing/unsafeFromInt" $ do
-    expectExceptionH $ return $! ((unsafeFromInt "zz") :: Int)
-    let x = unsafeFromInt "10"
+testUnsafeFromInt = testCase "parsing/unsafeFromNat" $ do
+    expectExceptionH $ return $! ((unsafeFromNat "zz") :: Int)
+    let x = unsafeFromNat "10"
     assertEqual "10" (10 :: Int) x
 
 
