@@ -102,7 +102,7 @@ mkRequest uri = do
 
     return $! Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
                       enum Nothing GET (1,1) [] uri "/"
-                      (S.concat ["/",uri]) "" Map.empty Map.empty Map.empty
+                      (S.concat ["/",uri]) "" Map.empty Map.empty Map.empty Map.empty
 
 
 mkRequestQuery :: ByteString -> ByteString -> [ByteString] -> IO Request
@@ -114,7 +114,7 @@ mkRequestQuery uri k v = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] uri "/"
-                     (S.concat ["/",uri,"?",q]) q mp mp Map.empty
+                     (S.concat ["/",uri,"?",q]) q mp Map.empty mp Map.empty
 
 
 mkZomgRq :: IO Request
@@ -123,7 +123,7 @@ mkZomgRq = do
 
     return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing GET (1,1) [] "/" "/" "/" ""
-                     Map.empty Map.empty Map.empty
+                     Map.empty Map.empty Map.empty Map.empty
 
 mkMethodRq :: Method -> IO Request
 mkMethodRq m = do
@@ -131,7 +131,7 @@ mkMethodRq m = do
 
     return $ Request "foo" 80 "127.0.0.1" 999 "foo" 1000 "foo" False H.empty
                      enum Nothing m (1,1) [] "/" "/" "/" ""
-                     Map.empty Map.empty Map.empty
+                     Map.empty Map.empty Map.empty Map.empty
 
 mkIpHeaderRq :: IO Request
 mkIpHeaderRq = do
@@ -150,7 +150,7 @@ mkRqWithEnum e = do
     enum <- newIORef $ SomeEnumerator e
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False H.empty
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+                 Map.empty Map.empty Map.empty Map.empty
 
 testCatchIO :: Test
 testCatchIO = testCase "types/catchIO" $ do
