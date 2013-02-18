@@ -57,6 +57,8 @@ tests = [ testRouting1
         , testRouteUrlDecode
         , testRouteUrlEncodedPath
         , testRouteEmptyCapture
+        , testRouteNestedCaptures1
+        , testRouteNestedCaptures2
         ]
 
 
@@ -136,9 +138,20 @@ routesEmptyCapture = route [ ("foo/:id", fooCapture) ]
 
 
 ------------------------------------------------------------------------------
+routesNestedCaptures1 :: Snap (Maybe [ByteString])
+routesNestedCaptures1 = route [ ("foo/:id", route [ (":id", dumpCapture "id") ] ) ]
+
+
+------------------------------------------------------------------------------
+routesNestedCaptures2 :: Snap (Maybe [ByteString])
+routesNestedCaptures2 = route [ ("foo/:id", route [ (":id", dumpParam "id") ] ) ]
+
+
+------------------------------------------------------------------------------
 topTop, topFoo, fooBar, fooCapture, getRqPathInfo, bar,
   getRqContextPath, barQuux, dblA, zabc, topCapture,
   fooCapture2 :: Snap ByteString
+dumpCapture, dumpParam :: ByteString -> Snap (Maybe [ByteString])
 
 dblA = do
     ma <- getParam "a"
@@ -172,6 +185,8 @@ getRqPathInfo    = liftM rqPathInfo getRequest
 getRqContextPath = liftM rqContextPath getRequest
 barQuux          = return "barQuux"
 bar              = return "bar"
+dumpCapture str  = liftM (rqCaptureParam str) getRequest
+dumpParam str    = liftM (rqParam str) getRequest
 
 
                                   -----------
@@ -414,3 +429,17 @@ testRouteEmptyCapture = testCase "route/emptyCapture" $ do
   where
     expected = "ZOMG_OK"
     m        = routesEmptyCapture <|> return expected
+
+
+------------------------------------------------------------------------------
+testRouteNestedCaptures1 :: Test
+testRouteNestedCaptures1 = testCase "route/nestedCaptures1" $ do
+    r <- go routesNestedCaptures1 "/foo/outer/inner"
+    assertEqual "nested captures (rqCaptureParams)" (Just ["inner", "outer"]) r
+
+
+------------------------------------------------------------------------------
+testRouteNestedCaptures2 :: Test
+testRouteNestedCaptures2 = testCase "route/nestedCaptures2" $ do
+    r <- go routesNestedCaptures2 "/foo/outer/inner"
+    assertEqual "nested captures (rqParams)" (Just ["inner", "outer"]) r
