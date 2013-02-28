@@ -8,27 +8,27 @@ module Snap.Internal.Parsing where
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Control.Applicative
-import           Control.Arrow (first, second)
+import           Control.Arrow                 (first, second)
 import           Control.Monad
 import           Data.Attoparsec.Char8
 import           Data.Bits
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Internal (c2w, w2c)
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.CaseInsensitive as CI
-import           Data.CaseInsensitive (CI)
-import           Data.Char hiding (isDigit, isSpace)
+import           Data.ByteString.Char8         (ByteString)
+import qualified Data.ByteString.Char8         as S
+import           Data.ByteString.Internal      (c2w, w2c)
+import qualified Data.ByteString.Lazy.Char8    as L
+import           Data.CaseInsensitive          (CI)
+import qualified Data.CaseInsensitive          as CI
+import           Data.Char                     hiding (isDigit, isSpace)
 import           Data.Int
-import           Data.List (intersperse)
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Data.List                     (intersperse)
+import           Data.Map                      (Map)
+import qualified Data.Map                      as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Word
 import           GHC.Exts
-import           GHC.Word (Word8(..))
-import           Prelude hiding (head, take, takeWhile)
+import           GHC.Word                      (Word8 (..))
+import           Prelude                       hiding (head, take, takeWhile)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing.FastSet (FastSet)
@@ -465,7 +465,7 @@ strictize :: L.ByteString -> ByteString
 strictize = S.concat . L.toChunks
 
 ------------------------------------------------------------------------------
-unsafeFromHex :: (Num a, Enum a, Bits a) => ByteString -> a
+unsafeFromHex :: (Enum a, Num a, Bits a) => ByteString -> a
 unsafeFromHex = S.foldl' f 0
   where
 #if MIN_VERSION_base(4,5,0)
@@ -484,7 +484,7 @@ unsafeFromHex = S.foldl' f 0
 
 
 ------------------------------------------------------------------------------
-unsafeFromInt :: (Num a, Enum a, Bits a) => ByteString -> a
+unsafeFromInt :: (Enum a, Num a, Bits a) => ByteString -> a
 unsafeFromInt = S.foldl' f 0
   where
     f !cnt !i = cnt * 10 + toEnum (digitToInt i)

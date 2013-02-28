@@ -1,5 +1,5 @@
 name:           snap-core
-version:        0.9.1
+version:        0.9.3.1
 synopsis:       Snap: A Haskell Web Framework (core interfaces and types)
 
 description:
@@ -93,6 +93,7 @@ Library
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
+    build-depends: old-locale >= 1 && <2
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
@@ -134,7 +135,7 @@ Library
     blaze-builder             >= 0.2.1.4 && < 0.4,
     blaze-builder-enumerator  >= 0.2     && < 0.3,
     bytestring                >= 0.9     && < 0.11,
-    case-insensitive          >= 0.3     && < 0.5,
+    case-insensitive          >= 0.3     && < 1.1,
     containers                >= 0.3     && < 1.0,
     deepseq                   >= 1.1     && < 1.4,
     directory                 >= 1       && < 2,
@@ -143,15 +144,13 @@ Library
     HUnit                     >= 1.2     && < 2,
     MonadCatchIO-transformers >= 0.2.1   && < 0.4,
     mtl                       >= 2.0     && < 2.2,
-    old-locale                >= 1       && < 2,
     random                    >= 1       && < 2,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 0.12,
     time                      >= 1.0     && < 1.5,
-    transformers              >= 0.2     && < 0.4,
-    unix-compat               >= 0.2     && < 0.4,
+    unix-compat               >= 0.2     && < 0.5,
     unordered-containers      >= 0.1.4.3 && < 0.3,
-    vector                    >= 0.6     && < 0.10,
+    vector                    >= 0.6     && < 0.11,
     zlib-enum                 >= 0.2.1   && < 0.3
 
   extensions:
