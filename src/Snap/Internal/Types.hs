@@ -54,6 +54,7 @@ import           System.Posix.Types (FileOffset)
 import           Unsafe.Coerce
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
+import           Snap.Internal.Parsing (urlDecode)
 import qualified Snap.Types.Headers as H
 import qualified Data.Readable as R
 ------------------------------------------------------------------------------
@@ -491,13 +492,17 @@ path = pathWith (==)
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' monad action only when the first path component is
 -- successfully parsed as the argument to the supplied handler function.
+--
+-- Note that the path segment is url-decoded prior to being passed to 'fromBS';
+-- this is new as of snap-core 0.10.
 pathArg :: (R.Readable a, MonadSnap m)
         => (a -> m b)
         -> m b
 pathArg f = do
     req <- getRequest
     let (p,_) = S.break (=='/') (rqPathInfo req)
-    a <- R.fromBS p
+    p' <- maybe mzero return $ urlDecode p
+    a <- R.fromBS p'
     localRequest (updateContextPath $ S.length p) (f a)
 
 

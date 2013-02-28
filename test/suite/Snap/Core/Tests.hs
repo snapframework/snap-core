@@ -34,7 +34,9 @@ import qualified Data.IntMap                          as IM
 import           Data.IORef
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (isJust)
-import           Data.Text                            ()
+import           Data.Monoid (mappend)
+import           Data.Text (Text)
+import qualified Data.Text.Encoding as T
 import           Data.Text.Lazy                       ()
 import           Prelude                              hiding (catch)
 import           System.IO.Streams                    (InputStream)
@@ -83,6 +85,7 @@ tests = [ testFail
         , testRedirect
         , testBracketSnap
         , testCoverInstances
+        , testPathArgs
         ]
 
 
@@ -793,3 +796,17 @@ testCoverInstances = testCase "core/instances" $ do
     coverLStateT  = cover (flip LState.evalStateT ())
     coverWriterT  = cover wt
     coverLWriterT = cover lwt
+
+
+testPathArgs :: Test
+testPathArgs = testCase "types/pathArgs" $ do
+    (_, rsp) <- goPath "%e4%b8%ad" m
+    b <- getBody rsp
+    assertEqual "pathargs url- and utf8-decodes" "ok" b
+
+  where
+    m = pathArg f
+
+    f x = if x == ("\x4e2d" :: Text)
+            then writeBS "ok"
+            else writeBS $ "not ok: " `mappend` T.encodeUtf8 x
