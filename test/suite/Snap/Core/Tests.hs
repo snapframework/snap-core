@@ -22,7 +22,8 @@ import qualified Data.IntMap as IM
 import           Data.IORef
 import           Data.Maybe (isJust)
 import           Data.Monoid
-import           Data.Text ()
+import           Data.Text (Text)
+import qualified Data.Text.Encoding as T
 import           Data.Text.Lazy ()
 import qualified Data.Map as Map
 import           Prelude hiding (catch)
@@ -69,7 +70,9 @@ tests = [ testFail
         , testEvalSnap
         , testLocalRequest
         , testRedirect
-        , testBracketSnap ]
+        , testBracketSnap
+        , testPathArgs
+        ]
 
 
 expectSpecificException :: Exception e => e -> IO a -> IO ()
@@ -671,3 +674,17 @@ testRedirect = testCase "types/redirect" $ do
     assertEqual "redirect path" (Just "/bar/foo") $ getHeader "Location" rsp2
     assertEqual "redirect status" 307 $ rspStatus rsp2
     assertEqual "status description" "Temporary Redirect" $ rspStatusReason rsp2
+
+
+testPathArgs :: Test
+testPathArgs = testCase "types/pathArgs" $ do
+    (_, rsp) <- goPath "%e4%b8%ad" m
+    b <- getBody rsp
+    assertEqual "pathargs url- and utf8-decodes" "ok" b
+
+  where
+    m = pathArg f
+
+    f x = if x == ("\x4e2d" :: Text)
+            then writeBS "ok"
+            else writeBS $ "not ok: " `mappend` T.encodeUtf8 x
