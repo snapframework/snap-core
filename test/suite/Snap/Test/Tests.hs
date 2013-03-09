@@ -33,6 +33,7 @@ tests = [ testSetRequestType
         , testMisc
         , testMultipart
         , testPost
+        , testPostJSON
         , testToString
         , testAssert404
         , testAssertBodyContains
@@ -68,6 +69,12 @@ testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do
 
     request7 <- buildRequest $ setRequestType $ RequestWithRawBody PATCH "bar"
     assertEqual "setRequestType/7/Method" PATCH (rqMethod request7)
+
+    request8 <- buildRequest $ setRequestType $
+                JSONPostRequest "{\"a\":\"b\"}"
+    assertEqual "setRequestType/8/Method" POST (rqMethod request8)
+    assertEqual "setRequestType/8/Content-Type"
+      (Just "application/json") $ T.getHeader "Content-Type" request8
 
   where
     rt4 = MultipartPostRequest [ ("foo", FormData ["foo"])
@@ -226,6 +233,17 @@ testPost = testCase "test/requestBuilder/testPost" $ do
     assertEqual "contentType" (Just "application/x-www-form-urlencoded") $
                 getHeader "Content-Type" request
 
+
+testPostJSON :: Test
+testPostJSON = testCase "test/requestBuilder/testPostJSON" $ do
+    request <-buildRequest $ do
+        postJSON "/api/login" "{\"a\":\"b\"}"
+
+    body <- getRqBody request
+    assertEqual "body" "{\"a\":\"b\"}" body
+    assertEqual "len" (Just (S.length body)) $ rqContentLength request
+    assertEqual "contentType" (Just "application/json") $
+                getHeader "Content-Type" request
 
 ------------------------------------------------------------------------------
 testToString :: Test

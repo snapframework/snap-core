@@ -21,6 +21,7 @@ module Snap.Test
   , get
   , postUrlEncoded
   , postMultipart
+  , postJSON
   , put
   , postRaw
   , delete

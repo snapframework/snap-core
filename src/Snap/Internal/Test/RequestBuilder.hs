@@ -17,6 +17,7 @@ module Snap.Internal.Test.RequestBuilder
   , evalHandlerM
   , get
   , postMultipart
+  , postJSON
   , postRaw
   , postUrlEncoded
   , put
@@ -179,12 +180,13 @@ data FileData = FileData {
 
 ------------------------------------------------------------------------------
 -- | The 'RequestType' datatype enumerates the different kinds of HTTP
--- requests you can generate using the testing interface. Most users will
--- prefer to use the 'get', 'postUrlEncoded', 'postMultipart', 'put', and
--- 'delete' convenience functions.
+-- requests you can generate using the testing interface. Most users
+-- will prefer to use the 'get', 'postUrlEncoded', 'postMultipart',
+-- 'postJSON', 'put', and 'delete' convenience functions.
 data RequestType
     = GetRequest
     | RequestWithRawBody Method ByteString
+    | JSONPostRequest ByteString
     | MultipartPostRequest MultipartParams
     | UrlEncodedPostRequest Params
     | DeleteRequest
@@ -212,6 +214,14 @@ setRequestType (RequestWithRawBody m b) = do
     rq <- rGet
     liftIO $ writeIORef (rqBody rq) $ SomeEnumerator $ enumBS b
     rPut $ rq { rqMethod        = m
+              , rqContentLength = Just $ S.length b
+              }
+
+setRequestType (JSONPostRequest b) = do
+    rq <- liftM (H.setHeader "Content-Type"
+                           "application/json") rGet
+    liftIO $ writeIORef (rqBody rq) $ SomeEnumerator $ enumBS b
+    rPut $ rq { rqMethod        = POST
               , rqContentLength = Just $ S.length b
               }
 
@@ -510,6 +520,17 @@ postMultipart :: MonadIO m =>
               -> RequestBuilder m ()
 postMultipart uri params = do
     setRequestType $ MultipartPostRequest params
+    setRequestPath uri
+
+------------------------------------------------------------------------------
+-- | Builds an HTTP \"POST\" request with the given JSON content, using the
+-- \"application/json\" MIME type.
+postJSON :: MonadIO m =>
+            ByteString        -- ^ request path
+         -> ByteString        -- ^ JSON content
+         -> RequestBuilder m ()
+postJSON uri content = do
+    setRequestType $ JSONPostRequest content
     setRequestPath uri
 
 
