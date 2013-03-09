@@ -966,7 +966,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
     handle304 :: Response -> Response
     handle304 r = setResponseBody (return . id) $
                   updateHeaders (H.delete "Transfer-Encoding") $
-                  setContentLength 0 r
+                  clearContentLength r
 {-# INLINE fixupResponse #-}
 
 
