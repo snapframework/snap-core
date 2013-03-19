@@ -25,6 +25,7 @@ module Snap.Internal.Test.RequestBuilder
   , runHandlerM
   , setContentType
   , setHeader
+  , addCookies  
   , setHttpVersion
   , setQueryString
   , setQueryStringRaw
@@ -430,6 +431,11 @@ setHeader k v = rModify (H.setHeader k v)
 addHeader :: (Monad m) => CI ByteString -> ByteString -> RequestBuilder m ()
 addHeader k v = rModify (H.addHeader k v)
 
+------------------------------------------------------------------------------
+-- | Adds the given cookies to the request being built.
+addCookies :: (Monad m) => [Cookie] -> RequestBuilder m ()
+addCookies cookies = do
+  rModify $ \rq -> rq { rqCookies = rqCookies rq ++ cookies }
 
 ------------------------------------------------------------------------------
 -- | Sets the request's @content-type@ to the given MIME type.

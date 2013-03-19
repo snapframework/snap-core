@@ -29,6 +29,7 @@ module Snap.Test
   , addHeader
   , setContentType
   , setHeader
+  , addCookies
   , setHttpVersion
   , setQueryString
   , setQueryStringRaw
