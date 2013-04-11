@@ -125,31 +125,69 @@ deleteHeader k = updateHeaders $ H.delete k
 -- <http://tools.ietf.org/html/rfc2068.html#section-5.1.1>).
 data Method  = GET | HEAD | POST | PUT | DELETE | TRACE | OPTIONS | CONNECT |
                PATCH | Method ByteString
-               deriving(Show,Read,Ord)
-
+               deriving(Show, Read)
 
 instance Eq Method where
-    GET          == GET              = True
-    GET          == Method "GET"     = True
-    HEAD         == HEAD             = True
-    HEAD         == Method "HEAD"    = True
-    POST         == POST             = True
-    POST         == Method "POST"    = True
-    PUT          == PUT              = True
-    PUT          == Method "PUT"     = True
-    DELETE       == DELETE           = True
-    DELETE       == Method "DELETE"  = True
-    TRACE        == TRACE            = True
-    TRACE        == Method "TRACE"   = True
-    OPTIONS      == OPTIONS          = True
-    OPTIONS      == Method "OPTIONS" = True
-    CONNECT      == CONNECT          = True
-    CONNECT      == Method "CONNECT" = True
-    PATCH        == PATCH            = True
-    PATCH        == Method "PATCH"   = True
-    Method a     == Method b         = a == b
-    m@(Method _) == other            = other == m
-    _            == _                = False
+    a == b =
+        normalizeMethod a `eq` normalizeMethod b
+      where
+        GET       `eq` GET       = True
+        HEAD      `eq` HEAD      = True
+        POST      `eq` POST      = True
+        PUT       `eq` PUT       = True
+        DELETE    `eq` DELETE    = True
+        TRACE     `eq` TRACE     = True
+        OPTIONS   `eq` OPTIONS   = True
+        CONNECT   `eq` CONNECT   = True
+        PATCH     `eq` PATCH     = True
+        Method x1 `eq` Method y1 = x1 == y1
+        _         `eq` _         = False
+
+instance Ord Method where
+        compare a b =
+            check (normalizeMethod a) (normalizeMethod b)
+          where
+            check   GET          GET           = EQ
+            check   HEAD         HEAD          = EQ
+            check   POST         POST          = EQ
+            check   PUT          PUT           = EQ
+            check   DELETE       DELETE        = EQ
+            check   TRACE        TRACE         = EQ
+            check   OPTIONS      OPTIONS       = EQ
+            check   CONNECT      CONNECT       = EQ
+            check   PATCH        PATCH         = EQ
+            check   (Method  x1) (Method   y1) = compare x1 y1
+            check   x            y             = compare (tag x) (tag y)
+
+            tag :: Method -> Int
+            tag (GET{})     = 0
+            tag (HEAD{})    = 1
+            tag (POST{})    = 2
+            tag (PUT{})     = 3
+            tag (DELETE{})  = 4
+            tag (TRACE{})   = 5
+            tag (OPTIONS{}) = 6
+            tag (CONNECT{}) = 7
+            tag (PATCH{})   = 8
+            tag (Method{})  = 9
+
+-- | Equate the special case constructors with their corresponding
+-- @Method name@ variant.
+{-# INLINE normalizeMethod #-}
+normalizeMethod :: Method -> Method
+normalizeMethod m@(Method name) = case name of
+                                    "GET"     -> GET
+                                    "HEAD"    -> HEAD
+                                    "POST"    -> POST
+                                    "PUT"     -> PUT
+                                    "DELETE"  -> DELETE
+                                    "TRACE"   -> TRACE
+                                    "OPTIONS" -> OPTIONS
+                                    "CONNECT" -> CONNECT
+                                    "PATCH"   -> PATCH
+                                    _         -> m
+normalizeMethod m               = m
+
 
 ------------------------------------------------------------------------------
 type HttpVersion = (Int,Int)
