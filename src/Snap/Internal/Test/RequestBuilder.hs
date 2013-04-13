@@ -38,6 +38,7 @@ module Snap.Internal.Test.RequestBuilder
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
+import           Control.Applicative            (Applicative)
 import           Control.Monad
 import           Control.Monad.State.Strict     hiding (get, put)
 import qualified Control.Monad.State.Strict     as State
@@ -67,7 +68,13 @@ import qualified Snap.Types.Headers             as H
 -- | RequestBuilder is a monad transformer that allows you to conveniently
 -- build a snap 'Request' for testing.
 newtype RequestBuilder m a = RequestBuilder (StateT Request m a)
-  deriving (Monad, MonadIO, MonadState Request, MonadTrans)
+  deriving ( Applicative
+           , Functor
+           , Monad
+           , MonadIO
+           , MonadState Request
+           , MonadTrans
+           )
 
 
 ------------------------------------------------------------------------------
