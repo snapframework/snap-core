@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 
 -- | An opaque data type for HTTP headers. Intended to be imported qualified,
 -- i.e:

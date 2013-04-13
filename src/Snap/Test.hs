@@ -47,8 +47,9 @@ module Snap.Test
    -- * Getting response bodies
   , getResponseBody
 
-   -- * Dumping HTTP Responses
+   -- * Dumping HTTP Messages
   , dumpResponse
+  , requestToString
   , responseToString
   )
   where

@@ -20,12 +20,13 @@ module Snap.Internal.Test.RequestBuilder
   , postRaw
   , postUrlEncoded
   , put
+  , requestToString
   , responseToString
   , runHandler
   , runHandlerM
   , setContentType
   , setHeader
-  , addCookies  
+  , addCookies
   , setHttpVersion
   , setQueryString
   , setQueryStringRaw
@@ -44,7 +45,7 @@ import           Data.Bits
 import qualified Data.ByteString                as S8
 import           Data.ByteString.Char8          (ByteString)
 import qualified Data.ByteString.Char8          as S
-import           Data.CaseInsensitive           (CI)
+import           Data.CaseInsensitive           (CI, original)
 import qualified Data.Map                       as Map
 import           Data.Monoid
 import qualified Data.Vector                    as V
@@ -113,6 +114,7 @@ buildRequest mm = do
         fixupMethod
         fixupCL
         fixupParams
+        fixupHost
 
     fixupMethod = do
         rq <- rGet
@@ -151,6 +153,11 @@ buildRequest mm = do
 
         rPut $ rq' { rqParams      = Map.unionWith (++) queryParams postParams
                    , rqQueryParams = queryParams }
+
+    fixupHost = do
+        rq <- rGet
+        let hn      = rqHostName rq
+        rPut $ H.setHeader "Host" hn rq
 
 
 ------------------------------------------------------------------------------
@@ -661,6 +668,36 @@ responseToString resp = do
     builder <- liftM mconcat grab
 
     return $ toByteString $ fromShow resp `mappend` builder
+
+------------------------------------------------------------------------------
+-- | Converts the given 'Request' to a bytestring.
+requestToString :: Request -> IO ByteString
+requestToString req = do
+    body <- liftM (mconcat . map fromByteString) $ Streams.toList $ rqBody req
+    return $! toByteString $ mconcat [ statusLine
+                                     , mconcat . map oneHeader . H.toList
+                                               $ rqHeaders req
+                                     , crlf
+                                     , body
+                                     ]
+  where
+    (v1,v2) = rqVersion req
+    crlf = fromChar '\r' `mappend` fromChar '\n'
+    statusLine = mconcat [ fromShow $ rqMethod req
+                         , fromChar ' '
+                         , fromByteString $ rqURI req
+                         , fromByteString " HTTP/"
+                         , fromShow v1
+                         , fromChar '.'
+                         , fromShow v2
+                         , crlf
+                         ]
+
+    oneHeader (k,v) = mconcat [ fromByteString $ original k
+                              , fromByteString ": "
+                              , fromByteString v
+                              , crlf
+                              ]
 
 
 ------------------------------------------------------------------------------
