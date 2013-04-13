@@ -54,6 +54,7 @@ import           Data.Word
 import qualified System.IO.Streams              as Streams
 import           System.PosixCompat.Time
 import           System.Random
+import           Text.Printf                    (printf)
 ------------------------------------------------------------------------------
 import           Snap.Core                      hiding (addHeader,
                                                  setContentType, setHeader)
@@ -681,20 +682,37 @@ responseToString resp = do
 --
 -- Since: 1.0
 requestToString :: Request -> IO ByteString
-requestToString req = do
-    body <- liftM (mconcat . map fromByteString) $ Streams.toList $ rqBody req
+requestToString req0 = do
+    (req, is) <- maybeChunk
+    body <- liftM S.concat $ Streams.toList is
     return $! toByteString $ mconcat [ statusLine
                                      , mconcat . map oneHeader . H.toList
                                                $ rqHeaders req
                                      , crlf
-                                     , body
+                                     , fromByteString body
                                      ]
   where
-    (v1,v2) = rqVersion req
+    maybeChunk = do
+        if getHeader "Transfer-Encoding" req0 == Just "chunked"
+          then do
+              let req = deleteHeader "Content-Length" $
+                        req0 { rqContentLength = Nothing }
+              is' <- Streams.map chunk $ rqBody req
+              out <- eof >>= Streams.appendInputStream is'
+              return (req, out)
+          else return (req0, rqBody req0)
+      where
+        chunk s = S.concat [ S.pack $ printf "%x\r\n" (S.length s)
+                           , s
+                           , "\r\n"
+                           ]
+        eof = Streams.fromList ["0\r\n"]
+
+    (v1,v2) = rqVersion req0
     crlf = fromChar '\r' `mappend` fromChar '\n'
-    statusLine = mconcat [ fromShow $ rqMethod req
+    statusLine = mconcat [ fromShow $ rqMethod req0
                          , fromChar ' '
-                         , fromByteString $ rqURI req
+                         , fromByteString $ rqURI req0
                          , fromByteString " HTTP/"
                          , fromShow v1
                          , fromChar '.'
