@@ -678,6 +678,8 @@ responseToString resp = do
 
 ------------------------------------------------------------------------------
 -- | Converts the given 'Request' to a bytestring.
+--
+-- Since: 1.0
 requestToString :: Request -> IO ByteString
 requestToString req = do
     body <- liftM (mconcat . map fromByteString) $ Streams.toList $ rqBody req
