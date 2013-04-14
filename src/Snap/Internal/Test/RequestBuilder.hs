@@ -49,9 +49,11 @@ import qualified Data.ByteString.Char8          as S
 import           Data.CaseInsensitive           (CI, original)
 import qualified Data.Map                       as Map
 import           Data.Monoid
+import           Data.Time
 import qualified Data.Vector                    as V
 import           Data.Word
 import qualified System.IO.Streams              as Streams
+import           System.Locale
 import           System.PosixCompat.Time
 import           System.Random
 import           Text.Printf                    (printf)
@@ -459,7 +461,24 @@ addHeader k v = rModify (H.addHeader k v)
 -- | Adds the given cookies to the request being built.
 addCookies :: (Monad m) => [Cookie] -> RequestBuilder m ()
 addCookies cookies = do
-  rModify $ \rq -> rq { rqCookies = rqCookies rq ++ cookies }
+    rModify $ \rq -> rq { rqCookies = rqCookies rq ++ cookies }
+    forM_ cookies $ addHeader "Cookie" . cookieToBS
+
+
+------------------------------------------------------------------------------
+-- | Convert 'Cookie' into 'ByteString' for output.
+cookieToBS :: Cookie -> ByteString
+cookieToBS (Cookie k v mbExpTime mbDomain mbPath isSec isHOnly) = cookie
+  where
+    cookie  = S.concat [k, "=", v, pth, exptime, domain, secure, hOnly]
+    pth     = maybe "" (S.append "; path=") mbPath
+    domain  = maybe "" (S.append "; domain=") mbDomain
+    exptime = maybe "" (S.append "; expires=" . fmt) mbExpTime
+    secure  = if isSec then "; Secure" else ""
+    hOnly   = if isHOnly then "; HttpOnly" else ""
+    fmt     = S.pack . formatTime defaultTimeLocale
+                                   "%a, %d-%b-%Y %H:%M:%S GMT"
+
 
 ------------------------------------------------------------------------------
 -- | Sets the request's @content-type@ to the given MIME type.
