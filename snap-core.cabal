@@ -133,7 +133,6 @@ Library
     io-streams                >= 1.0.1.0 && < 1.1,
     monad-control             >= 0.3     && < 0.4,
     mtl                       >= 2.0     && < 2.2,
-    old-locale                >= 1.0     && < 1.1,
     random                    >= 1       && < 2,
     readable                  >= 0.1     && < 0.2,
     regex-posix               >= 0.95    && < 1,
