@@ -110,7 +110,6 @@ Library
 
   other-modules:
     Snap.Internal.Instances,
-    Snap.Internal.Parsing.FastSet,
     Snap.Internal.Routing,
     Snap.Internal.Types,
     Snap.Internal.Test.RequestBuilder,

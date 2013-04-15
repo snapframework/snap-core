@@ -280,7 +280,6 @@ testSlowEnumerator = testCase "fileUploads/tooSlow" $
                                `catches` [Handler h0])
   where
     h0 (e :: EscapeSnap) = do
-        putStrLn "hi"
         let (TerminateConnection se) = e
             (me :: Maybe RateTooSlowException) = fromException se
         maybe (throw e) h me

@@ -8,31 +8,29 @@ module Snap.Internal.Parsing where
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Control.Applicative
-import           Control.Arrow                 (first, second)
+import           Control.Arrow                    (first, second)
 import           Control.Monad
-import           Data.Attoparsec.Char8
+import           Data.Attoparsec.ByteString.Char8
 import           Data.Bits
-import           Data.ByteString.Char8         (ByteString)
-import qualified Data.ByteString.Char8         as S
-import           Data.ByteString.Internal      (c2w, w2c)
-import           Data.CaseInsensitive          (CI)
-import qualified Data.CaseInsensitive          as CI
-import           Data.Char                     hiding (digitToInt, isDigit,
-                                                isSpace)
+import           Data.ByteString.Char8            (ByteString)
+import qualified Data.ByteString.Char8            as S
+import           Data.ByteString.Internal         (c2w, w2c)
+import           Data.CaseInsensitive             (CI)
+import qualified Data.CaseInsensitive             as CI
+import           Data.Char                        hiding (digitToInt, isDigit,
+                                                   isSpace)
 import           Data.Int
-import           Data.List                     (intersperse)
-import           Data.Map                      (Map)
-import qualified Data.Map                      as Map
+import           Data.List                        (intersperse)
+import           Data.Map                         (Map)
+import qualified Data.Map                         as Map
 import           Data.Maybe
 import           Data.Monoid
 import           Data.Word
 import           GHC.Exts
-import           GHC.Word                      (Word8 (..))
-import           Prelude                       hiding (head, take, takeWhile)
+import           GHC.Word                         (Word8 (..))
+import           Prelude                          hiding (head, take, takeWhile)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
-import           Snap.Internal.Parsing.FastSet (FastSet)
-import qualified Snap.Internal.Parsing.FastSet as FS
 
 
 ------------------------------------------------------------------------------
@@ -72,8 +70,9 @@ crlf = string "\r\n"
 
 
 ------------------------------------------------------------------------------
-generateFS :: (Word8 -> Bool) -> FastSet
-generateFS f = FS.fromList $ filter f [0..255]
+toTable :: (Char -> Bool) -> (Char -> Bool)
+toTable f = inClass $ filter f $ map w2c [0..255]
+{-# INLINE toTable #-}
 
 
 ------------------------------------------------------------------------------
@@ -90,16 +89,13 @@ pSpaces = takeWhile isSpace
 ------------------------------------------------------------------------------
 fieldChars :: Parser ByteString
 fieldChars = takeWhile isFieldChar
-  where
-    isFieldChar = flip FS.memberChar fieldCharSet
 
 
 ------------------------------------------------------------------------------
-fieldCharSet :: FastSet
-fieldCharSet = generateFS f
+isFieldChar :: Char -> Bool
+isFieldChar = toTable f
   where
-    f d = let c = (toEnum $ fromEnum d)
-          in (isDigit c) || (isAlpha c) || c == '-' || c == '_'
+    f c = (isDigit c) || (isAlpha c) || c == '-' || c == '_'
 
 
 ------------------------------------------------------------------------------
@@ -237,12 +233,7 @@ pToken = takeWhile isToken
 ------------------------------------------------------------------------------
 {-# INLINE isToken #-}
 isToken :: Char -> Bool
-isToken c = FS.memberChar c tokenTable
-
-
-------------------------------------------------------------------------------
-tokenTable :: FastSet
-tokenTable = generateFS (f . toEnum . fromEnum)
+isToken = toTable f
   where
     f = matchAll [ isAscii
                  , not . isControl
@@ -340,7 +331,7 @@ urlEncodeBuilder = go mempty
   where
     go !b !s = maybe b' esc (S.uncons y)
       where
-        (x,y)     = S.span (flip FS.memberChar urlEncodeTable) s
+        (x,y)     = S.span urlEncodeClean s
         b'        = b `mappend` fromByteString x
         esc (c,r) = let b'' = if c == ' '
                                 then b' `mappend` fromWord8 (c2w '+')
@@ -349,10 +340,10 @@ urlEncodeBuilder = go mempty
 
 
 ------------------------------------------------------------------------------
-urlEncodeTable :: FastSet
-urlEncodeTable = generateFS f
+urlEncodeClean :: Char -> Bool
+urlEncodeClean = toTable f
   where
-    f c = any ($ (w2c c)) [isAlphaNum, flip elem "$-.!*'(),"]
+    f c = any ($ c) [isAlphaNum, flip elem "$-.!*'(),"]
 
 
 ------------------------------------------------------------------------------
