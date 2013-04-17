@@ -32,6 +32,9 @@ Executable testsuite
     deepseq                    >= 1.1      && <1.4,
     directory,
     filepath,
+    -- note: freeze hashable at 1.1, 1.2 is broken (segfaults) consider
+    -- changing once https://github.com/tibbe/hashable/issues/60 is fixed.
+    hashable                   >= 1.1     && < 1.2,
     HUnit                      >= 1.2      && <2,
     io-streams                 >= 1.0.1.0  && <1.1,
     lifted-base                >= 0.1      && <0.3,
