@@ -141,6 +141,9 @@ Library
     directory                 >= 1       && < 2,
     enumerator                >= 0.4.15  && < 0.5,
     filepath                  >= 1.1     && < 2.0,
+    -- note: freeze hashable at 1.1, 1.2 is broken (segfaults) consider
+    -- changing once https://github.com/tibbe/hashable/issues/60 is fixed.
+    hashable                  >= 1.1     && < 1.2,
     HUnit                     >= 1.2     && < 2,
     MonadCatchIO-transformers >= 0.2.1   && < 0.4,
     mtl                       >= 2.0     && < 2.2,
