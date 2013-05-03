@@ -24,8 +24,7 @@ import           Data.Typeable
 import           Prelude                        hiding (catch)
 import           System.Directory
 import           System.IO.Streams              (RateTooSlowException)
-import           System.IO.Streams.Internal     (SP (..), withDefaultPushback)
-import qualified System.IO.Streams.Internal     as StreamsInt
+import qualified System.IO.Streams              as Streams
 import           System.Mem
 import           System.Timeout
 import           Test.Framework
@@ -370,15 +369,18 @@ mkDamagedRequest :: ByteString -> IO Request
 mkDamagedRequest body = do
     req <- Test.buildRequest $ Test.postRaw "/" ct ""
 
-    e <- StreamsInt.sourceToStream enum
+    e <- newIORef False >>= Streams.makeInputStream . enum
 
     return $! req { rqBody = e }
 
   where
     ct = S.append "multipart/form-data; boundary=" boundaryValue
-    enum = withDefaultPushback $
-           return $! SP (withDefaultPushback $ throw TestException)
-                        (Just $ S.take (S.length body - 1) body)
+    enum ref = do
+        x <- readIORef ref
+        if x
+           then throw TestException
+           else do writeIORef ref True
+                   return $! Just $! S.take (S.length body - 1) body
 
 
 ------------------------------------------------------------------------------
@@ -408,7 +410,7 @@ goWrongContentType m s = do
 goSlowEnumerator :: Snap a -> ByteString -> IO Response
 goSlowEnumerator m s = do
     rq <- mkRequest s
-    e  <- StreamsInt.sourceToStream slowInput
+    e  <- Streams.fromGenerator slowInput
     let rq' = rq { rqBody = e }
     mx <- timeout (20*seconds) (liftM snd (runIt m rq'))
     maybe (error "timeout") return mx
@@ -416,13 +418,13 @@ goSlowEnumerator m s = do
   where
     body = S.unpack s
 
-    slowInput = withDefaultPushback $ goo body
+    slowInput = f body
       where
-        goo []     = return $! SP StreamsInt.nullSource Nothing
-        goo (x:xs) = do
-            waitabit
-            return $! SP (withDefaultPushback $ goo xs)
-                         (Just $ S.singleton x)
+        f []     = return ()
+        f (x:xs) = do
+            liftIO waitabit
+            Streams.yield $ S.singleton x
+            f xs
 
 
 ------------------------------------------------------------------------------

@@ -710,14 +710,10 @@ findParam p = fmap snd . find ((== p) . fst)
 
 ------------------------------------------------------------------------------
 partStream :: InputStream MatchInfo -> IO (InputStream ByteString)
-partStream st = StreamsI.sourceToStream go
+partStream st = Streams.makeInputStream go
 
   where
-    go = StreamsI.withDefaultPushback $ do
-        x <- Streams.read st >>= maybe (return Nothing) f
-        return $! maybe (StreamsI.SP StreamsI.nullSource Nothing)
-                        (const $! StreamsI.SP go x)
-                        x
+    go = Streams.read st >>= maybe (return Nothing) f
 
     f (NoMatch s) = return $ Just s
     f _           = return Nothing

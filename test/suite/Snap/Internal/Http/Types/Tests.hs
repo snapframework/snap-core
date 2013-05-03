@@ -63,9 +63,9 @@ testAddHeader = testCase "addHeader" $ do
 
     let x = getHeader "foo" req
     assertEqual "addHeader x 2" (Just "baz,bar") x
-    assertEqual "listHeaders" [ ("Host", "localhost")
-                              , ("foo","baz,bar") ] $
-                listHeaders req
+    assertEqual "listHeaders" [ ("foo","baz,bar")
+                              , ("Host", "localhost") ] $
+                sort $ listHeaders req
 
     let hdrs = updateHeaders (H.set "zzz" "bbb") $ headers req
     assertEqual "listHeaders 2"
