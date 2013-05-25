@@ -102,7 +102,6 @@ import           System.IO.Streams            (InputStream, MatchInfo (..),
                                                search)
 import qualified System.IO.Streams            as Streams
 import           System.IO.Streams.Attoparsec
-import qualified System.IO.Streams.Internal   as StreamsI
 import           System.PosixCompat.Temp      (mkstemp)
 ------------------------------------------------------------------------------
 import           Snap.Core
