@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -28,26 +27,26 @@ module Snap.Util.FileServe
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
-import           Control.Exception (SomeException, evaluate)
+import           Control.Exception              (SomeException, evaluate)
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Char8 (ByteString)
-import           Data.ByteString.Internal (c2w)
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import           Data.ByteString.Internal       (c2w)
+import           Data.HashMap.Strict            (HashMap)
+import qualified Data.HashMap.Strict            as Map
 import           Data.Int
 import           Data.List
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as Map
-import           Data.Maybe (fromMaybe, isNothing)
+import           Data.Maybe                     (fromMaybe, isNothing)
 import           Data.Monoid
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import qualified Data.Text                      as T
+import qualified Data.Text.Encoding             as T
 #if MIN_VERSION_base(4,6,0)
-import           Prelude hiding (show, Show)
+import           Prelude                        hiding (Show, show)
 #else
-import           Prelude hiding (catch, show, Show)
+import           Prelude                        hiding (Show, catch, show)
 #endif
 import qualified Prelude
 import           System.Directory
@@ -57,7 +56,7 @@ import           System.PosixCompat.Files
 import           Snap.Core
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
-import           Snap.Iteratee hiding (drop)
+import           Snap.Iteratee                  hiding (drop)
 
 
 ------------------------------------------------------------------------------
@@ -96,124 +95,194 @@ type MimeMap = HashMap FilePath ByteString
 -- value:
 --
 -- > Map.fromList [
--- >   ( ".asc"     , "text/plain"                        ),
--- >   ( ".asf"     , "video/x-ms-asf"                    ),
--- >   ( ".asx"     , "video/x-ms-asf"                    ),
--- >   ( ".avi"     , "video/x-msvideo"                   ),
--- >   ( ".bz2"     , "application/x-bzip"                ),
--- >   ( ".c"       , "text/plain"                        ),
--- >   ( ".class"   , "application/octet-stream"          ),
--- >   ( ".conf"    , "text/plain"                        ),
--- >   ( ".cpp"     , "text/plain"                        ),
--- >   ( ".css"     , "text/css"                          ),
--- >   ( ".cxx"     , "text/plain"                        ),
--- >   ( ".dtd"     , "text/xml"                          ),
--- >   ( ".dvi"     , "application/x-dvi"                 ),
--- >   ( ".gif"     , "image/gif"                         ),
--- >   ( ".gz"      , "application/x-gzip"                ),
--- >   ( ".hs"      , "text/plain"                        ),
--- >   ( ".htm"     , "text/html"                         ),
--- >   ( ".html"    , "text/html"                         ),
--- >   ( ".ico"     , "image/x-icon"                      ),
--- >   ( ".jar"     , "application/x-java-archive"        ),
--- >   ( ".jpeg"    , "image/jpeg"                        ),
--- >   ( ".jpg"     , "image/jpeg"                        ),
--- >   ( ".js"      , "text/javascript"                   ),
--- >   ( ".json"    , "application/json"                  ),
--- >   ( ".log"     , "text/plain"                        ),
--- >   ( ".m3u"     , "audio/x-mpegurl"                   ),
--- >   ( ".mov"     , "video/quicktime"                   ),
--- >   ( ".mp3"     , "audio/mpeg"                        ),
--- >   ( ".mpeg"    , "video/mpeg"                        ),
--- >   ( ".mpg"     , "video/mpeg"                        ),
--- >   ( ".ogg"     , "application/ogg"                   ),
--- >   ( ".pac"     , "application/x-ns-proxy-autoconfig" ),
--- >   ( ".pdf"     , "application/pdf"                   ),
--- >   ( ".png"     , "image/png"                         ),
--- >   ( ".ps"      , "application/postscript"            ),
--- >   ( ".qt"      , "video/quicktime"                   ),
--- >   ( ".sig"     , "application/pgp-signature"         ),
--- >   ( ".spl"     , "application/futuresplash"          ),
--- >   ( ".svg"     , "image/svg+xml"                     ),
--- >   ( ".swf"     , "application/x-shockwave-flash"     ),
--- >   ( ".tar"     , "application/x-tar"                 ),
--- >   ( ".tar.bz2" , "application/x-bzip-compressed-tar" ),
--- >   ( ".tar.gz"  , "application/x-tgz"                 ),
--- >   ( ".tbz"     , "application/x-bzip-compressed-tar" ),
--- >   ( ".text"    , "text/plain"                        ),
--- >   ( ".tgz"     , "application/x-tgz"                 ),
--- >   ( ".torrent" , "application/x-bittorrent"          ),
--- >   ( ".txt"     , "text/plain"                        ),
--- >   ( ".wav"     , "audio/x-wav"                       ),
--- >   ( ".wax"     , "audio/x-ms-wax"                    ),
--- >   ( ".wma"     , "audio/x-ms-wma"                    ),
--- >   ( ".wmv"     , "video/x-ms-wmv"                    ),
--- >   ( ".xbm"     , "image/x-xbitmap"                   ),
--- >   ( ".xml"     , "text/xml"                          ),
--- >   ( ".xpm"     , "image/x-xpixmap"                   ),
--- >   ( ".xwd"     , "image/x-xwindowdump"               ),
--- >   ( ".zip"     , "application/zip"                   ) ]
---
+-- >   ( ".asc"     , "text/plain"                                             ),
+-- >   ( ".asf"     , "video/x-ms-asf"                                         ),
+-- >   ( ".asx"     , "video/x-ms-asf"                                         ),
+-- >   ( ".au"      , "audio/basic"                                            ),
+-- >   ( ".avi"     , "video/x-msvideo"                                        ),
+-- >   ( ".bmp"     , "image/bmp"                                              ),
+-- >   ( ".bz2"     , "application/x-bzip"                                     ),
+-- >   ( ".c"       , "text/plain"                                             ),
+-- >   ( ".class"   , "application/octet-stream"                               ),
+-- >   ( ".conf"    , "text/plain"                                             ),
+-- >   ( ".cpp"     , "text/plain"                                             ),
+-- >   ( ".css"     , "text/css"                                               ),
+-- >   ( ".cxx"     , "text/plain"                                             ),
+-- >   ( ".doc"     , "application/msword"                                     ),
+-- >   ( ".docx"    , S.append "application/vnd.openxmlformats-officedocument"
+-- >                           ".wordprocessingml.document"                    ),
+-- >   ( ".dotx"    , S.append "application/vnd.openxmlformats-officedocument"
+-- >                           ".wordprocessingml.template"                    ),
+-- >   ( ".dtd"     , "application/xml-dtd"                                    ),
+-- >   ( ".dvi"     , "application/x-dvi"                                      ),
+-- >   ( ".exe"     , "application/octet-stream"                               ),
+-- >   ( ".flv"     , "video/x-flv"                                            ),
+-- >   ( ".gif"     , "image/gif"                                              ),
+-- >   ( ".gz"      , "application/x-gzip"                                     ),
+-- >   ( ".hs"      , "text/plain"                                             ),
+-- >   ( ".htm"     , "text/html"                                              ),
+-- >   ( ".html"    , "text/html"                                              ),
+-- >   ( ".ico"     , "image/x-icon"                                           ),
+-- >   ( ".jar"     , "application/x-java-archive"                             ),
+-- >   ( ".jpeg"    , "image/jpeg"                                             ),
+-- >   ( ".jpg"     , "image/jpeg"                                             ),
+-- >   ( ".js"      , "text/javascript"                                        ),
+-- >   ( ".json"    , "application/json"                                       ),
+-- >   ( ".log"     , "text/plain"                                             ),
+-- >   ( ".m3u"     , "audio/x-mpegurl"                                        ),
+-- >   ( ".m3u8"    , "application/x-mpegURL"                                  ),
+-- >   ( ".mka"     , "audio/x-matroska"                                       ),
+-- >   ( ".mk3d"    , "video/x-matroska"                                       ),
+-- >   ( ".mkv"     , "video/x-matroska"                                       ),
+-- >   ( ".mov"     , "video/quicktime"                                        ),
+-- >   ( ".mp3"     , "audio/mpeg"                                             ),
+-- >   ( ".mp4"     , "video/mp4"                                              ),
+-- >   ( ".mpeg"    , "video/mpeg"                                             ),
+-- >   ( ".mpg"     , "video/mpeg"                                             ),
+-- >   ( ".ogg"     , "application/ogg"                                        ),
+-- >   ( ".pac"     , "application/x-ns-proxy-autoconfig"                      ),
+-- >   ( ".pdf"     , "application/pdf"                                        ),
+-- >   ( ".png"     , "image/png"                                              ),
+-- >   ( ".potx"    , S.append "application/vnd.openxmlformats-officedocument"
+-- >                           ".presentationml.template"                      ),
+-- >   ( ".ppsx"    , S.append "application/vnd.openxmlformats-officedocument"
+-- >                           ".presentationml.slideshow"                     ),
+-- >   ( ".ppt"     , "application/vnd.ms-powerpoint"                          ),
+-- >   ( ".pptx"    , S.append "application/vnd.openxmlformats-officedocument"
+-- >                           ".presentationml.presentation"                  ),
+-- >   ( ".ps"      , "application/postscript"                                 ),
+-- >   ( ".qt"      , "video/quicktime"                                        ),
+-- >   ( ".rtf"     , "text/rtf"                                               ),
+-- >   ( ".sig"     , "application/pgp-signature"                              ),
+-- >   ( ".sldx"    , S.append "application/vnd.openxmlformats-officedocument"
+-- >                           ".presentationml.slide"                         ),
+-- >   ( ".spl"     , "application/futuresplash"                               ),
+-- >   ( ".svg"     , "image/svg+xml"                                          ),
+-- >   ( ".swf"     , "application/x-shockwave-flash"                          ),
+-- >   ( ".tar"     , "application/x-tar"                                      ),
+-- >   ( ".tar.bz2" , "application/x-bzip-compressed-tar"                      ),
+-- >   ( ".tar.gz"  , "application/x-tgz"                                      ),
+-- >   ( ".tbz"     , "application/x-bzip-compressed-tar"                      ),
+-- >   ( ".text"    , "text/plain"                                             ),
+-- >   ( ".tif"     , "image/tiff"                                             ),
+-- >   ( ".tiff"    , "image/tiff"                                             ),
+-- >   ( ".tgz"     , "application/x-tgz"                                      ),
+-- >   ( ".torrent" , "application/x-bittorrent"                               ),
+-- >   ( ".ts"      , "video/mp2t"                                             ),
+-- >   ( ".txt"     , "text/plain"                                             ),
+-- >   ( ".wav"     , "audio/x-wav"                                            ),
+-- >   ( ".wax"     , "audio/x-ms-wax"                                         ),
+-- >   ( ".webm"    , "video/webm"                                             ),
+-- >   ( ".wma"     , "audio/x-ms-wma"                                         ),
+-- >   ( ".wmv"     , "video/x-ms-wmv"                                         ),
+-- >   ( ".xbm"     , "image/x-xbitmap"                                        ),
+-- >   ( ".xlam"    , "application/vnd.ms-excel.addin.macroEnabled.12"         ),
+-- >   ( ".xls"     , "application/vnd.ms-excel"                               ),
+-- >   ( ".xlsb"    , "application/vnd.ms-excel.sheet.binary.macroEnabled.12"  ),
+-- >   ( ".xlsx"    , S.append "application/vnd.openxmlformats-officedocument."
+-- >                           "spreadsheetml.sheet"                           ),
+-- >   ( ".xltx"    , S.append "application/vnd.openxmlformats-officedocument."
+-- >                           "spreadsheetml.template"                        ),
+-- >   ( ".xml"     , "text/xml"                                               ),
+-- >   ( ".xpm"     , "image/x-xpixmap"                                        ),
+-- >   ( ".xwd"     , "image/x-xwindowdump"                                    ),
+-- >   ( ".zip"     , "application/zip"                                        ) ]
+
 defaultMimeTypes :: MimeMap
-defaultMimeTypes = Map.fromList [
-  ( ".asc"     , "text/plain"                        ),
-  ( ".asf"     , "video/x-ms-asf"                    ),
-  ( ".asx"     , "video/x-ms-asf"                    ),
-  ( ".avi"     , "video/x-msvideo"                   ),
-  ( ".bz2"     , "application/x-bzip"                ),
-  ( ".c"       , "text/plain"                        ),
-  ( ".class"   , "application/octet-stream"          ),
-  ( ".conf"    , "text/plain"                        ),
-  ( ".cpp"     , "text/plain"                        ),
-  ( ".css"     , "text/css"                          ),
-  ( ".cxx"     , "text/plain"                        ),
-  ( ".dtd"     , "text/xml"                          ),
-  ( ".dvi"     , "application/x-dvi"                 ),
-  ( ".gif"     , "image/gif"                         ),
-  ( ".gz"      , "application/x-gzip"                ),
-  ( ".hs"      , "text/plain"                        ),
-  ( ".htm"     , "text/html"                         ),
-  ( ".html"    , "text/html"                         ),
-  ( ".ico"     , "image/x-icon"                      ),
-  ( ".jar"     , "application/x-java-archive"        ),
-  ( ".jpeg"    , "image/jpeg"                        ),
-  ( ".jpg"     , "image/jpeg"                        ),
-  ( ".js"      , "text/javascript"                   ),
-  ( ".json"    , "application/json"                  ),
-  ( ".log"     , "text/plain"                        ),
-  ( ".m3u"     , "audio/x-mpegurl"                   ),
-  ( ".mov"     , "video/quicktime"                   ),
-  ( ".mp3"     , "audio/mpeg"                        ),
-  ( ".mpeg"    , "video/mpeg"                        ),
-  ( ".mpg"     , "video/mpeg"                        ),
-  ( ".ogg"     , "application/ogg"                   ),
-  ( ".pac"     , "application/x-ns-proxy-autoconfig" ),
-  ( ".pdf"     , "application/pdf"                   ),
-  ( ".png"     , "image/png"                         ),
-  ( ".ps"      , "application/postscript"            ),
-  ( ".qt"      , "video/quicktime"                   ),
-  ( ".sig"     , "application/pgp-signature"         ),
-  ( ".spl"     , "application/futuresplash"          ),
-  ( ".svg"     , "image/svg+xml"                     ),
-  ( ".swf"     , "application/x-shockwave-flash"     ),
-  ( ".tar"     , "application/x-tar"                 ),
-  ( ".tar.bz2" , "application/x-bzip-compressed-tar" ),
-  ( ".tar.gz"  , "application/x-tgz"                 ),
-  ( ".tbz"     , "application/x-bzip-compressed-tar" ),
-  ( ".text"    , "text/plain"                        ),
-  ( ".tgz"     , "application/x-tgz"                 ),
-  ( ".torrent" , "application/x-bittorrent"          ),
-  ( ".ttf"     , "application/x-font-truetype"       ),
-  ( ".txt"     , "text/plain"                        ),
-  ( ".wav"     , "audio/x-wav"                       ),
-  ( ".wax"     , "audio/x-ms-wax"                    ),
-  ( ".wma"     , "audio/x-ms-wma"                    ),
-  ( ".wmv"     , "video/x-ms-wmv"                    ),
-  ( ".xbm"     , "image/x-xbitmap"                   ),
-  ( ".xml"     , "text/xml"                          ),
-  ( ".xpm"     , "image/x-xpixmap"                   ),
-  ( ".xwd"     , "image/x-xwindowdump"               ),
-  ( ".zip"     , "application/zip"                   ) ]
+defaultMimeTypes =
+  Map.fromList [
+    ( ".asc"     , "text/plain"                                             ),
+    ( ".asf"     , "video/x-ms-asf"                                         ),
+    ( ".asx"     , "video/x-ms-asf"                                         ),
+    ( ".au"      , "audio/basic"                                            ),
+    ( ".avi"     , "video/x-msvideo"                                        ),
+    ( ".bmp"     , "image/bmp"                                              ),
+    ( ".bz2"     , "application/x-bzip"                                     ),
+    ( ".c"       , "text/plain"                                             ),
+    ( ".class"   , "application/octet-stream"                               ),
+    ( ".conf"    , "text/plain"                                             ),
+    ( ".cpp"     , "text/plain"                                             ),
+    ( ".css"     , "text/css"                                               ),
+    ( ".cxx"     , "text/plain"                                             ),
+    ( ".doc"     , "application/msword"                                     ),
+    ( ".docx"    , S.append "application/vnd.openxmlformats-officedocument"
+                            ".wordprocessingml.document"                    ),
+    ( ".dotx"    , S.append "application/vnd.openxmlformats-officedocument"
+                            ".wordprocessingml.template"                    ),
+    ( ".dtd"     , "application/xml-dtd"                                    ),
+    ( ".dvi"     , "application/x-dvi"                                      ),
+    ( ".exe"     , "application/octet-stream"                               ),
+    ( ".flv"     , "video/x-flv"                                            ),
+    ( ".gif"     , "image/gif"                                              ),
+    ( ".gz"      , "application/x-gzip"                                     ),
+    ( ".hs"      , "text/plain"                                             ),
+    ( ".htm"     , "text/html"                                              ),
+    ( ".html"    , "text/html"                                              ),
+    ( ".ico"     , "image/x-icon"                                           ),
+    ( ".jar"     , "application/x-java-archive"                             ),
+    ( ".jpeg"    , "image/jpeg"                                             ),
+    ( ".jpg"     , "image/jpeg"                                             ),
+    ( ".js"      , "text/javascript"                                        ),
+    ( ".json"    , "application/json"                                       ),
+    ( ".log"     , "text/plain"                                             ),
+    ( ".m3u"     , "audio/x-mpegurl"                                        ),
+    ( ".m3u8"    , "application/x-mpegURL"                                  ),
+    ( ".mka"     , "audio/x-matroska"                                       ),
+    ( ".mk3d"    , "video/x-matroska"                                       ),
+    ( ".mkv"     , "video/x-matroska"                                       ),
+    ( ".mov"     , "video/quicktime"                                        ),
+    ( ".mp3"     , "audio/mpeg"                                             ),
+    ( ".mp4"     , "video/mp4"                                              ),
+    ( ".mpeg"    , "video/mpeg"                                             ),
+    ( ".mpg"     , "video/mpeg"                                             ),
+    ( ".ogg"     , "application/ogg"                                        ),
+    ( ".pac"     , "application/x-ns-proxy-autoconfig"                      ),
+    ( ".pdf"     , "application/pdf"                                        ),
+    ( ".png"     , "image/png"                                              ),
+    ( ".potx"    , S.append "application/vnd.openxmlformats-officedocument"
+                            ".presentationml.template"                      ),
+    ( ".ppsx"    , S.append "application/vnd.openxmlformats-officedocument"
+                            ".presentationml.slideshow"                     ),
+    ( ".ppt"     , "application/vnd.ms-powerpoint"                          ),
+    ( ".pptx"    , S.append "application/vnd.openxmlformats-officedocument"
+                            ".presentationml.presentation"                  ),
+    ( ".ps"      , "application/postscript"                                 ),
+    ( ".qt"      , "video/quicktime"                                        ),
+    ( ".rtf"     , "text/rtf"                                               ),
+    ( ".sig"     , "application/pgp-signature"                              ),
+    ( ".sldx"    , S.append "application/vnd.openxmlformats-officedocument"
+                            ".presentationml.slide"                         ),
+    ( ".spl"     , "application/futuresplash"                               ),
+    ( ".svg"     , "image/svg+xml"                                          ),
+    ( ".swf"     , "application/x-shockwave-flash"                          ),
+    ( ".tar"     , "application/x-tar"                                      ),
+    ( ".tar.bz2" , "application/x-bzip-compressed-tar"                      ),
+    ( ".tar.gz"  , "application/x-tgz"                                      ),
+    ( ".tbz"     , "application/x-bzip-compressed-tar"                      ),
+    ( ".text"    , "text/plain"                                             ),
+    ( ".tif"     , "image/tiff"                                             ),
+    ( ".tiff"    , "image/tiff"                                             ),
+    ( ".tgz"     , "application/x-tgz"                                      ),
+    ( ".torrent" , "application/x-bittorrent"                               ),
+    ( ".ts"      , "video/mp2t"                                             ),
+    ( ".txt"     , "text/plain"                                             ),
+    ( ".wav"     , "audio/x-wav"                                            ),
+    ( ".wax"     , "audio/x-ms-wax"                                         ),
+    ( ".webm"    , "video/webm"                                             ),
+    ( ".wma"     , "audio/x-ms-wma"                                         ),
+    ( ".wmv"     , "video/x-ms-wmv"                                         ),
+    ( ".xbm"     , "image/x-xbitmap"                                        ),
+    ( ".xlam"    , "application/vnd.ms-excel.addin.macroEnabled.12"         ),
+    ( ".xls"     , "application/vnd.ms-excel"                               ),
+    ( ".xlsb"    , "application/vnd.ms-excel.sheet.binary.macroEnabled.12"  ),
+    ( ".xlsx"    , S.append "application/vnd.openxmlformats-officedocument."
+                            "spreadsheetml.sheet"                           ),
+    ( ".xltx"    , S.append "application/vnd.openxmlformats-officedocument."
+                            "spreadsheetml.template"                        ),
+    ( ".xml"     , "text/xml"                                               ),
+    ( ".xpm"     , "image/x-xpixmap"                                        ),
+    ( ".xwd"     , "image/x-xwindowdump"                                    ),
+    ( ".zip"     , "application/zip"                                        ) ]
 
 
 ------------------------------------------------------------------------------
