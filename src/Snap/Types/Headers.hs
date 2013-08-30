@@ -32,7 +32,8 @@ module Snap.Types.Headers
   , delete
 
     -- * Traversal
-  , fold
+  , foldl'
+  , foldr
 
     -- * Lists
   , toList
@@ -46,9 +47,9 @@ import qualified Data.ByteString.Char8 as S
 import           Data.CaseInsensitive  (CI)
 import           Data.HashMap.Strict   (HashMap)
 import qualified Data.HashMap.Strict   as Map
-import           Data.List             (foldl')
+import qualified Data.List             as List
 import           Data.Maybe            (isJust)
-import           Prelude               hiding (lookup, null)
+import           Prelude               hiding (foldr, lookup, null)
 
 ------------------------------------------------------------------------------
 newtype Headers = H { unH :: HashMap (CI ByteString) ByteString }
@@ -101,11 +102,19 @@ delete k (H m) = H $ Map.delete k m
 
 
 ------------------------------------------------------------------------------
-fold :: (a -> CI ByteString -> ByteString -> a)
-     -> a
-     -> Headers
-     -> a
-fold f a (H m) = Map.foldlWithKey' f a m
+foldl' :: (a -> CI ByteString -> ByteString -> a)
+       -> a
+       -> Headers
+       -> a
+foldl' f a (H m) = Map.foldlWithKey' f a m
+
+
+------------------------------------------------------------------------------
+foldr :: (CI ByteString -> ByteString -> a -> a)
+      -> a
+      -> Headers
+      -> a
+foldr f a (H m) = Map.foldrWithKey f a m
 
 
 ------------------------------------------------------------------------------
@@ -115,7 +124,7 @@ toList = Map.toList . unH
 
 ------------------------------------------------------------------------------
 fromList :: [(CI ByteString, ByteString)] -> Headers
-fromList = foldl' f empty
+fromList = List.foldl' f empty
   where
     f m (k, v) = insert k v m
 
