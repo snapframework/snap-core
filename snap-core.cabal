@@ -163,7 +163,7 @@ Library
     ScopedTypeVariables,
     TypeSynonymInstances
 
-  ghc-prof-options: -prof -auto-all
+  ghc-prof-options: -prof -auto
 
   if impl(ghc >= 6.12.0)
     ghc-options: -Wall -fwarn-tabs -O2 -fno-warn-unused-do-bind
