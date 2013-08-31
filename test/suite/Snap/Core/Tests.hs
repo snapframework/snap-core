@@ -34,9 +34,9 @@ import qualified Data.IntMap                          as IM
 import           Data.IORef
 import qualified Data.Map                             as Map
 import           Data.Maybe                           (isJust)
-import           Data.Monoid (mappend)
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as T
+import           Data.Monoid                          (mappend)
+import           Data.Text                            (Text)
+import qualified Data.Text.Encoding                   as T
 import           Data.Text.Lazy                       ()
 import           Prelude                              hiding (catch)
 import           System.IO.Streams                    (InputStream)
@@ -709,8 +709,8 @@ testEvalSnap = testCase "core/evalSnap-exception" $ do
   where
     f = do
         logError "zzz"
-        v <- withResponse (return . rspHttpVersion)
-        liftIO $ assertEqual "evalSnap rsp version" (1,1) v
+        v <- withResponse (return . rspStatus)
+        liftIO $ assertEqual "evalSnap rsp status" 200 v
         finishWith emptyResponse
 
 
