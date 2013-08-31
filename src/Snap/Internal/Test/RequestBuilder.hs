@@ -627,7 +627,7 @@ runHandlerM rSnap rBuilder snap = do
     return $ H.setHeader "Date" t1
            $ H.setHeader "Server" "Snap/test"
            $ if rspContentLength rsp == Nothing &&
-                rspHttpVersion rsp < (1,1)
+                rqVersion rq < (1,1)
                then H.setHeader "Connection" "close" rsp
                else rsp
 

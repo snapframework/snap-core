@@ -448,7 +448,6 @@ rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
 data Response = Response
     { rspHeaders            :: Headers
     , rspCookies            :: Map ByteString Cookie
-    , rspHttpVersion        :: !HttpVersion
 
       -- | We will need to inspect the content length no matter what, and
       --   looking up \"content-length\" in the headers and parsing the number
@@ -475,13 +474,7 @@ instance Show Response where
                   , "\r\n"
                   ]
     where
-      (v1,v2) = rspHttpVersion r
-
-      statusline = concat [ "HTTP/"
-                          , show v1
-                          , "."
-                          , show v2
-                          , " "
+      statusline = concat [ "HTTP/1.1 "
                           , show $ rspStatus r
                           , " "
                           , toStr $ rspStatusReason r
@@ -558,7 +551,7 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 ------------------------------------------------------------------------------
 -- | An empty 'Response'.
 emptyResponse :: Response
-emptyResponse = Response H.empty Map.empty (1,1) Nothing
+emptyResponse = Response H.empty Map.empty Nothing
                          (Stream (return . id))
                          200 "OK" False
 

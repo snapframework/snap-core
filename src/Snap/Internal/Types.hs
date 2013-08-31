@@ -907,7 +907,7 @@ runSnap (Snap m) logerr timeoutAction req = do
                               ]
 
     --------------------------------------------------------------------------
-    dresp = emptyResponse { rspHttpVersion = rqVersion req }
+    dresp = emptyResponse
 
     --------------------------------------------------------------------------
     ss = SnapState req dresp logerr timeoutAction
@@ -924,6 +924,49 @@ runSnap (Snap m) logerr timeoutAction req = do
 --
 -- Note that we do NOT deal with transfer-encoding: chunked or "connection:
 -- close" here.
+fixupResponse :: Request -> Response -> IO Response
+fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
+    rsp' <- case rspBody rsp of
+              (Stream _)                -> return rsp
+              (SendFile f Nothing)      -> setFileSize f rsp
+              (SendFile _ (Just (s,e))) -> return $! setContentLength (e-s) rsp
+    let cl = rspContentLength rsp'
+    let rsp'' = if noBody
+                  then rsp' { rspBody = Stream $ return . id }
+                  else rsp'
+    return $! updateHeaders (H.fromList . addCL cl . fixup . H.toList) rsp''
+
+  where
+    --------------------------------------------------------------------------
+    addCL Nothing xs   = xs
+    addCL (Just cl) xs = if noBody
+                           then xs
+                           else ("Content-Length", S.pack $ show cl):xs
+
+    --------------------------------------------------------------------------
+    setFileSize :: FilePath -> Response -> IO Response
+    setFileSize fp r = {-# SCC "setFileSize" #-} do
+        fs <- liftM fromIntegral $ getFileSize fp
+        return $! r { rspContentLength = Just fs }
+
+    ------------------------------------------------------------------------------
+    getFileSize :: FilePath -> IO FileOffset
+    getFileSize fp = liftM fileSize $ getFileStatus fp
+
+    code   = rspStatus rsp
+    noBody = code == 204 || code == 304 || rqMethod req == HEAD
+
+    ------------------------------------------------------------------------------
+    fixup [] = []
+    fixup (("date",_):xs)           = fixup xs
+    fixup (("content-length",_):xs) = fixup xs
+    fixup (x@("transfer-encoding",_):xs) = if noBody
+                                             then fixup xs
+                                             else x : fixup xs
+    fixup (x:xs) = x : fixup xs
+
+
+{-
 fixupResponse :: Request -> Response -> IO Response
 fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
     let code = rspStatus rsp
@@ -968,7 +1011,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
                   updateHeaders (H.delete "Transfer-Encoding") $
                   clearContentLength r
 {-# INLINE fixupResponse #-}
-
+-}
 
 ------------------------------------------------------------------------------
 evalSnap :: Snap a
@@ -986,7 +1029,7 @@ evalSnap (Snap m) logerr timeoutAction req = do
       Zero (EscapeSnap e)       -> throwIO e
 
   where
-    dresp = emptyResponse { rspHttpVersion = rqVersion req }
+    dresp = emptyResponse
     ss = SnapState req dresp logerr timeoutAction
 {-# INLINE evalSnap #-}
 

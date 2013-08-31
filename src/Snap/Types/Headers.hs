@@ -45,25 +45,23 @@ module Snap.Types.Headers
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import           Data.CaseInsensitive  (CI)
-import           Data.HashMap.Strict   (HashMap)
-import qualified Data.HashMap.Strict   as Map
 import qualified Data.List             as List
-import           Data.Maybe            (isJust)
+import           Data.Maybe            (fromMaybe, isJust)
 import           Prelude               hiding (foldr, lookup, null)
 
 ------------------------------------------------------------------------------
-newtype Headers = H { unH :: HashMap (CI ByteString) ByteString }
+newtype Headers = H { unH :: [(CI ByteString, ByteString)] }
   deriving (Show)
 
 
 ------------------------------------------------------------------------------
 empty :: Headers
-empty = H (Map.empty)
+empty = H []
 
 
 ------------------------------------------------------------------------------
 null :: Headers -> Bool
-null = Map.null . unH
+null = List.null . unH
 {-# INLINE null #-}
 
 
@@ -71,34 +69,38 @@ null = Map.null . unH
 member :: CI ByteString -> Headers -> Bool
 member k = f . unH
   where
-    f m = isJust $ Map.lookup k m
+    f m = List.any ((k ==) . fst) m
 {-# INLINE member #-}
 
 
 ------------------------------------------------------------------------------
 lookup :: CI ByteString -> Headers -> Maybe ByteString
-lookup k (H m) = Map.lookup k m
+lookup k (H m) = List.lookup k m
 {-# INLINE lookup #-}
 
 
 ------------------------------------------------------------------------------
 lookupWithDefault :: ByteString -> CI ByteString -> Headers -> ByteString
-lookupWithDefault d k (H m) = Map.lookupDefault d k m
+lookupWithDefault d k m = fromMaybe d $ lookup k m
 
 
 ------------------------------------------------------------------------------
 insert :: CI ByteString -> ByteString -> Headers -> Headers
-insert k v (H m) = H $ Map.insertWith concatHeaderValues k v m
+insert k v (H m) = H $ (k, v):m
 
 
 ------------------------------------------------------------------------------
 set :: CI ByteString -> ByteString -> Headers -> Headers
-set k v (H m) = H $ Map.insert k v m
+set k v (H m) = H $ go m
+  where
+    go []                        = [(k,v)]
+    go (x@(k',_):xs) | k == k'   = (k,v) : List.filter ((k /=) . fst) xs
+                     | otherwise = x : go xs
 
 
 ------------------------------------------------------------------------------
 delete :: CI ByteString -> Headers -> Headers
-delete k (H m) = H $ Map.delete k m
+delete k (H m) = H $ List.filter ((k /=) . fst) m
 
 
 ------------------------------------------------------------------------------
@@ -106,7 +108,9 @@ foldl' :: (a -> CI ByteString -> ByteString -> a)
        -> a
        -> Headers
        -> a
-foldl' f a (H m) = Map.foldlWithKey' f a m
+foldl' f a (H m) = List.foldl' f' a m
+  where
+    f' v (x,y) = f v x y
 
 
 ------------------------------------------------------------------------------
@@ -114,19 +118,17 @@ foldr :: (CI ByteString -> ByteString -> a -> a)
       -> a
       -> Headers
       -> a
-foldr f a (H m) = Map.foldrWithKey f a m
+foldr f a (H m) = List.foldr (uncurry f) a m
 
 
 ------------------------------------------------------------------------------
 toList :: Headers -> [(CI ByteString, ByteString)]
-toList = Map.toList . unH
+toList = unH
 
 
 ------------------------------------------------------------------------------
 fromList :: [(CI ByteString, ByteString)] -> Headers
-fromList = List.foldl' f empty
-  where
-    f m (k, v) = insert k v m
+fromList = H
 
 
 ------------------------------------------------------------------------------
