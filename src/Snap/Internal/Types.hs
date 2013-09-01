@@ -180,7 +180,10 @@ data Zero = PassOnProcessing
 
 ------------------------------------------------------------------------------
 newtype Snap a = Snap {
-      unSnap :: StateT SnapState IO (SnapResult a)
+      unSnap :: forall r . (a -> SnapState -> IO r)
+             -> (Zero -> SnapState -> IO r)
+             -> SnapState
+             -> IO r
     }
 
 
@@ -202,33 +205,28 @@ instance Monad Snap where
 
 ------------------------------------------------------------------------------
 snapBind :: Snap a -> (a -> Snap b) -> Snap b
-snapBind (Snap m) f = Snap $ do
-    res <- m
-
-    case res of
-      SnapValue a        -> unSnap $! f a
-      z@(Zero _)         -> return $! unsafeCoerce z
+snapBind m f = Snap $ \sk fk st -> unSnap m (\a st' -> unSnap (f a) sk fk st') fk st
 {-# INLINE snapBind #-}
 
 
 snapReturn :: a -> Snap a
-snapReturn = Snap . return . SnapValue
+snapReturn = pure
 {-# INLINE snapReturn #-}
 
 
 snapFail :: String -> Snap a
-snapFail !_ = Snap $! return $! Zero PassOnProcessing
+snapFail !_ = Snap $ \_ fk st -> fk PassOnProcessing st
 {-# INLINE snapFail #-}
 
 
 ------------------------------------------------------------------------------
 instance MonadIO Snap where
-    liftIO m = Snap $! liftM SnapValue $! liftIO m
+    liftIO m = Snap $ \sk _ st -> do x <- m; sk x st
 
 
 ------------------------------------------------------------------------------
 instance (MonadBase IO) Snap where
-    liftBase = Snap . liftM SnapValue . liftBase
+    liftBase = liftIO
 
 
 ------------------------------------------------------------------------------
@@ -237,38 +235,48 @@ instance (MonadBaseControl IO) Snap where
           unStSnap :: StM (StateT SnapState IO) (SnapResult a)
         }
 
-    liftBaseWith f = Snap $ liftM SnapValue $
+    liftBaseWith f = stateTToSnap $ liftM SnapValue $
                      liftBaseWith $ \g' -> f $ \m ->
-                     liftM StSnap $ g' $ unSnap m
+                     liftM StSnap $ g' $ snapToStateT m
     {-# INLINE liftBaseWith #-}
 
-    restoreM = Snap . restoreM . unStSnap
+    restoreM = stateTToSnap . restoreM . unStSnap
     {-# INLINE restoreM #-}
 
+{-# INLINE snapToStateT #-}
+snapToStateT :: Snap a -> StateT SnapState IO (SnapResult a)
+snapToStateT m = StateT $ \st -> do
+    unSnap m (\a st' -> return (SnapValue a, st'))
+             (\z st' -> return (Zero z, st')) st
+
+{-# INLINE stateTToSnap #-}
+stateTToSnap :: StateT SnapState IO (SnapResult a) -> Snap a
+stateTToSnap m = Snap $ \sk fk st -> do
+    (a, st') <- runStateT m st
+    case a of
+      SnapValue x -> sk x st'
+      Zero z      -> fk z st'
 
 ------------------------------------------------------------------------------
 instance MonadPlus Snap where
-    mzero = Snap $! return $! Zero $! PassOnProcessing
+    mzero = Snap $ \_ fk st -> fk PassOnProcessing st
 
     a `mplus` b =
-        Snap $! do
-            r <- unSnap a
-            -- redundant just in case ordering by frequency helps here.
-            case r of
-              SnapValue _           -> return r
-              Zero PassOnProcessing -> unSnap b
-              _                     -> return r
+        Snap $ \sk fk st ->
+            let fk' z st' = case z of
+                              PassOnProcessing -> unSnap b sk fk st'
+                              _                -> fk z st'
+            in unSnap a sk fk' st
 
 
 ------------------------------------------------------------------------------
 instance Functor Snap where
-    fmap = liftM
-
+    fmap f m = Snap $ \sk fk st -> unSnap m (sk . f) fk st
 
 ------------------------------------------------------------------------------
 instance Applicative Snap where
-    pure  = return
-    (<*>) = ap
+    pure x  = Snap $ \sk _ st -> sk x st
+    (<*>)   = ap
 
 
 ------------------------------------------------------------------------------
@@ -378,7 +386,7 @@ transformRequestBody trans = do
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
 finishWith :: MonadSnap m => Response -> m a
-finishWith = liftSnap . Snap . return . Zero . EarlyTermination
+finishWith r = liftSnap $ Snap $ \_ fk st -> fk (EarlyTermination r) st
 {-# INLINE finishWith #-}
 
 
@@ -390,12 +398,12 @@ finishWith = liftSnap . Snap . return . Zero . EarlyTermination
 -- 'catchFinishWith' it is suggested that you do not modify the body of the
 -- 'Response' which was passed to the 'finishWith' call.
 catchFinishWith :: Snap a -> Snap (Either Response a)
-catchFinishWith (Snap m) = Snap $ do
-    r <- m
-    case r of
-      SnapValue a                    -> return $! SnapValue $! Right a
-      (Zero (EarlyTermination resp)) -> return $! SnapValue $! Left resp
-      (Zero _)                       -> return $ unsafeCoerce r
+catchFinishWith (Snap m) = Snap $ \sk fk st -> do
+    let sk' v s = sk (Right v) s
+    let fk' z s = case z of
+                    (EarlyTermination resp) -> sk (Left resp) s
+                    _                       -> fk z s
+    m sk' fk' st
 {-# INLINE catchFinishWith #-}
 
 
@@ -516,14 +524,14 @@ ifTop = path ""
 ------------------------------------------------------------------------------
 -- | Local Snap version of 'get'.
 sget :: Snap SnapState
-sget = Snap $ liftM SnapValue get
+sget = Snap $ \sk _ st -> sk st st
 {-# INLINE sget #-}
 
 
 ------------------------------------------------------------------------------
 -- | Local Snap monad version of 'modify'.
 smodify :: (SnapState -> SnapState) -> Snap ()
-smodify f = Snap $ modify f >> return (SnapValue ())
+smodify f = Snap $ \sk _ st -> sk () (f st)
 {-# INLINE smodify #-}
 
 
@@ -619,8 +627,9 @@ redirect' target status = do
 ------------------------------------------------------------------------------
 -- | Log an error message in the 'Snap' monad
 logError :: MonadSnap m => ByteString -> m ()
-logError s = liftSnap $ Snap $ gets _snapLogError >>= (\l -> liftIO $ l s)
-                                       >>  return (SnapValue $! ())
+logError s = liftSnap $ Snap $ \sk _ st -> do
+    _snapLogError st s
+    sk () st
 {-# INLINE logError #-}
 
 
@@ -815,10 +824,11 @@ ipHeaderFilter' header = do
 --
 -- 3. An exception being thrown.
 bracketSnap :: IO a -> (a -> IO b) -> (a -> Snap c) -> Snap c
-bracketSnap before after thing = mask $ \restore -> Snap $ do
+bracketSnap before after thing = mask $ \restore ->
+                                 stateTToSnap $ do
     a <- liftIO before
     let after' = liftIO $ after a
-    r <- unSnap (restore $ thing a) `onException` after'
+    r <- snapToStateT (restore $ thing a) `onException` after'
     _ <- after'
     return r
 
@@ -841,9 +851,9 @@ instance Exception NoHandlerException
 ------------------------------------------------------------------------------
 -- | Terminate the HTTP session with the given exception.
 terminateConnection :: (Exception e, MonadSnap m) => e -> m a
-terminateConnection =
-    liftSnap . Snap . return . Zero . EscapeSnap . TerminateConnection
-             . SomeException
+terminateConnection e =
+    liftSnap $ Snap $ \_ fk -> fk $ EscapeSnap $ TerminateConnection
+                                  $ SomeException e
 
 
 ------------------------------------------------------------------------------
@@ -855,7 +865,7 @@ terminateConnection =
 escapeHttp :: MonadSnap m =>
               EscapeHttpHandler
            -> m ()
-escapeHttp = liftSnap . Snap . return . Zero . EscapeSnap . EscapeHttp
+escapeHttp h = liftSnap $ Snap $ \_ fk st -> fk (EscapeSnap $ EscapeHttp h) st
 
 
 ------------------------------------------------------------------------------
@@ -865,22 +875,22 @@ runSnap :: Snap a
         -> ((Int -> Int) -> IO ())
         -> Request
         -> IO (Request, Response)
-runSnap (Snap m) logerr timeoutAction req = do
-    (r, ss') <- runStateT m ss
-
-    resp <- case r of
-              SnapValue _               -> return $ _snapResponse ss'
-              Zero PassOnProcessing     -> return $ fourohfour
-              Zero (EarlyTermination x) -> return $ x
-              Zero (EscapeSnap e)       -> throwIO e
-
-    let req' = _snapRequest ss'
-
-    resp' <- liftIO $ fixupResponse req' resp
-
-    return (req', resp')
-
+runSnap (Snap m) logerr timeoutAction req =
+    m ok diediedie ss
   where
+    ok _ st = do
+        let req' = _snapRequest st
+        let resp = _snapResponse st
+        resp' <- liftIO $ fixupResponse req' resp
+        return (req', resp')
+
+    diediedie z st = do
+        rsp <- case z of
+                 PassOnProcessing     -> return $ fourohfour
+                 (EarlyTermination x) -> return $ x
+                 (EscapeSnap e)       -> throwIO e
+        return (_snapRequest st, rsp)
+
     --------------------------------------------------------------------------
     fourohfour = do
         clearContentLength                  $
@@ -973,16 +983,14 @@ evalSnap :: Snap a
          -> ((Int -> Int) -> IO ())
          -> Request
          -> IO a
-evalSnap (Snap m) logerr timeoutAction req = do
-    (r, _) <- runStateT m ss
-
-    case r of
-      SnapValue x               -> return x
-      Zero PassOnProcessing     -> throwIO $ NoHandlerException "pass"
-      Zero (EarlyTermination _) -> throwIO $ ErrorCall "no value"
-      Zero (EscapeSnap e)       -> throwIO e
-
+evalSnap (Snap m) logerr timeoutAction req =
+    m (\v _ -> return v) diediedie ss
   where
+    diediedie z _ = case z of
+      PassOnProcessing     -> throwIO $ NoHandlerException "pass"
+      (EarlyTermination _) -> throwIO $ ErrorCall "no value"
+      (EscapeSnap e)       -> throwIO e
+
     dresp = emptyResponse
     ss = SnapState req dresp logerr timeoutAction
 {-# INLINE evalSnap #-}
