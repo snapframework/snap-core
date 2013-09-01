@@ -245,7 +245,7 @@ testToString = testCase "test/requestBuilder/testToString" $ do
     rq     = get "/" Map.empty
     h      = return ()
     headRE = "HTTP/1.1 200 OK" :: ByteString
-    dateRE = S.concat [ "Date: [a-zA-Z]+, [0-9]+ [a-zA-Z]+ "
+    dateRE = S.concat [ "date: [a-zA-Z]+, [0-9]+ [a-zA-Z]+ "
                       , "[0-9]+ [0-9]+:[0-9]+:[0-9]+ GMT"
                       ]
 

@@ -26,6 +26,7 @@ module Snap.Types.Headers
 
     -- * Adding/setting headers
   , insert
+  , unsafeInsert
   , set
 
     -- * Deleting
@@ -34,23 +35,30 @@ module Snap.Types.Headers
     -- * Traversal
   , foldl'
   , foldr
+  , foldedFoldl'
+  , foldedFoldr
 
     -- * Lists
   , toList
   , fromList
 
+  , unsafeFromCaseFoldedList
+  , unsafeToCaseFoldedList
+
   ) where
 
 ------------------------------------------------------------------------------
+import           Control.Arrow         (first)
 import           Data.ByteString.Char8 (ByteString)
 import qualified Data.ByteString.Char8 as S
 import           Data.CaseInsensitive  (CI)
+import qualified Data.CaseInsensitive  as CI
 import qualified Data.List             as List
-import           Data.Maybe            (fromMaybe, isJust)
+import           Data.Maybe            (fromMaybe)
 import           Prelude               hiding (foldr, lookup, null)
 
 ------------------------------------------------------------------------------
-newtype Headers = H { unH :: [(CI ByteString, ByteString)] }
+newtype Headers = H { unH :: [(ByteString, ByteString)] }
   deriving (Show)
 
 
@@ -67,15 +75,16 @@ null = List.null . unH
 
 ------------------------------------------------------------------------------
 member :: CI ByteString -> Headers -> Bool
-member k = f . unH
+member k0 = f . unH
   where
+    k   = CI.foldedCase k0
     f m = List.any ((k ==) . fst) m
 {-# INLINE member #-}
 
 
 ------------------------------------------------------------------------------
 lookup :: CI ByteString -> Headers -> Maybe ByteString
-lookup k (H m) = List.lookup k m
+lookup k (H m) = List.lookup (CI.foldedCase k) m
 {-# INLINE lookup #-}
 
 
@@ -85,22 +94,43 @@ lookupWithDefault d k m = fromMaybe d $ lookup k m
 
 
 ------------------------------------------------------------------------------
+-- | Insert a key-value into the headers map. If the key already exists in the
+-- map, the values are catenated with ", ".
 insert :: CI ByteString -> ByteString -> Headers -> Headers
-insert k v (H m) = H $ (k, v):m
+insert k0 v (H m) = H $! go id m
+  where
+    k = CI.foldedCase k0
+
+    go dl []                       = dl [(k, v)]
+    go dl (z@(x,y):xs) | k == x    = dl ((k, concatHeaderValues v y):xs)
+                       | otherwise = go (dl . (z:)) xs
+
+
+------------------------------------------------------------------------------
+-- | Insert a key-value into the headers map, without checking whether the
+-- header already exists. The key /must/ be already case-folded, or none of the
+-- lookups will work!
+unsafeInsert :: ByteString -> ByteString -> Headers -> Headers
+unsafeInsert k v (H hdrs) = H ((k,v):hdrs)
 
 
 ------------------------------------------------------------------------------
 set :: CI ByteString -> ByteString -> Headers -> Headers
-set k v (H m) = H $ go m
+set k0 v (H m) = H $ go m
   where
+    k = CI.foldedCase k0
+
     go []                        = [(k,v)]
     go (x@(k',_):xs) | k == k'   = (k,v) : List.filter ((k /=) . fst) xs
                      | otherwise = x : go xs
+    -- FIXME: use unsafe case-insensitive function when it becomes available.
 
 
 ------------------------------------------------------------------------------
 delete :: CI ByteString -> Headers -> Headers
-delete k (H m) = H $ List.filter ((k /=) . fst) m
+delete k (H m) = H $ List.filter ((k' /=) . fst) m
+  where
+    k' = CI.foldedCase k
 
 
 ------------------------------------------------------------------------------
@@ -110,6 +140,17 @@ foldl' :: (a -> CI ByteString -> ByteString -> a)
        -> a
 foldl' f a (H m) = List.foldl' f' a m
   where
+    f' v (x,y) = f v (CI.mk x) y
+    -- FIXME: use unsafe case-insensitive function when it becomes available.
+
+
+------------------------------------------------------------------------------
+foldedFoldl' :: (a -> ByteString -> ByteString -> a)
+             -> a
+             -> Headers
+             -> a
+foldedFoldl' f a (H m) = List.foldl' f' a m
+  where
     f' v (x,y) = f v x y
 
 
@@ -118,17 +159,39 @@ foldr :: (CI ByteString -> ByteString -> a -> a)
       -> a
       -> Headers
       -> a
-foldr f a (H m) = List.foldr (uncurry f) a m
+foldr f a (H m) = List.foldr f' a m
+  where
+    f' (x, y) v = f (CI.mk x) y v
+    -- FIXME: use unsafe case-insensitive function when it becomes available.
+
+
+------------------------------------------------------------------------------
+foldedFoldr :: (ByteString -> ByteString -> a -> a)
+            -> a
+            -> Headers
+            -> a
+foldedFoldr f a (H m) = List.foldr (uncurry f) a m
 
 
 ------------------------------------------------------------------------------
 toList :: Headers -> [(CI ByteString, ByteString)]
-toList = unH
+toList = map (first CI.mk) . unH
+  -- FIXME: use unsafe case-insensitive function when it becomes available.
 
 
 ------------------------------------------------------------------------------
 fromList :: [(CI ByteString, ByteString)] -> Headers
-fromList = H
+fromList = H . map (first CI.foldedCase)
+
+
+------------------------------------------------------------------------------
+unsafeFromCaseFoldedList :: [(ByteString, ByteString)] -> Headers
+unsafeFromCaseFoldedList = H
+
+
+------------------------------------------------------------------------------
+unsafeToCaseFoldedList :: Headers -> [(ByteString, ByteString)]
+unsafeToCaseFoldedList = unH
 
 
 ------------------------------------------------------------------------------

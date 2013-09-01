@@ -924,6 +924,8 @@ runSnap (Snap m) logerr timeoutAction req = do
 --
 -- Note that we do NOT deal with transfer-encoding: chunked or "connection:
 -- close" here.
+--
+{-# INLINE fixupResponse #-}
 fixupResponse :: Request -> Response -> IO Response
 fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
     rsp' <- case rspBody rsp of
@@ -941,7 +943,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
     addCL Nothing xs   = xs
     addCL (Just cl) xs = if noBody
                            then xs
-                           else ("Content-Length", S.pack $ show cl):xs
+                           else ("content-length", S.pack $ show cl):xs
 
     --------------------------------------------------------------------------
     setFileSize :: FilePath -> Response -> IO Response
@@ -964,54 +966,6 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
                                              then fixup xs
                                              else x : fixup xs
     fixup (x:xs) = x : fixup xs
-
-
-{-
-fixupResponse :: Request -> Response -> IO Response
-fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
-    let code = rspStatus rsp
-    let rsp' = if code == 204 || code == 304
-                 then handle304 rsp
-                 else rsp
-
-    rsp'' <- do
-        z <- case rspBody rsp' of
-               (Stream _)                -> return rsp'
-               (SendFile f Nothing)      -> setFileSize f rsp'
-               (SendFile _ (Just (s,e))) -> return $!
-                                            setContentLength (e-s) rsp'
-
-        return $!
-          case rspContentLength z of
-            Nothing   -> deleteHeader "Content-Length" z
-            (Just sz) -> setHeader "Content-Length"
-                                   (toByteString $ fromShow sz)
-                                   z
-
-    -- HEAD requests cannot have bodies per RFC 2616 sec. 9.4
-    if rqMethod req == HEAD
-      then return $! deleteHeader "Transfer-Encoding" $
-           rsp'' { rspBody = Stream $ return . id }
-      else return $! rsp''
-
-  where
-    --------------------------------------------------------------------------
-    setFileSize :: FilePath -> Response -> IO Response
-    setFileSize fp r = {-# SCC "setFileSize" #-} do
-        fs <- liftM fromIntegral $ getFileSize fp
-        return $! r { rspContentLength = Just fs }
-
-    ------------------------------------------------------------------------------
-    getFileSize :: FilePath -> IO FileOffset
-    getFileSize fp = liftM fileSize $ getFileStatus fp
-
-    --------------------------------------------------------------------------
-    handle304 :: Response -> Response
-    handle304 r = setResponseBody (return . id) $
-                  updateHeaders (H.delete "Transfer-Encoding") $
-                  clearContentLength r
-{-# INLINE fixupResponse #-}
--}
 
 ------------------------------------------------------------------------------
 evalSnap :: Snap a
