@@ -12,51 +12,119 @@
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 
-module Snap.Internal.Types where
+module Snap.Internal.Types
+  ( MonadSnap(..)
+  , SnapResult(..)
+  , EscapeHttpHandler
+  , EscapeSnap(..)
+  , Zero(..)
+  , Snap(..)
+  , SnapState(..)
+  , runRequestBody
+  , readRequestBody
+  , transformRequestBody
+  , finishWith
+  , catchFinishWith
+  , pass
+  , method
+  , methods
+  , updateContextPath
+  , pathWith
+  , dir
+  , path
+  , pathArg
+  , ifTop
+  , sget
+  , smodify
+  , getRequest
+  , getResponse
+  , getsRequest
+  , getsResponse
+  , putRequest
+  , putResponse
+  , modifyRequest
+  , modifyResponse
+  , redirect
+  , redirect'
+  , logError
+  , addToOutput
+  , writeBuilder
+  , writeBS
+  , writeLBS
+  , writeText
+  , writeLazyText
+  , sendFile
+  , sendFilePartial
+  , localRequest
+  , withRequest
+  , withResponse
+  , ipHeaderFilter
+  , ipHeaderFilter'
+  , bracketSnap
+  , NoHandlerException(..)
+  , terminateConnection
+  , escapeHttp
+  , runSnap
+  , fixupResponse
+  , evalSnap
+  , getParamFrom
+  , getParam
+  , getPostParam
+  , getQueryParam
+  , getParams
+  , getPostParams
+  , getQueryParams
+  , getCookie
+  , readCookie
+  , expireCookie
+  , setTimeout
+  , extendTimeout
+  , modifyTimeout
+  , getTimeoutModifier
+  , module Snap.Internal.Http.Types
+  ) where
 
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char.Utf8
 import           Control.Applicative
-import           Control.Exception.Lifted (catch,
-                                           catches,
-                                           mask,
-                                           onException,
-                                           throwIO,
-                                           Handler(..),
-                                           Exception,
-                                           SomeException(..),
-                                           ErrorCall(..))
+import           Control.Exception.Lifted           (ErrorCall (..), Exception,
+                                                     Handler (..),
+                                                     SomeException (..), catch,
+                                                     catches, mask, onException,
+                                                     throwIO)
 import           Control.Monad
 import           Control.Monad.Base
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Control
 import           Control.Monad.Trans.State
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
-import           Data.CaseInsensitive (CI)
-import           Data.Int
+import           Data.ByteString.Char8              (ByteString)
+import qualified Data.ByteString.Char8              as S
+import qualified Data.ByteString.Internal           as S
+import qualified Data.ByteString.Lazy.Char8         as L
+import           Data.CaseInsensitive               (CI)
 import           Data.Maybe
+import qualified Data.Text                          as T
+import qualified Data.Text.Lazy                     as LT
 import           Data.Time
-import qualified Data.Text as T
-import qualified Data.Text.Lazy as LT
 import           Data.Typeable
+import           Data.Word                          (Word8, Word64)
+import           Foreign.Ptr                        (Ptr, plusPtr)
+import           Foreign.Storable                   (poke)
 #if MIN_VERSION_base(4,6,0)
-import           Prelude hiding (take)
+import           Prelude                            hiding (take)
 #else
-import           Prelude hiding (catch, take)
+import           Prelude                            hiding (catch, take)
 #endif
-import           System.IO.Streams (InputStream, OutputStream)
-import qualified System.IO.Streams as Streams
-import           System.PosixCompat.Files hiding (setFileSize)
-import           System.Posix.Types (FileOffset)
-import           Unsafe.Coerce
+import           System.IO.Streams                  (InputStream, OutputStream)
+import qualified System.IO.Streams                  as Streams
+import           System.Posix.Types                 (FileOffset)
+import           System.PosixCompat.Files           hiding (setFileSize)
 ------------------------------------------------------------------------------
+import qualified Data.Readable                      as R
 import           Snap.Internal.Http.Types
-import           Snap.Internal.Parsing (urlDecode)
-import qualified Snap.Types.Headers as H
-import qualified Data.Readable as R
+import           Snap.Internal.Parsing              (urlDecode)
+import qualified Snap.Types.Headers                 as H
 ------------------------------------------------------------------------------
 
 
@@ -221,7 +289,8 @@ snapFail !_ = Snap $ \_ fk st -> fk PassOnProcessing st
 
 ------------------------------------------------------------------------------
 instance MonadIO Snap where
-    liftIO m = Snap $ \sk _ st -> do x <- m; sk x st
+    liftIO m = Snap $ \sk _ st -> do x <- m
+                                     sk x st
 
 
 ------------------------------------------------------------------------------
@@ -242,6 +311,7 @@ instance (MonadBaseControl IO) Snap where
 
     restoreM = stateTToSnap . restoreM . unStSnap
     {-# INLINE restoreM #-}
+
 
 {-# INLINE snapToStateT #-}
 snapToStateT :: Snap a -> StateT SnapState IO (SnapResult a)
@@ -344,14 +414,15 @@ runRequestBody proc = do
 ------------------------------------------------------------------------------
 -- | Returns the request body as a lazy bytestring. /New in 0.6./
 readRequestBody :: MonadSnap m =>
-                   Int64  -- ^ size of the largest request body we're willing
-                          -- to accept. If a request body longer than this is
-                          -- received, a 'TooManyBytesReadException' is
-                          -- thrown. See 'takeNoMoreThan'.
+                   Word64  -- ^ size of the largest request body we're willing
+                           -- to accept. If a request body longer than this is
+                           -- received, a 'TooManyBytesReadException' is
+                           -- thrown. See 'takeNoMoreThan'.
                 -> m L.ByteString
 readRequestBody sz = liftM L.fromChunks $ runRequestBody f
   where
-    f str = Streams.throwIfProducesMoreThan sz str >>= Streams.toList
+    f str = Streams.throwIfProducesMoreThan (fromIntegral sz) str >>=
+            Streams.toList
 
 
 ------------------------------------------------------------------------------
@@ -723,7 +794,7 @@ sendFile f = modifyResponse $ \r -> r { rspBody = SendFile f Nothing }
 --
 -- If the response body is modified (using 'modifyResponseBody'), the file
 -- will be read using @mmap()@.
-sendFilePartial :: (MonadSnap m) => FilePath -> (Int64,Int64) -> m ()
+sendFilePartial :: (MonadSnap m) => FilePath -> (Word64, Word64) -> m ()
 sendFilePartial f rng = modifyResponse $ \r ->
                         r { rspBody = SendFile f (Just rng) }
 
@@ -942,7 +1013,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
               (Stream _)                -> return rsp
               (SendFile f Nothing)      -> setFileSize f rsp
               (SendFile _ (Just (s,e))) -> return $! setContentLength (e-s) rsp
-    let cl = rspContentLength rsp'
+    let !cl = rspContentLength rsp'
     let rsp'' = if noBody
                   then rsp' { rspBody = Stream $ return . id }
                   else rsp'
@@ -953,7 +1024,7 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
     addCL Nothing xs   = xs
     addCL (Just cl) xs = if noBody
                            then xs
-                           else ("content-length", S.pack $ show cl):xs
+                           else ("content-length", word64ToByteString cl):xs
 
     --------------------------------------------------------------------------
     setFileSize :: FilePath -> Response -> IO Response
@@ -976,6 +1047,49 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
                                              then fixup xs
                                              else x : fixup xs
     fixup (x:xs) = x : fixup xs
+
+
+------------------------------------------------------------------------------
+-- This number code stolen and massaged from Bryan's blog post:
+-- http://www.serpentine.com/blog/2013/03/20/whats-good-for-c-is-good-for-haskell/
+
+{-# INLINE countDigits #-}
+countDigits :: Word64 -> Int
+countDigits v0 = go 1 v0
+  where go !k v
+           | v < 10    = k
+           | v < 100   = k + 1
+           | v < 1000  = k + 2
+           | v < 10000 = k + 3
+           | otherwise = go (k+4) (v `quot` 10000)
+
+
+------------------------------------------------------------------------------
+{-# INLINE word64ToByteString #-}
+word64ToByteString :: Word64 -> ByteString
+word64ToByteString d =
+    S.inlinePerformIO $
+    if d < 10
+       then S.create 1 $ \p -> poke p (i2w d)
+       else let !n = countDigits d
+            in S.create n $ posDecimal n d
+
+
+{-# INLINE posDecimal #-}
+posDecimal :: Int -> Word64 -> Ptr Word8 -> IO ()
+posDecimal !n0 !v0 !op0 = go n0 (plusPtr op0 (n0-1)) v0
+  where go !n !op !v
+          | n == 1 = poke op $! i2w v
+          | otherwise = do
+              let (!v', !d) = divMod v 10
+              poke op $! i2w d
+              go (n-1) (plusPtr op (-1)) v'
+
+
+{-# INLINE i2w #-}
+i2w :: Word64 -> Word8
+i2w v = 48 + fromIntegral v
+
 
 ------------------------------------------------------------------------------
 evalSnap :: Snap a

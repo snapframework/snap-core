@@ -26,13 +26,13 @@ import qualified Data.ByteString.Char8    as B
 import           Data.ByteString.Internal (w2c)
 import           Data.CaseInsensitive     (CI)
 import qualified Data.CaseInsensitive     as CI
-import           Data.Int
 import qualified Data.IntMap              as IM
 import           Data.List                hiding (take)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Maybe
 import           Data.Time.Clock
+import           Data.Word                (Word64)
 import           Foreign.C.Types
 import           Prelude                  hiding (take)
 import           System.IO
@@ -262,7 +262,7 @@ data Request = Request
     , rqBody          :: InputStream ByteString
 
       -- | Returns the @Content-Length@ of the HTTP request body.
-    , rqContentLength :: !(Maybe Int64)
+    , rqContentLength :: !(Maybe Word64)
 
       -- | Returns the HTTP request method.
     , rqMethod        :: !Method
@@ -413,7 +413,7 @@ data ResponseBody = Stream (StreamProc)
                       -- ^ output body is a function that writes to a 'Builder'
                       -- stream
 
-                  | SendFile FilePath (Maybe (Int64,Int64))
+                  | SendFile FilePath (Maybe (Word64, Word64))
                       -- ^ output body is sendfile(), optional second argument
                       --   is a byte range to send
 
@@ -437,7 +437,7 @@ rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
     withBinaryFile fp ReadMode $ \handle -> do
         unless (start == 0) $ hSeek handle AbsoluteSeek $ toInteger start
         is  <- Streams.handleToInputStream handle
-        is' <- Streams.takeBytes (end - start) is >>=
+        is' <- Streams.takeBytes (fromIntegral $ end - start) is >>=
                Streams.mapM (return . fromByteString)
         Streams.connect is' out
         return out
@@ -452,7 +452,7 @@ data Response = Response
       -- | We will need to inspect the content length no matter what, and
       --   looking up \"content-length\" in the headers and parsing the number
       --   out of the text will be too expensive.
-    , rspContentLength      :: !(Maybe Int64)
+    , rspContentLength      :: !(Maybe Word64)
     , rspBody               :: ResponseBody
 
       -- | Returns the HTTP status code.
@@ -671,7 +671,7 @@ modifyResponseCookie cn f r = maybe r modify $ getResponseCookie cn r
 -- disabled for HTTP\/1.0 clients, forcing a @Connection: close@. For
 -- HTTP\/1.1 clients, Snap will switch to the chunked transfer encoding if
 -- @Content-Length@ is not specified.
-setContentLength    :: Int64 -> Response -> Response
+setContentLength    :: Word64 -> Response -> Response
 setContentLength !l r = r { rspContentLength = Just l }
 {-# INLINE setContentLength #-}
 

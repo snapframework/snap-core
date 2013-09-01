@@ -38,12 +38,12 @@ import qualified Data.ByteString.Char8          as S
 import           Data.ByteString.Internal       (c2w)
 import           Data.HashMap.Strict            (HashMap)
 import qualified Data.HashMap.Strict            as Map
-import           Data.Int
 import           Data.List
 import           Data.Maybe                     (fromMaybe, isNothing)
 import           Data.Monoid
 import qualified Data.Text                      as T
 import qualified Data.Text.Encoding             as T
+import           Data.Word
 #if MIN_VERSION_base(4,6,0)
 import           Prelude                        hiding (Show, show)
 #else
@@ -659,10 +659,10 @@ defaultMimeType = "application/octet-stream"
 
 
 ------------------------------------------------------------------------------
-data RangeReq = RangeReq { _rangeFirst :: !Int64
-                         , _rangeLast  :: !(Maybe Int64)
+data RangeReq = RangeReq { _rangeFirst :: !Word64
+                         , _rangeLast  :: !(Maybe Word64)
                          }
-              | SuffixRangeReq { _suffixLength :: !Int64 }
+              | SuffixRangeReq { _suffixLength :: !Word64 }
 
 
 ------------------------------------------------------------------------------
@@ -672,17 +672,18 @@ rangeParser = string "bytes=" *>
               endOfInput
   where
     byteRangeSpec = do
-        start <- parseNum
+        start <- fromIntegral <$> parseNum
         void $! char '-'
         end   <- option Nothing $ liftM Just parseNum
 
-        return $! RangeReq start end
+        return $! RangeReq start (fromIntegral <$> end)
 
-    suffixByteRangeSpec = liftM SuffixRangeReq $ char '-' *> parseNum
+    suffixByteRangeSpec =
+        liftM (SuffixRangeReq . fromIntegral) $ char '-' *> parseNum
 
 
 ------------------------------------------------------------------------------
-checkRangeReq :: (MonadSnap m) => Request -> FilePath -> Int64 -> m Bool
+checkRangeReq :: (MonadSnap m) => Request -> FilePath -> Word64 -> m Bool
 checkRangeReq req fp sz = do
     -- TODO/FIXME: multiple ranges
     maybe (return False)
