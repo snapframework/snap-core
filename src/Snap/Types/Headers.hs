@@ -48,14 +48,15 @@ module Snap.Types.Headers
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Arrow         (first)
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import           Data.CaseInsensitive  (CI)
-import qualified Data.CaseInsensitive  as CI
-import qualified Data.List             as List
-import           Data.Maybe            (fromMaybe)
-import           Prelude               hiding (foldr, lookup, null)
+import           Control.Arrow               (first)
+import           Data.ByteString.Char8       (ByteString)
+import qualified Data.ByteString.Char8       as S
+import           Data.CaseInsensitive        (CI)
+import qualified Data.CaseInsensitive        as CI
+import qualified Data.CaseInsensitive.Unsafe as CI
+import qualified Data.List                   as List
+import           Data.Maybe                  (fromMaybe)
+import           Prelude                     hiding (foldr, lookup, null)
 
 ------------------------------------------------------------------------------
 newtype Headers = H { unH :: [(ByteString, ByteString)] }
@@ -123,7 +124,6 @@ set k0 v (H m) = H $ go m
     go []                        = [(k,v)]
     go (x@(k',_):xs) | k == k'   = (k,v) : List.filter ((k /=) . fst) xs
                      | otherwise = x : go xs
-    -- FIXME: use unsafe case-insensitive function when it becomes available.
 
 
 ------------------------------------------------------------------------------
@@ -140,8 +140,7 @@ foldl' :: (a -> CI ByteString -> ByteString -> a)
        -> a
 foldl' f a (H m) = List.foldl' f' a m
   where
-    f' v (x,y) = f v (CI.mk x) y
-    -- FIXME: use unsafe case-insensitive function when it becomes available.
+    f' v (x,y) = f v (CI.unsafeMk x) y
 
 
 ------------------------------------------------------------------------------
@@ -161,8 +160,7 @@ foldr :: (CI ByteString -> ByteString -> a -> a)
       -> a
 foldr f a (H m) = List.foldr f' a m
   where
-    f' (x, y) v = f (CI.mk x) y v
-    -- FIXME: use unsafe case-insensitive function when it becomes available.
+    f' (x, y) v = f (CI.unsafeMk x) y v
 
 
 ------------------------------------------------------------------------------
@@ -175,8 +173,7 @@ foldedFoldr f a (H m) = List.foldr (uncurry f) a m
 
 ------------------------------------------------------------------------------
 toList :: Headers -> [(CI ByteString, ByteString)]
-toList = map (first CI.mk) . unH
-  -- FIXME: use unsafe case-insensitive function when it becomes available.
+toList = map (first CI.unsafeMk) . unH
 
 
 ------------------------------------------------------------------------------
