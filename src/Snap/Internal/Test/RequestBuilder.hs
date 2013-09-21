@@ -150,7 +150,6 @@ buildRequest mm = do
                           return $ parseUrlEncoded s
                         else return Map.empty
 
-
         let allParams = [rqParams rq, queryParams, postParams]
         rPut $ rq { rqParams      = Map.unionsWith (++) allParams
                   , rqQueryParams = queryParams }
