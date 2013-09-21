@@ -31,6 +31,7 @@ module Snap.Internal.Test.RequestBuilder
   , setQueryStringRaw
   , setRequestPath
   , setRequestType
+  , setRequestParams
   , setSecure
   ) where
 
@@ -149,7 +150,8 @@ buildRequest mm = do
                           return $ parseUrlEncoded s
                         else return Map.empty
 
-        rPut $ rq { rqParams      = Map.unionWith (++) queryParams postParams
+        let allParams = [rqParams rq, queryParams, postParams]
+        rPut $ rq { rqParams      = Map.unionsWith (++) allParams
                   , rqQueryParams = queryParams }
 
 
@@ -470,6 +472,21 @@ setRequestPath p0 = do
   where
     p = if S.isPrefixOf "/" p0 then S.drop 1 p0 else p0
 
+------------------------------------------------------------------------------
+-- | Sets the request's params. This is useful when more granular control
+-- is needed in building a "Request", for example using directly "postRaw"
+-- or "put", which don't allow "Params" to be passed directly. Using
+-- "setRequestParams" is extremely easy to write combinators such as:
+--
+-- @
+--  withParams :: (Monad m) => RequestBuilder m () -> Params -> RequestBuilder m ()
+--  withParams rb params = do
+--    rb
+--    setRequestParams params
+-- @
+--
+setRequestParams :: Monad m => Params -> RequestBuilder m ()
+setRequestParams params = rModify $ \rq -> rq { rqParams = params }
 
 ------------------------------------------------------------------------------
 -- | Builds an HTTP \"GET\" request with the given query parameters.

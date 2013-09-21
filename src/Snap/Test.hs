@@ -35,6 +35,7 @@ module Snap.Test
   , setQueryStringRaw
   , setRequestPath
   , setRequestType
+  , setRequestParams
   , setSecure
 
    -- * HUnit Assertions
