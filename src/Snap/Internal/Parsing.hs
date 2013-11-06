@@ -36,14 +36,24 @@ import           Snap.Internal.Http.Types
 ------------------------------------------------------------------------------
 {-# INLINE fullyParse #-}
 fullyParse :: ByteString -> Parser a -> Either String a
-fullyParse s p =
+fullyParse = fullyParse' parse feed
+
+
+------------------------------------------------------------------------------
+{-# INLINE fullyParse' #-}
+fullyParse' :: (Parser a -> ByteString -> Result a)
+            -> (Result a -> ByteString -> Result a)
+            -> ByteString
+            -> Parser a
+            -> Either String a
+fullyParse' parseFunc feedFunc s p =
     case r' of
       (Fail _ _ e) -> Left e
       (Partial _)  -> Left "parse failed"
       (Done _ x)   -> Right x
   where
-    r  = parse p s
-    r' = feed r ""
+    r  = parseFunc p s
+    r' = feedFunc r ""
 
 
 ------------------------------------------------------------------------------

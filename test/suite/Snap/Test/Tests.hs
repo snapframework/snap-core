@@ -6,20 +6,21 @@ module Snap.Test.Tests
 
 ------------------------------------------------------------------------------
 import           Control.Monad
-import           Control.Monad.IO.Class         (liftIO)
-import           Data.ByteString.Char8          (ByteString)
-import qualified Data.ByteString.Char8          as S
-import qualified Data.Map                       as Map
-import qualified System.IO.Streams              as Streams
-import           Test.Framework                 (Test)
-import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit                     (assertBool, assertEqual)
-import           Text.Regex.Posix               ((=~))
+import           Control.Monad.IO.Class            (liftIO)
+import           Data.ByteString.Char8             (ByteString)
+import qualified Data.ByteString.Char8             as S
+import qualified Data.Map                          as Map
+import qualified System.IO.Streams                 as Streams
+import           Test.Framework                    (Test)
+import           Test.Framework.Providers.HUnit    (testCase)
+import           Test.HUnit                        (assertBool, assertEqual)
+import           Text.Regex.Posix                  ((=~))
 ------------------------------------------------------------------------------
-import           Snap.Core                      hiding (addHeader,
-                                                 setContentType, setHeader)
-import           Snap.Internal.Http.Types       (Request (..))
-import qualified Snap.Internal.Http.Types       as T
+import           Snap.Core                         hiding (addHeader,
+                                                    setContentType, setHeader)
+import           Snap.Internal.Http.Types          (Request (..))
+import qualified Snap.Internal.Http.Types          as T
+import           Snap.Internal.Test.RequestBuilder
 import           Snap.Test
 import           Snap.Test.Common
 import           Snap.Util.FileUploads
@@ -37,6 +38,7 @@ tests = [ testSetRequestType
         , testAssert404
         , testAssertBodyContains
         , testAssertRedirect
+        , testTrivials
         ]
 
 ------------------------------------------------------------------------------
@@ -282,6 +284,15 @@ testAssertRedirect = testCase "test/requestBuilder/testAssertRedirect" $ do
     assertRedirectTo "/bar" rsp
     assertRedirect rsp
     expectExceptionH $ assertRedirectTo "/zzzz" rsp
+
+
+------------------------------------------------------------------------------
+testTrivials :: Test
+testTrivials = testCase "requestBuilder/trivials" $ do
+    coverShowInstance (FormData [])
+    coverShowInstance (Files [])
+    coverShowInstance (FileData "" "" "")
+    coverShowInstance GetRequest
 
 
 ------------------------------------------------------------------------------

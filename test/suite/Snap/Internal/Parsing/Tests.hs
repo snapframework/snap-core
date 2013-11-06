@@ -1,8 +1,11 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 ------------------------------------------------------------------------------
 module Snap.Internal.Parsing.Tests ( tests ) where
 ------------------------------------------------------------------------------
+import           Control.Applicative            (many)
+import           Data.Attoparsec.Char8          (IResult (..), char, string)
 import qualified Data.ByteString.Char8          as S
 import qualified Data.Map                       as Map
 import           Data.Word                      (Word8)
@@ -25,6 +28,7 @@ tests = [ testAvPairs
         , testUnsafeFromHex
         , testUnsafeFromInt
         , testUrlEncoded
+        , testFailParse
         ]
 
 
@@ -124,3 +128,18 @@ testUrlEncoded = testCase "parsing/urlEncoded" $ do
     assertEqual "map" (Map.fromList [ ("foo", ["h i"])
                                     , ("bar", ["baz baz"])
                                     , ("baz", ["quux", "zzz"]) ]) x
+
+
+------------------------------------------------------------------------------
+testFailParse :: Test
+testFailParse = testCase "parsing/failParse" $ do
+    let (Left a) = fullyParse "foo" (string "bar")
+    let (Left b) = fullyParse "foo" (fail "bar")
+    let (Left c) = fullyParse "aaaaa" (many (char 'a') >> string "b")
+    let f  = const $ Partial f
+    let (Left d) = fullyParse' (const f) (const f) "aaaaa" (string "b")
+    let e@(Just "aaaa") = parseToCompletion (many (char 'a')) "aaaa"
+    let (Done z (0::Int)) = finish $! Partial $! \s ->
+                             s `seq` Partial (\t -> t `seq` Done t 0)
+
+    return $! a `seq` b `seq` c `seq` d `seq` e `seq` z `seq` ()

@@ -1,6 +1,7 @@
-{-# LANGUAGE FlexibleInstances    #-}
-{-# LANGUAGE FlexibleContexts     #-}
-{-# LANGUAGE ScopedTypeVariables  #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE ScopedTypeVariables   #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 
@@ -19,22 +20,19 @@ module Snap.Test.Common
 
 ------------------------------------------------------------------------------
 import           Control.DeepSeq
-import           Control.Exception.Lifted ( SomeException(..)
-                                          , catch
-                                          , evaluate
-                                          , try
-                                          )
+import           Control.Exception.Lifted    (SomeException (..), catch,
+                                              evaluate, try)
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Control
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
-import           Data.ByteString.Internal (c2w)
+import qualified Data.ByteString             as S
+import           Data.ByteString.Internal    (c2w)
+import qualified Data.ByteString.Lazy        as L
 import           Data.Typeable
-import           Prelude hiding (catch)
+import           Prelude                     hiding (catch)
 import           Test.QuickCheck
-import qualified Test.QuickCheck.Monadic as QC
 import           Test.QuickCheck.Monadic
+import qualified Test.QuickCheck.Monadic     as QC
 
 
 ------------------------------------------------------------------------------
@@ -109,7 +107,7 @@ expectException :: IO a -> PropertyM IO ()
 expectException m = do
     e <- liftQ $ try m
     case e of
-      Left (z::SomeException)  -> (length $ show z) `seq` return ()
+      Left (z::SomeException)  -> (forceList $ show z) `seq` return ()
       Right _ -> fail "expected exception, didn't get one"
 
 
@@ -118,8 +116,14 @@ expectExceptionH :: IO a -> IO ()
 expectExceptionH act = do
     e <- try act
     case e of
-      Left (z::SomeException) -> (length $ show z) `seq` return ()
+      Left (z::SomeException) -> (forceList $ show z) `seq` return ()
       Right _ -> fail "expected exception, didn't get one"
+
+
+------------------------------------------------------------------------------
+forceList :: [a] -> ()
+forceList [] = ()
+forceList (x:xs) = x `seq` forceList xs
 
 
 ------------------------------------------------------------------------------

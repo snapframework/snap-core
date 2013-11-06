@@ -33,6 +33,7 @@ tests = [ testTypes
         , testUrlDecode
         , testFormatLogTime
         , testAddHeader
+        , testHeaderOrd
         ]
 
 
@@ -42,8 +43,17 @@ mkRq = Test.buildRequest $ Test.get "/" Map.empty
 
 
 ------------------------------------------------------------------------------
+testHeaderOrd :: Test
+testHeaderOrd = testCase "httpTypes/methodOrd" $ do
+    let methods = [GET, HEAD, POST, PUT, DELETE, TRACE, OPTIONS, CONNECT,
+                   PATCH, Method "Foo"]
+    mapM_ (\m -> assertEqual "method" (compare m m) EQ) methods
+    mapM_ (\m -> assertEqual "ord" (compare GET m) LT) $ tail methods
+    assertEqual "ord2" LT (compare (Method "a") (Method "b"))
+
+------------------------------------------------------------------------------
 testFormatLogTime :: Test
-testFormatLogTime = testCase "formatLogTime" $ do
+testFormatLogTime = testCase "httpTypes/formatLogTime" $ do
     b <- formatLogTime 3804938
 
     let re = S.concat [ "^[0-9]{1,2}/[A-Za-z]{3}/[0-9]{4}:[0-9]{2}:[0-9]{2}"
@@ -54,7 +64,7 @@ testFormatLogTime = testCase "formatLogTime" $ do
 
 ------------------------------------------------------------------------------
 testAddHeader :: Test
-testAddHeader = testCase "addHeader" $ do
+testAddHeader = testCase "httpTypes/addHeader" $ do
     defReq <- mkRq
 
     let req = addHeader "foo" "bar" $
@@ -77,13 +87,13 @@ testAddHeader = testCase "addHeader" $ do
 
 ------------------------------------------------------------------------------
 testUrlDecode :: Test
-testUrlDecode = testCase "urlDecode" $ do
+testUrlDecode = testCase "httpTypes/urlDecode" $ do
     assertEqual "bad hex" Nothing $ urlDecode "%qq"
 
 
 ------------------------------------------------------------------------------
 testTypes :: Test
-testTypes = testCase "show" $ do
+testTypes = testCase "httpTypes/show" $ do
     defReq <- mkRq
 
     let req = rqModifyParams (Map.insert "zzz" ["bbb"]) $
@@ -140,7 +150,7 @@ testTypes = testCase "show" $ do
 
 ------------------------------------------------------------------------------
 testCookies :: Test
-testCookies = testCase "cookies" $ do
+testCookies = testCase "httpTypes/cookies" $ do
     assertEqual "cookie" (Just cook) rCook
     assertEqual "cookie2" (Just cook2) rCook2
     assertEqual "cookie3" (Just cook3) rCook3
