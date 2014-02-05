@@ -143,10 +143,15 @@ data SnapResult a = SnapValue a
                   | EarlyTermination Response
 
 ------------------------------------------------------------------------------
+#if MIN_VERSION_base(4,7,0)
+newtype Snap a = Snap {
+      unSnap :: StateT SnapState (Iteratee ByteString IO) (SnapResult a)
+    } deriving (Typeable)
+#else
 newtype Snap a = Snap {
       unSnap :: StateT SnapState (Iteratee ByteString IO) (SnapResult a)
     }
-
+#endif
 
 ------------------------------------------------------------------------------
 data SnapState = SnapState
@@ -273,8 +278,10 @@ snapTyCon = mkTyCon "Snap.Core.Snap"
 #endif
 {-# NOINLINE snapTyCon #-}
 
+#if !MIN_VERSION_base(4,7,0)
 instance Typeable1 Snap where
     typeOf1 _ = mkTyConApp snapTyCon []
+#endif
 
 
 ------------------------------------------------------------------------------
