@@ -52,6 +52,7 @@ import qualified Prelude
 import           System.Directory
 import           System.FilePath
 import           System.PosixCompat.Files
+import qualified Filesystem.Path.CurrentOS as FP
 ------------------------------------------------------------------------------
 import           Snap.Core
 import           Snap.Internal.Debug
@@ -68,7 +69,7 @@ getSafePath = do
     req <- getRequest
     let mp = urlDecode $ rqPathInfo req
 
-    p <- maybe pass (return . S.unpack) mp
+    p <- maybe pass (return . FP.encodeString . FP.decode) mp
 
     -- relative paths only!
     when (not $ isRelative p) pass
