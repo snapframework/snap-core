@@ -318,8 +318,11 @@ data Request = Request
       -- | Returns the parameters mapping for this 'Request'. \"Parameters\"
       -- are automatically decoded from the URI's query string and @POST@ body
       -- and entered into this mapping. The 'rqParams' value is thus a union of
-      -- 'rqQueryParams' and 'rqPostParams'.
+      -- 'rqCaptureParams', 'rqQueryParams' and 'rqPostParams'.
     , rqParams         :: Params
+
+      -- | The parameter mapping from variable capturing.
+    , rqCaptureParams  :: Params
 
       -- | The parameter mapping decoded from the URI's query string.
     , rqQueryParams    :: Params
@@ -537,6 +540,15 @@ rqQueryParam :: ByteString           -- ^ parameter name to look up
              -> Maybe [ByteString]
 rqQueryParam k rq = Map.lookup k $ rqQueryParams rq
 {-# INLINE rqQueryParam #-}
+
+
+------------------------------------------------------------------------------
+-- | Looks up the value(s) for the given catured variable.
+rqCaptureParam :: ByteString           -- ^ parameter name to look up
+               -> Request              -- ^ HTTP request
+               -> Maybe [ByteString]
+rqCaptureParam k rq = Map.lookup k $ rqCaptureParams rq
+{-# INLINE rqCaptureParam #-}
 
 
 ------------------------------------------------------------------------------

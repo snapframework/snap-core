@@ -233,7 +233,9 @@ route' pre !ctx _ !params (Action action) =
   where
     ctx' = B.intercalate (B.pack [c2w '/']) (reverse ctx)
     updateParams req = req
-      { rqParams = Map.unionWith (++) params (rqParams req) }
+      { rqParams        = Map.unionWith (++) params (rqParams req)
+      , rqCaptureParams = Map.unionWith (++) params (rqCaptureParams req)
+      }
 
 route' pre !ctx [] !params (Capture _ _  fb) =
     route' pre ctx [] params fb

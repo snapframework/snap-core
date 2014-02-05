@@ -373,7 +373,7 @@ mkRequest body = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
                      enum Nothing POST (1,1) [] "/" "/"
-                     "/" "" Map.empty Map.empty Map.empty
+                     "/" "" Map.empty Map.empty Map.empty Map.empty
 
 
 ------------------------------------------------------------------------------
@@ -388,7 +388,7 @@ mkDamagedRequest body = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False hdrs
                      enum Nothing POST (1,1) [] "/" "/"
-                     "/" "" Map.empty Map.empty Map.empty
+                     "/" "" Map.empty Map.empty Map.empty Map.empty
   where
     enum = enumBS (S.take (S.length body - 1) body) >==> dieNow
     dieNow _ = throw TestException

@@ -87,7 +87,7 @@ mkNoHeaders = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False emptyHdrs
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+                 Map.empty Map.empty Map.empty Map.empty
 
 
 mkGzipRq :: IO Request
@@ -96,7 +96,7 @@ mkGzipRq = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False gzipHdrs
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+                 Map.empty Map.empty Map.empty Map.empty
 
 mkXGzipRq :: IO Request
 mkXGzipRq = do
@@ -104,7 +104,7 @@ mkXGzipRq = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xGzipHdrs
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+                 Map.empty Map.empty Map.empty Map.empty
 
 
 
@@ -115,7 +115,7 @@ mkDeflateRq = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False deflateHdrs
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+                 Map.empty Map.empty Map.empty Map.empty
 
 
 mkXDeflateRq :: IO Request
@@ -124,7 +124,7 @@ mkXDeflateRq = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False xDeflateHdrs
                  enum Nothing GET (1,1) [] "/" "/" "/" ""
-                 Map.empty Map.empty Map.empty
+                 Map.empty Map.empty Map.empty Map.empty
 
 
 
@@ -135,7 +135,7 @@ mkBadRq = do
 
     return $ Request "foo" 80 "foo" 999 "foo" 1000 "foo" False badHdrs
                   enum Nothing GET (1,1) [] "/" "/" "/" ""
-                  Map.empty Map.empty Map.empty
+                  Map.empty Map.empty Map.empty Map.empty
 
 
 ------------------------------------------------------------------------------
