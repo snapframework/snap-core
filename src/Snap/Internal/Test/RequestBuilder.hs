@@ -38,7 +38,7 @@ module Snap.Internal.Test.RequestBuilder
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
-import           Control.Applicative            (Applicative)
+import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.State.Strict     hiding (get, put)
 import qualified Control.Monad.State.Strict     as State
