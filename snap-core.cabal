@@ -134,7 +134,7 @@ Library
     monad-control             >= 0.3     && < 0.4,
     mtl                       >= 2.0     && < 2.2,
     random                    >= 1       && < 2,
-    readable                  >= 0.1     && < 0.2,
+    readable                  >= 0.1     && < 0.3,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 1.2,
     time                      >= 1.0     && < 1.5,
