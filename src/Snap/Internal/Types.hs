@@ -9,6 +9,9 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE Rank2Types                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+#if __GLASGOW_HASKELL__ >= 708
+{-# LANGUAGE StandaloneDeriving         #-}
+#endif
 {-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE TypeSynonymInstances       #-}
 
@@ -363,6 +366,7 @@ instance MonadSnap Snap where
 ------------------------------------------------------------------------------
 -- | The Typeable instance is here so Snap can be dynamically executed with
 -- Hint.
+#if __GLASGOW_HASKELL__ < 708
 snapTyCon :: TyCon
 #if MIN_VERSION_base(4,4,0)
 snapTyCon = mkTyCon3 "snap-core" "Snap.Core" "Snap"
@@ -374,6 +378,9 @@ snapTyCon = mkTyCon "Snap.Core.Snap"
 instance Typeable1 Snap where
     typeOf1 _ = mkTyConApp snapTyCon []
 
+#else
+deriving instance Typeable Snap
+#endif
 
 ------------------------------------------------------------------------------
 -- | Pass the request body stream to a consuming procedure, returning the
