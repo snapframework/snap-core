@@ -375,8 +375,12 @@ snapTyCon = mkTyCon "Snap.Core.Snap"
 #endif
 {-# NOINLINE snapTyCon #-}
 
+#if __GLASGOW_HASKELL__ < 708
 instance Typeable1 Snap where
     typeOf1 _ = mkTyConApp snapTyCon []
+#else
+deriving instance Typeable Snap
+#endif
 
 #else
 deriving instance Typeable Snap
