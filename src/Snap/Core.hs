@@ -77,6 +77,7 @@ module Snap.Core
   , ipHeaderFilter'
 
     -- ** Requests
+  , rqHeaders
   , rqHostName
   , rqClientAddr
   , rqClientPort
