@@ -157,21 +157,21 @@ mkRequest uri = Test.buildRequest $ do
 ------------------------------------------------------------------------------
 fs :: Snap ()
 fs = do
-    x <- serveDirectory "data/fileServe"
+    x <- serveDirectory "test/data/fileServe"
     return $! x `seq` ()
 
 
 ------------------------------------------------------------------------------
 fsSingle :: Snap ()
 fsSingle = do
-    x <- serveFile "data/fileServe/foo.html"
+    x <- serveFile "test/data/fileServe/foo.html"
     return $! x `seq` ()
 
 
 ------------------------------------------------------------------------------
 fsCfg :: DirectoryConfig Snap -> Snap ()
 fsCfg cfg = do
-    x <- serveDirectoryWith cfg "data/fileServe"
+    x <- serveDirectoryWith cfg "test/data/fileServe"
     return $! x `seq` ()
 
 

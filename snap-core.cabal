@@ -30,12 +30,12 @@ license-file:   LICENSE
 author:         Snap Framework Authors (see CONTRIBUTORS)
 maintainer:     snap@snapframework.com
 build-type:     Simple
-cabal-version:  >= 1.8
+cabal-version:  >= 1.10
 homepage:       http://snapframework.com/
-category:       Web, Snap
+category:       Web, Snap, IO-Streams
 
 extra-source-files:
-  test/suite/TestSuite.hs,
+  test/TestSuite.hs,
   cbits/timefuncs.c,
   CONTRIBUTORS,
   extra/haddock.css,
@@ -46,6 +46,7 @@ extra-source-files:
   README.md,
   README.SNAP.md,
   Setup.hs,
+  runTestsAndCoverage.sh,
   test/data/fileServe/foo.bin,
   test/data/fileServe/foo.bin.bin.bin,
   test/data/fileServe/foo.html,
@@ -53,18 +54,16 @@ extra-source-files:
   test/data/fileServe/mydir1/index.txt,
   test/data/fileServe/mydir2/foo.txt,
   test/data/fileServe/mydir3/altindex.html,
-  test/runTestsAndCoverage.sh,
-  test/snap-core-testsuite.cabal,
-  test/suite/Snap/Core/Tests.hs,
-  test/suite/Snap/Internal/Http/Types/Tests.hs,
-  test/suite/Snap/Internal/Parsing/Tests.hs,
-  test/suite/Snap/Internal/Routing/Tests.hs,
-  test/suite/Snap/Test/Common.hs,
-  test/suite/Snap/Types/Headers/Tests.hs,
-  test/suite/Snap/Util/FileServe/Tests.hs,
-  test/suite/Snap/Util/FileUploads/Tests.hs,
-  test/suite/Snap/Util/GZip/Tests.hs,
-  test/suite/Snap/Util/Proxy/Tests.hs
+  test/Snap/Core/Tests.hs,
+  test/Snap/Internal/Http/Types/Tests.hs,
+  test/Snap/Internal/Parsing/Tests.hs,
+  test/Snap/Internal/Routing/Tests.hs,
+  test/Snap/Test/Common.hs,
+  test/Snap/Types/Headers/Tests.hs,
+  test/Snap/Util/FileServe/Tests.hs,
+  test/Snap/Util/FileUploads/Tests.hs,
+  test/Snap/Util/GZip/Tests.hs,
+  test/Snap/Util/Proxy/Tests.hs
 
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
@@ -83,6 +82,7 @@ Flag debug
 
 
 Library
+  Default-language:  Haskell2010
   hs-source-dirs: src
 
   if !flag(debug)
@@ -144,7 +144,7 @@ Library
     unordered-containers      >= 0.1.4.3 && < 0.3,
     vector                    >= 0.6     && < 0.11
 
-  extensions:
+  other-extensions:
     BangPatterns,
     CPP,
     DeriveDataTypeable,
@@ -168,6 +168,110 @@ Library
     ghc-options: -Wall -fwarn-tabs -O2 -fno-warn-unused-do-bind
   else
     ghc-options: -Wall -fwarn-tabs -O2
+
+
+Test-suite testsuite
+  hs-source-dirs: src test
+  Type:              exitcode-stdio-1.0
+  Main-is:           TestSuite.hs
+  Default-language:  Haskell2010
+
+  if flag(portable) || os(windows)
+    cpp-options: -DPORTABLE
+    build-depends: old-locale >= 1 && <2
+  else
+    c-sources: cbits/timefuncs.c
+    include-dirs: cbits
+    build-depends: unix >= 2.4 && <3.0
+
+  other-modules:
+    Snap.Core,
+    Snap.Internal.Debug,
+    Snap.Internal.Http.Types,
+    Snap.Internal.Parsing,
+    Snap.Test,
+    Snap.Types.Headers,
+    Snap.Util.FileServe,
+    Snap.Util.FileUploads,
+    Snap.Util.GZip,
+    Snap.Util.Proxy,
+    Snap.Internal.Instances,
+    Snap.Internal.Routing,
+    Snap.Internal.Types,
+    Snap.Internal.Test.RequestBuilder,
+    Snap.Internal.Test.Assertions,
+    Snap.Internal.Util.FileServe,
+    --------------------------------------------------------------------------
+    Snap.Core.Tests,
+    Snap.Internal.Http.Types.Tests,
+    Snap.Internal.Parsing.Tests,
+    Snap.Internal.Routing.Tests,
+    Snap.Test.Common,
+    Snap.Test.Tests,
+    Snap.Types.Headers.Tests,
+    Snap.Util.FileServe.Tests,
+    Snap.Util.FileUploads.Tests,
+    Snap.Util.GZip.Tests,
+    Snap.Util.Proxy.Tests
+
+  build-depends:
+    attoparsec                >= 0.10    && < 0.12,
+    base                      >= 4       && < 5,
+    blaze-builder             >= 0.2.1.4 && < 0.4,
+    bytestring                >= 0.9     && < 0.11,
+    case-insensitive          >= 1.1     && < 1.2,
+    containers                >= 0.3     && < 1.0,
+    deepseq                   >= 1.1     && < 1.4,
+    directory                 >= 1       && < 2,
+    filepath                  >= 1.1     && < 2.0,
+    hashable                  (>= 1.1     && < 1.2) || (>= 1.2.1 && <1.3),
+    HUnit                     >= 1.2     && < 2,
+    lifted-base               >= 0.1     && < 0.3,
+    io-streams                >= 1.1     && < 1.2,
+    monad-control             >= 0.3     && < 0.4,
+    mtl                       >= 2.0     && < 2.2,
+    random                    >= 1       && < 2,
+    readable                  >= 0.1     && < 0.3,
+    regex-posix               >= 0.95    && < 1,
+    text                      >= 0.11    && < 1.2,
+    time                      >= 1.0     && < 1.5,
+    transformers              >= 0.3     && < 0.4,
+    transformers-base         >= 0.4     && < 0.5,
+    unix-compat               >= 0.3     && < 0.5,
+    unordered-containers      >= 0.1.4.3 && < 0.3,
+    vector                    >= 0.6     && < 0.11,
+    --------------------------------------------------------------------------
+    cereal                     >= 0.3      && <0.5,
+    HUnit                      >= 1.2      && <2,
+    QuickCheck                 >= 2.3.0.2  && <3,
+    parallel                   >= 3        && <4,
+    pureMD5                    == 2.1.*,
+    test-framework             >= 0.6      && <0.9,
+    test-framework-hunit       >= 0.2.7    && <0.4,
+    test-framework-quickcheck2 >= 0.2.12.1 && <0.4,
+    zlib                       >= 0.5      && <0.6
+
+  ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
+               -fno-warn-unused-do-bind
+
+  other-extensions:
+    BangPatterns,
+    CPP,
+    DeriveDataTypeable,
+    EmptyDataDecls,
+    ExistentialQuantification,
+    FlexibleContexts,
+    FlexibleInstances,
+    ForeignFunctionInterface,
+    GeneralizedNewtypeDeriving,
+    MagicHash,
+    MultiParamTypeClasses,
+    OverloadedStrings,
+    Rank2Types,
+    ScopedTypeVariables,
+    StandaloneDeriving,
+    TypeFamilies,
+    TypeSynonymInstances
 
 source-repository head
   type:     git

@@ -16,7 +16,7 @@ rm -f testsuite.tix
 if [ ! -f $SUITE ]; then
     cat <<EOF
 Testsuite executable not found, please run:
-    cabal configure -ftest
+    cabal configure --enable-tests
 then
     cabal build
 EOF

@@ -8,7 +8,7 @@
 
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
-{-# LANGUAGE PackageImports      #-}
+{-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-cse         #-}
 
@@ -38,34 +38,33 @@ debug, debugErrno :: MonadIO m => String -> m ()
 #ifndef NODEBUG
 
 {-# NOINLINE debug #-}
-debug = let !x = unsafePerformIO $! do
-            !e <- try $ getEnv "DEBUG"
+debug = let !x = unsafePerformIO $ do
+                !e <- try $ getEnv "DEBUG"
 
-            !f <- either (\(_::SomeException) -> return debugIgnore)
-                         (\y0 -> let y = map toLower y0
-                                 in if y == "1" || y == "on"
-                                   then return debugOn
-                                   else if y == "testsuite"
-                                          then return debugSeq
-                                          else return debugIgnore)
-                         e
-            return $! f
+                !f <- either (\(_::SomeException) -> return debugIgnore)
+                             (\y0 -> let y = map toLower y0
+                                     in if y == "1" || y == "on"
+                                       then return debugOn
+                                       else if y == "testsuite"
+                                              then return debugSeq
+                                              else return debugIgnore)
+                             e
+                return $! f
         in x
 
 
 {-# NOINLINE debugErrno #-}
 debugErrno = let !x = unsafePerformIO $ do
-                 e <- try $ getEnv "DEBUG"
-
-                 !f <- either (\(_::SomeException) -> return debugErrnoIgnore)
-                              (\y0 -> let y = map toLower y0
-                                      in if y == "1" || y == "on"
-                                        then return debugErrnoOn
-                                        else if y == "testsuite"
-                                               then return debugSeq
-                                               else return debugErrnoIgnore)
-                              e
-                 return $! f
+                     e <- try $ getEnv "DEBUG"
+                     !f <- either (\(_::SomeException) -> return debugErrnoIgnore)
+                                  (\y0 -> let y = map toLower y0
+                                          in if y == "1" || y == "on"
+                                            then return debugErrnoOn
+                                            else if y == "testsuite"
+                                                   then return debugSeq
+                                                   else return debugErrnoIgnore)
+                                  e
+                     return $! f
              in x
 
 

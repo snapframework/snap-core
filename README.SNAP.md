@@ -11,19 +11,18 @@ Snap Status and Features
 
 The Snap core system consists of:
 
-  * a high-speed HTTP server, with an optional high-concurrency backend using
-    the [libev](http://software.schmorp.de/pkg/libev.html) library
-
   * a sensible and clean monad for web programming
 
-  * an xml-based templating system for generating HTML that allows you to bind
-    Haskell functionality to XML tags without getting PHP-style tag soup all
-    over your pants
+  * a high-speed HTTP server called "snap-server"
+
+  * an xml-based templating system called "heist" for generating HTML that
+    allows you to bind Haskell functionality to XML tags without getting
+    PHP-style tag soup all over your pants
 
   * a "snaplet" system for building web sites from composable pieces.
 
 Snap is currently only officially supported on Unix platforms; it has been
-tested on Linux and Mac OSX Snow Leopard, and is reported to work on Windows.
+tested on Linux and Mac OSX, and is reported to work on Windows.
 
 
 Snap Philosophy

@@ -1,8 +1,8 @@
+{-# LANGUAGE BangPatterns              #-}
 {-# LANGUAGE CPP                       #-}
 {-# LANGUAGE DeriveDataTypeable        #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE OverloadedStrings         #-}
-{-# LANGUAGE PackageImports            #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
 module Snap.Util.GZip
