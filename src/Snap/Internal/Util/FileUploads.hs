@@ -5,28 +5,7 @@
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
-------------------------------------------------------------------------------
--- | This module contains primitives and helper functions for handling
--- requests with @Content-type: multipart/form-data@, i.e. HTML forms and file
--- uploads.
---
--- Typically most users will want to use 'handleFileUploads', which writes
--- uploaded files to a temporary directory before sending them on to a handler
--- specified by the user.
---
--- Users who wish to handle their file uploads differently can use the
--- lower-level streaming 'Iteratee' interface called 'handleMultipart'. That
--- function takes uploaded files and streams them to an 'Iteratee' consumer of
--- the user's choosing.
---
--- Using these functions requires making \"policy\" decisions which Snap can't
--- really make for users, such as \"what's the largest PDF file a user is
--- allowed to upload?\" and \"should we read form inputs into the parameters
--- mapping?\". Policy is specified on a \"global\" basis (using
--- 'UploadPolicy'), and on a per-file basis (using 'PartUploadPolicy', which
--- allows you to reject or limit the size of certain uploaded
--- @Content-type@s).
-module Snap.Util.FileUploads
+module Snap.Internal.Util.FileUploads
   ( -- * Functions
     handleFileUploads
   , handleMultipart
@@ -37,7 +16,7 @@ module Snap.Util.FileUploads
 
     -- ** Policy
     -- *** General upload policy
-  , UploadPolicy
+  , UploadPolicy(..)
   , defaultUploadPolicy
   , doProcessFormInputs
   , setProcessFormInputs
@@ -53,17 +32,15 @@ module Snap.Util.FileUploads
   , setUploadTimeout
 
     -- *** Per-file upload policy
-  , PartUploadPolicy
+  , PartUploadPolicy(..)
   , disallow
   , allowWithMaximumSize
 
     -- * Exceptions
-  , FileUploadException
+  , FileUploadException(..)
   , fileUploadExceptionReason
-  , BadPartException
-  , badPartExceptionReason
-  , PolicyViolationException
-  , policyViolationExceptionReason
+  , BadPartException(..)
+  , PolicyViolationException(..)
   ) where
 
 ------------------------------------------------------------------------------
@@ -73,6 +50,7 @@ import           Control.Exception.Lifted     (Exception, Handler (..),
                                                SomeException (..), bracket,
                                                catch, catches, fromException,
                                                mask, throwIO, toException)
+import qualified Control.Exception.Lifted     as E
 import           Control.Monad
 import           Data.Attoparsec.Char8
 import qualified Data.Attoparsec.Char8        as Atto
@@ -318,14 +296,8 @@ data PartInfo =
 --
 -- you can catch a 'BadPartException', a 'PolicyViolationException', etc.
 data FileUploadException =
-    GenericFileUploadException {
-      _genericFileUploadExceptionReason :: Text
-    }
-  | forall e . (Exception e, Show e) =>
-    WrappedFileUploadException {
-      _wrappedFileUploadException       :: e
-    , _wrappedFileUploadExceptionReason :: Text
-    }
+    GenericFileUploadException Text
+  | forall e . (Exception e, Show e) => WrappedFileUploadException e Text
   deriving (Typeable)
 
 
@@ -413,7 +385,7 @@ data UploadPolicy = UploadPolicy {
     , minimumUploadRate         :: Double
     , minimumUploadSeconds      :: Int
     , uploadTimeout             :: Int
-} deriving (Show, Eq)
+}
 
 
 ------------------------------------------------------------------------------
@@ -529,9 +501,7 @@ setUploadTimeout s u = u { uploadTimeout = s }
 -- * whether to allow the file upload at all
 --
 -- * the maximum size of uploaded files, if allowed
-data PartUploadPolicy = PartUploadPolicy {
-      _maximumFileSize :: Maybe Int64
-} deriving (Show, Eq)
+data PartUploadPolicy = PartUploadPolicy (Maybe Int64)
 
 
 ------------------------------------------------------------------------------
@@ -581,7 +551,6 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
 ------------------------------------------------------------------------------
 data Capture a = Capture ByteString ByteString
                | File a
-  deriving (Show)
 
 
 ------------------------------------------------------------------------------
@@ -620,8 +589,7 @@ internalHandleMultipart boundary clientHandler stream = go
     --------------------------------------------------------------------------
     fullBoundary b       = S.concat ["\r\n", "--", b]
     pLine                = takeWhile (not . isEndOfLine . c2w) <* eol
-    takeLine             = pLine *> pure ()
-    parseFirstBoundary b = pBoundary b <|> (takeLine *> parseFirstBoundary b)
+    parseFirstBoundary b = pBoundary b <|> (pLine *> parseFirstBoundary b)
 
 
     --------------------------------------------------------------------------
@@ -787,4 +755,8 @@ withTempFile tmpl temp handler =
   where
     make           = mkstemp $ tmpl </> (temp ++ "XXXXXXX")
     cleanup (fp,h) = sequence $ map gobble [hClose h, removeFile fp]
-    gobble m       = void m `catch` \(_::SomeException) -> return ()
+
+    t :: IO z -> IO (Either SomeException z)
+    t = E.try
+
+    gobble = void . t

@@ -49,6 +49,15 @@ testCookie :: Test
 testCookie =
     testCase "parsing/parseCookie" $ do
         assertEqual "cookie parsing" (Just [cv]) cv2
+        let (Just [c]) = cv2
+        -- stupid assertions to cover the accessors
+        assertEqual "c1" (cookieName c) nm
+        assertEqual "c2" (cookieValue c) v
+        assertEqual "c3" (cookieExpires c) Nothing
+        assertEqual "c4" (cookieDomain c) Nothing
+        assertEqual "c5" (cookiePath c) Nothing
+        assertEqual "c6" (cookieSecure c) False
+        assertEqual "c7" (cookieHttpOnly c) False
 
   where
     cv  = Cookie nm v Nothing Nothing Nothing False False

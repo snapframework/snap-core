@@ -114,7 +114,8 @@ Library
     Snap.Internal.Types,
     Snap.Internal.Test.RequestBuilder,
     Snap.Internal.Test.Assertions,
-    Snap.Internal.Util.FileServe
+    Snap.Internal.Util.FileServe,
+    Snap.Internal.Util.FileUploads
 
 
   build-depends:
@@ -201,6 +202,7 @@ Test-suite testsuite
     Snap.Internal.Test.RequestBuilder,
     Snap.Internal.Test.Assertions,
     Snap.Internal.Util.FileServe,
+    Snap.Internal.Util.FileUploads,
     --------------------------------------------------------------------------
     Snap.Core.Tests,
     Snap.Internal.Http.Types.Tests,

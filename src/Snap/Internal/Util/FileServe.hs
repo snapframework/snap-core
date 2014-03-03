@@ -659,10 +659,9 @@ defaultMimeType = "application/octet-stream"
 
 
 ------------------------------------------------------------------------------
-data RangeReq = RangeReq { _rangeFirst :: !Word64
-                         , _rangeLast  :: !(Maybe Word64)
-                         }
-              | SuffixRangeReq { _suffixLength :: !Word64 }
+data RangeReq = RangeReq !Word64           -- ^ first part of range
+                         !(Maybe Word64)   -- ^ (optional) end of range
+              | SuffixRangeReq !Word64
 
 
 ------------------------------------------------------------------------------

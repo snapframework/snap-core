@@ -409,11 +409,11 @@ testRqBody = testCase "core/requestBodies" $ do
     assertEqual "rq body" "zazzle" v1
     assertEqual "rq body 2" "" v2
 
-    (_,rsp) <- goBody g
+    (_,rsp) <- goBody (g >> putResponse emptyResponse)
     bd      <- getBody rsp
 
     assertEqual "detached rq body" "zazzle" bd
-
+    assertBool "transforming" (rspTransformingRqBody rsp)
 
   where
     f mvar1 mvar2 = do

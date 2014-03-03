@@ -33,9 +33,9 @@ import           Test.HUnit                     hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Types
+import           Snap.Internal.Util.FileUploads
 import qualified Snap.Test                      as Test
 import           Snap.Test.Common
-import           Snap.Util.FileUploads
 
 
 ------------------------------------------------------------------------------
@@ -56,6 +56,7 @@ tests = [ testSuccess1
         , testNoMixedBoundary
         , testWrongContentType
         , testSlowEnumerator
+        , testSlowEnumerator2
         , testTrivials
         , testDisconnectionCleanup
         ]
@@ -299,6 +300,30 @@ testSlowEnumerator = testCase "fileUploads/tooSlow" $
 
 
 ------------------------------------------------------------------------------
+testSlowEnumerator2 :: Test
+testSlowEnumerator2 = testCase "fileUploads/tooSlow2" $
+                      (harness' goSlowEnumerator tmpdir hndl mixedTestBody
+                                    `catches` [Handler h0])
+  where
+    h0 (e :: EscapeSnap) = do
+        let (TerminateConnection se) = e
+            (me :: Maybe RateTooSlowException) = fromException se
+        maybe (throw e) h me
+
+    h (e :: RateTooSlowException) = e `seq` return ()
+
+    tmpdir = "tempdir_tooslow2"
+
+    policy = setUploadTimeout 2 defaultUploadPolicy
+
+    hndl = handleFileUploads tmpdir policy
+                             (const $ allowWithMaximumSize 400000)
+                             hndl'
+
+    hndl' xs _ = show xs `deepseq` return ()
+
+
+------------------------------------------------------------------------------
 testTrivials :: Test
 testTrivials = testCase "fileUploads/trivials" $ do
     assertEqual "" False $ doProcessFormInputs policy
@@ -306,6 +331,18 @@ testTrivials = testCase "fileUploads/trivials" $ do
     assertEqual "" 1000  $ getMinimumUploadRate defaultUploadPolicy
     assertEqual "" 5     $ getMinimumUploadSeconds policy
     assertEqual "" 9     $ getUploadTimeout policy
+
+    let pvi = PolicyViolationException ""
+    coverTypeableInstance pvi
+    let (Just (_ :: PolicyViolationException)) = fromException (SomeException pvi)
+    let !_ = policyViolationExceptionReason pvi
+
+    let bpi = BadPartException ""
+    coverTypeableInstance bpi
+    let !_ = badPartExceptionReason bpi
+    return ()
+
+    coverShowInstance $ GenericFileUploadException ""
 
   where
     policy = setProcessFormInputs False $
@@ -439,8 +476,10 @@ seconds = (10::Int) ^ (6::Int)
 
 ------------------------------------------------------------------------------
 runIt :: Snap a -> Request -> IO (Request, Response)
-runIt m rq = runSnap m d (const $ return ()) rq
+runIt m rq = runSnap m d bump rq
   where
+    bump !f = let !_ = f 1 in return $! ()
+
     d :: forall a . Show a => a -> IO ()
     d = \x -> show x `deepseq` return ()
 
@@ -526,7 +565,8 @@ mixedTestBody =
 badMixedBody :: ByteString
 badMixedBody =
     S.concat
-         [ "--"
+         [ crlf
+         , "--"
          , boundaryValue
          , crlf
          , "content-disposition: form-data; name=\"field1\"\r\n"
