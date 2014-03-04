@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -6,15 +5,17 @@ module Snap.Internal.Routing.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative ((<|>))
-import           Control.Monad
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as S
-import qualified Data.Map as Map
+import           Control.Applicative            ((<$>), (<|>))
+import           Control.Exception              (ErrorCall (..), throwIO)
+import           Control.Monad                  (liftM, unless)
+import           Control.Monad.Trans            (liftIO)
+import           Data.ByteString                (ByteString)
+import qualified Data.ByteString                as S
+import qualified Data.Map                       as Map
 import           Data.Maybe
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
-import           Test.HUnit hiding (Test, path)
+import           Test.HUnit                     hiding (Test, path)
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Routing
@@ -57,6 +58,11 @@ tests = [ testRouting1
         , testRouteUrlDecode
         , testRouteUrlEncodedPath
         , testRouteEmptyCapture
+        , testRouteCaptureConflicts
+        , testTrivials
+        , testParamUnification
+        , testFailedUrlDecode
+        , testDirFallthrough
         ]
 
 
@@ -86,8 +92,10 @@ routes = route [ ("foo"          , topFoo          )
 
 ------------------------------------------------------------------------------
 routesLocal :: Snap ByteString
-routesLocal = routeLocal [ ("foo/bar/baz"  , getRqPathInfo )
-                         , ("bar"          , pass          ) ]
+routesLocal = routeLocal [ ("foo/bar/baz"  , getRqPathInfo   )
+                         , ("bar"          , pass            )
+                         , ("quux/zzz"     , getRqContextPath)
+                         ]
 
 
 ------------------------------------------------------------------------------
@@ -401,6 +409,8 @@ testRouteLocal = testCase "route/routeLocal" $ do
     assertEqual "/foo/bar/baz/quux" "foo/bar/baz/quux" r4
     expectExceptionH $ go routesLocal "bar"
 
+    go routesLocal "quux/zzz" >>= assertEqual "context" "/"
+
 
 ------------------------------------------------------------------------------
 testRouteEmptyCapture :: Test
@@ -414,3 +424,87 @@ testRouteEmptyCapture = testCase "route/emptyCapture" $ do
   where
     expected = "ZOMG_OK"
     m        = routesEmptyCapture <|> return expected
+
+
+------------------------------------------------------------------------------
+testRouteCaptureConflicts :: Test
+testRouteCaptureConflicts = testCase "route/captureConflicts" $ do
+    go h1 "ok/ok/ok" >>= assertEqual "earliest non-capture/1" "ok"
+    go h2 "ok/ok/ok" >>= assertEqual "earliest non-capture/2" "ok"
+    go h3 "foo/ok/ok/ok" >>= assertEqual "earliest non-capture/3" "ok"
+    go h4 "foo/ok/ok/ok" >>= assertEqual "earliest non-capture/4" "ok"
+    go h5 "zz/aa/zz" >>= assertEqual "fallback" "fb1"
+    go h6 "zz" >>= assertEqual "rightmost" "fb2"
+
+  where
+    puke = liftIO . throwIO . ErrorCall
+    ok   = return ("ok" :: String)
+    fb1  = return ("fb1" :: String)
+    fb2  = return ("fb2" :: String)
+
+    -- rule: earliest non-capture
+    h1 = route [ (":a/:b/:c", puke "h1")
+               , (":b/:c/ok", ok       )
+               ]
+
+    h2 = route [ (":a/:b/ok", ok       )
+               , (":b/:c/:d", puke "h2")
+               ]
+
+    -- same, with a prefix
+    h3 = route [ ("foo/:a/:b/:c", puke "h1")
+               , ("foo/:b/:c/ok", ok       )
+               ]
+
+    h4 = route [ ("foo/:a/:b/ok", ok       )
+               , ("foo/:b/:c/:d", puke "h2")
+               ]
+
+    -- test fallback
+    h5 = route [ ("", fb1)
+               , (":a/aa/bb", puke "h5-1")
+               , (":b/:c/bb", puke "h5-2")
+               ]
+
+    -- all else equal, rightmost wins
+    h6 = route [ (":a", fb1), (":b", fb2) ]
+
+
+------------------------------------------------------------------------------
+testParamUnification :: Test
+testParamUnification = testCase "route/paramUnification" $ do
+    go h1 "a/b" >>= assertEqual "++" ["0", "a", "b"]
+  where
+    h1 = do
+        modifyRequest $ rqSetParam "a" ["0"]
+        route [ (":a/:a", fromJust . rqParam "a" <$> getRequest) ]
+
+
+------------------------------------------------------------------------------
+testFailedUrlDecode :: Test
+testFailedUrlDecode = testCase "route/failedUrlDecode" $ do
+    expectExceptionH $ go h1 "%zz"
+    expectExceptionH $ go h2 "%zz"
+  where
+    h1 = route [(":a", return ())]
+    h2 = route [("a/", return ())]
+
+
+------------------------------------------------------------------------------
+testDirFallthrough :: Test
+testDirFallthrough = testCase "route/dirFallthrough" $ do
+    go m1 "a/a" >>= assertEqual "1" 1
+  where
+    m1 = route [ (""   , return (1::Int)  )
+               , ("a/a", pass             )
+               , ("a/a", pass             )
+               ]
+
+------------------------------------------------------------------------------
+testTrivials :: Test
+testTrivials = testCase "route/trivials" $ do
+    -- routeHeight and routeEarliestNC can't actually be called on NoRoute (it
+    -- never appears in the children of captures or directories), so cover this
+    -- case here
+    assertEqual "trivials/routeHeight" 1 (routeHeight NoRoute)
+    assertEqual "trivials/routeEarliestNC" 1 (routeEarliestNC NoRoute 1)

@@ -5,14 +5,14 @@ module Snap.Internal.Routing where
 
 
 ------------------------------------------------------------------------------
-import           Control.Applicative ((<|>))
-import           Data.ByteString (ByteString)
+import           Control.Applicative      ((<|>))
+import           Data.ByteString          (ByteString)
+import qualified Data.ByteString          as B
 import           Data.ByteString.Internal (c2w)
-import qualified Data.ByteString as B
+import           Data.HashMap.Strict      (HashMap)
+import qualified Data.HashMap.Strict      as H
+import qualified Data.Map                 as Map
 import           Data.Monoid
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as H
-import qualified Data.Map as Map
 
 ------------------------------------------------------------------------------
 import           Snap.Internal.Http.Types
@@ -176,7 +176,7 @@ routeEarliestNC r n = case r of
 route :: MonadSnap m => [(ByteString, m a)] -> m a
 route rts = do
   p <- getsRequest rqPathInfo
-  route' (return ()) [] (splitPath p) Map.empty rts'
+  route' (return $! ()) [] (splitPath p) Map.empty rts'
   where
     rts' = mconcat (map pRoute rts)
 {-# INLINE route #-}
@@ -233,7 +233,7 @@ route' pre !ctx _ !params (Action action) =
   where
     ctx' = B.intercalate (B.pack [c2w '/']) (reverse ctx)
     updateParams req = req
-      { rqParams = Map.unionWith (++) params (rqParams req) }
+      { rqParams = Map.unionWith (flip (++)) params (rqParams req) }
 
 route' pre !ctx [] !params (Capture _ _  fb) =
     route' pre ctx [] params fb
@@ -244,17 +244,17 @@ route' pre !ctx paths@(cwd:rest) !params (Capture p rt fb)
   where
     fallback = route' pre ctx paths params fb
     m = maybe pass
-              (\cwd' -> let params' = Map.insertWith (++) p [cwd'] params
+              (\cwd' -> let params' = Map.insertWith (flip (++)) p [cwd'] params
                         in route' pre (cwd:ctx) rest params' rt)
               (urlDecode cwd)
 
 route' pre !ctx [] !params (Dir _ fb) =
     route' pre ctx [] params fb
-route' pre !ctx (cwd:rest) !params (Dir rtm fb) = do
+route' pre !ctx paths@(cwd:rest) !params (Dir rtm fb) = do
     cwd' <- maybe pass return $ urlDecode cwd
     case H.lookup cwd' rtm of
       Just rt -> (route' pre (cwd:ctx) rest params rt) <|>
-                 (route' pre ctx (cwd:rest) params fb)
-      Nothing -> route' pre ctx (cwd:rest) params fb
+                 (route' pre ctx paths params fb)
+      Nothing -> route' pre ctx paths params fb
 
 route' _ _ _ _ NoRoute = pass
