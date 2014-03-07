@@ -48,7 +48,6 @@ module Snap.Test
   , getResponseBody
 
    -- * Dumping HTTP Messages
-  , dumpResponse
   , requestToString
   , responseToString
   )

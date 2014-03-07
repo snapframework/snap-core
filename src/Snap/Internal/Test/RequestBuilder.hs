@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings          #-}
@@ -12,7 +13,6 @@ module Snap.Internal.Test.RequestBuilder
   , addHeader
   , buildRequest
   , delete
-  , dumpResponse
   , evalHandler
   , evalHandlerM
   , get
@@ -81,7 +81,7 @@ newtype RequestBuilder m a = RequestBuilder (StateT Request m a)
 ------------------------------------------------------------------------------
 mkDefaultRequest :: IO Request
 mkDefaultRequest = do
-    b <- Streams.fromList []
+    b <- Streams.fromList $! []
     return $ Request "localhost"
                      "127.0.0.1"
                      60000
@@ -129,11 +129,12 @@ buildRequest mm = do
         if (rqMethod rq == GET || rqMethod rq == DELETE ||
             rqMethod rq == HEAD)
           then do
-              b <- liftIO $ Streams.fromList []
+              -- drain the old request body and replace it with a new one
+              !_ <- liftIO $ Streams.toList $ rqBody rq
+              !b <- liftIO $ Streams.fromList $! []
               -- These requests are not permitted to have bodies
               let rq' = deleteHeader "Content-Type" $
                         rq { rqBody = b }
-
               rPut $ rq' { rqContentLength = Nothing }
           else return $! ()
 
@@ -146,25 +147,30 @@ buildRequest mm = do
 
     fixupParams = do
         rq <- rGet
-        let query       = rqQueryString rq
-        let queryParams = parseUrlEncoded query
-        let mbCT        = getHeader "Content-Type" rq
+        let !query       = rqQueryString rq
+        -- force the stuff from mkDefaultRequest that we just overwrite
+        let !_           = rqPostParams rq
+        let !_           = rqParams rq
+        let !_           = rqQueryParams rq
+        let !queryParams = parseUrlEncoded query
+        let !mbCT        = getHeader "Content-Type" rq
 
-        (postParams, rq') <-
+        (!postParams, rq') <-
             if mbCT == Just "application/x-www-form-urlencoded"
               then liftIO $ do
-                  l <- Streams.toList $ rqBody rq
+                  !l <- Streams.toList $ rqBody rq
                   -- snap-server regurgitates the parsed form body
-                  b <- Streams.fromList l
+                  !b <- Streams.fromList l
                   return (parseUrlEncoded (S.concat l), rq { rqBody = b })
               else return (Map.empty, rq)
+        let !newParams = Map.unionWith (flip (++)) queryParams postParams
 
-        rPut $ rq' { rqParams      = Map.unionWith (++) queryParams postParams
+        rPut $ rq' { rqParams      = newParams
                    , rqQueryParams = queryParams }
 
     fixupHost = do
         rq <- rGet
-        let hn      = rqHostName rq
+        let !hn      = rqHostName rq
         rPut $ H.setHeader "Host" hn rq
 
 
@@ -212,7 +218,7 @@ data RequestType
 setRequestType :: MonadIO m => RequestType -> RequestBuilder m ()
 setRequestType GetRequest = do
     rq   <- rGet
-    body <- liftIO $ Streams.fromList []
+    body <- liftIO $ Streams.fromList $! []
 
     rPut $ rq { rqMethod        = GET
               , rqContentLength = Nothing
@@ -221,7 +227,7 @@ setRequestType GetRequest = do
 
 setRequestType DeleteRequest = do
     rq   <- rGet
-    body <- liftIO $ Streams.fromList []
+    body <- liftIO $ Streams.fromList $! []
 
     rPut $ rq { rqMethod        = DELETE
               , rqContentLength = Nothing
@@ -230,7 +236,7 @@ setRequestType DeleteRequest = do
 
 setRequestType (RequestWithRawBody m b) = do
     rq <- rGet
-    body <- liftIO $ Streams.fromList [ b ]
+    body <- liftIO $ Streams.fromList $! [ b ]
     rPut $ rq { rqMethod        = m
               , rqContentLength = Just $ fromIntegral $ S.length b
               , rqBody          = body
@@ -242,10 +248,10 @@ setRequestType (UrlEncodedPostRequest fp) = do
     rq <- liftM (H.setHeader "Content-Type"
                              "application/x-www-form-urlencoded") rGet
     let b = printUrlEncoded fp
-    body <- liftIO $ Streams.fromList [b]
+    body <- liftIO $ Streams.fromList $! [b]
 
     rPut $ rq { rqMethod        = POST
-              , rqContentLength = Just $ fromIntegral $ S.length b
+              , rqContentLength = Just $!  fromIntegral $ S.length b
               , rqBody          = body
               }
 
@@ -363,7 +369,7 @@ encodeFiles boundary name files =
                      ]
 
     --------------------------------------------------------------------------
-    oneVal b (FileData fileName ct contents) =
+    oneVal b fd =
         mconcat [ fromByteString b
                 , cr
                 , contentType ct
@@ -373,6 +379,10 @@ encodeFiles boundary name files =
                 , fromByteString contents
                 , fromByteString "\r\n--"
                 ]
+      where
+        fileName = fdFileName fd
+        ct       = fdContentType fd
+        contents = fdContents fd
 
     --------------------------------------------------------------------------
     hdr = multipartHeader boundary name
@@ -415,14 +425,16 @@ encodeMultipart kvps = do
 fixupURI :: Monad m => RequestBuilder m ()
 fixupURI = do
     rq <- rGet
-    let u = S.concat [ rqContextPath rq
-                     , rqPathInfo rq
-                     , let q = rqQueryString rq
-                       in if S.null q
-                            then ""
-                            else S.append "?" q
-                     ]
-    rPut $ rq { rqURI = u }
+    upd rq $! S.concat [ rqContextPath rq
+                       , rqPathInfo rq
+                       , let q = rqQueryString rq
+                         in if S.null q
+                              then ""
+                              else S.append "?" q
+                       ]
+  where
+    upd rq !u = let !_ = rqURI rq
+                in rPut $ rq { rqURI = u }
 
 
 ------------------------------------------------------------------------------
@@ -468,7 +480,7 @@ addCookies cookies = do
 ------------------------------------------------------------------------------
 -- | Convert 'Cookie' into 'ByteString' for output.
 cookieToBS :: Cookie -> ByteString
-cookieToBS (Cookie k v _ _ _ _ _) = cookie
+cookieToBS (Cookie k v !_ !_ !_ !_ !_) = cookie
   where
     cookie  = S.concat [k, "=", v]
 
@@ -578,7 +590,7 @@ postRaw :: MonadIO m =>
         -> RequestBuilder m ()
 postRaw uri contentType postData = do
     setRequestType $ RequestWithRawBody POST postData
-    setHeader "Content-Type" contentType
+    setContentType contentType
     setRequestPath uri
 
 
@@ -672,12 +684,6 @@ evalHandlerM rSnap rBuilder snap = do
 
 
 ------------------------------------------------------------------------------
--- | Dumps the given response to stdout.
-dumpResponse :: Response -> IO ()
-dumpResponse resp = responseToString resp >>= S.putStrLn
-
-
-------------------------------------------------------------------------------
 -- | Converts the given response to a bytestring.
 responseToString :: Response -> IO ByteString
 responseToString resp = do
@@ -692,7 +698,7 @@ responseToString resp = do
 ------------------------------------------------------------------------------
 -- | Converts the given 'Request' to a bytestring.
 --
--- Since: 1.0
+-- Since: 1.0.0.0
 requestToString :: Request -> IO ByteString
 requestToString req0 = do
     (req, is) <- maybeChunk
@@ -718,7 +724,7 @@ requestToString req0 = do
                            , s
                            , "\r\n"
                            ]
-        eof = Streams.fromList ["0\r\n"]
+        eof = Streams.fromList ["0\r\n\r\n"]
 
     (v1,v2) = rqVersion req0
     crlf = fromChar '\r' `mappend` fromChar '\n'

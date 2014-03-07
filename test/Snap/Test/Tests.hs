@@ -27,7 +27,9 @@ import           Snap.Util.FileUploads
 
 ------------------------------------------------------------------------------
 tests :: [Test]
-tests = [ testSetRequestType
+tests = [ testDefaultBuild
+        , testRequestToString
+        , testSetRequestType
         , testSetQueryString
         , testSetQueryStringRaw
         , testHeaders
@@ -40,6 +42,21 @@ tests = [ testSetRequestType
         , testAssertRedirect
         , testTrivials
         ]
+
+
+------------------------------------------------------------------------------
+testDefaultBuild :: Test
+testDefaultBuild = testCase "test/requestBuilder/defaultBuild" $ do
+    req <- buildRequest $ setRequestType GetRequest
+    Streams.toList (rqBody req) >>= assertEqual "body" []
+    assertEqual "pathInfo" "" $ rqPathInfo req
+    assertEqual "ctx" "/" $ rqContextPath req
+    assertEqual "uri" "/" $ rqURI req
+    assertEqual "qs" "" $ rqQueryString req
+    assertEqual "p1" Map.empty $ rqParams req
+    assertEqual "p2" Map.empty $ rqQueryParams req
+    assertEqual "p3" Map.empty $ rqPostParams req
+
 
 ------------------------------------------------------------------------------
 testSetRequestType :: Test
@@ -96,12 +113,16 @@ testSetQueryString = testCase "test/requestBuilder/testSetQueryString" $ do
 testSetQueryStringRaw :: Test
 testSetQueryStringRaw = testCase "test/requestBuilder/testSetQueryStringRaw" $ do
     request <- buildRequest $ do
-                   get "/" Map.empty
+                   postUrlEncoded "/" $ Map.fromList [("foo", ["foo0"])]
+                   addCookies [c1, c2]
                    setQueryStringRaw "foo=foo&foo=foo2&bar=bar"
     assertEqual "setQueryStringRaw" params $ rqParams request
+    assertEqual "cookie" (Just "k=v; k2=v2") $ getHeader "cookie" request
 
   where
-    params = Map.fromList [ ("foo", ["foo", "foo2"])
+    c1     = Cookie "k" "v" Nothing Nothing Nothing False False
+    c2     = Cookie "k2" "v2" Nothing Nothing Nothing False False
+    params = Map.fromList [ ("foo", ["foo0", "foo", "foo2"])
                           , ("bar", ["bar"]) ]
 
 
@@ -238,18 +259,48 @@ testToString = testCase "test/requestBuilder/testToString" $ do
     rsp  <- runHandler rq h
     http <- responseToString rsp
     body <- getResponseBody rsp
+    out2 <- evalHandler rq h
 
     assertSuccess rsp
-    assertEqual "HTTP body" "" body
+    assertEqual "Close" (Just "close") $ getHeader "connection" rsp
+    assertEqual "HTTP body" "zzz" body
     assertBool "HTTP header" $ http =~ headRE
     assertBool "HTTP date"   $ http =~ dateRE
+    assertEqual "monadic result" 42 out2
   where
-    rq     = get "/" Map.empty
-    h      = return ()
+    rq     = do postRaw "/" "text/zzz" "zzz"
+                setHttpVersion (1,0)
+    h      = do writeBS "zzz"
+                logError "zzz"
+                extendTimeout 5
+                return (42 :: Int)
     headRE = "HTTP/1.1 200 OK" :: ByteString
     dateRE = S.concat [ "date: [a-zA-Z]+, [0-9]+ [a-zA-Z]+ "
                       , "[0-9]+ [0-9]+:[0-9]+:[0-9]+ GMT"
                       ]
+
+
+------------------------------------------------------------------------------
+testRequestToString :: Test
+testRequestToString = testCase "test/requestBuilder/reqToString" $ do
+    req1 <- buildRequest $ setRequestType GetRequest
+    s1   <- requestToString req1
+    assertBool "HTTP header" $ s1 =~ headRE
+
+    req2 <- buildRequest $ do postRaw "/" "text/zzz" "zzz"
+                              setHttpVersion (1,0)
+    s2   <- requestToString req2
+    assertBool "HTTP header2" $ s2 =~ postHeadRE
+    assertBool "HTTP cl" $ s2 =~ ("content-length: 3" :: ByteString)
+
+    req3 <- buildRequest $ do postRaw "/" "text/zzz" "zzz"
+                              setHeader "transfer-encoding" "chunked"
+    s3   <- requestToString req3
+    assertBool "HTTP chunked" $ "3\r\nzzz\r\n0\r\n\r\n" `S.isSuffixOf` s3
+
+  where
+    headRE = "^GET / HTTP/1.1\r\n" :: ByteString
+    postHeadRE = "^POST / HTTP/1.0\r\n" :: ByteString
 
 
 ------------------------------------------------------------------------------
