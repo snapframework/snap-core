@@ -16,9 +16,12 @@ module Snap.Test.Common
   , expectExceptionH
   , liftQ
   , eatException
+  , waitabit
+  , seconds
   ) where
 
 ------------------------------------------------------------------------------
+import           Control.Concurrent          (threadDelay)
 import           Control.DeepSeq
 import           Control.Exception.Lifted    (SomeException (..), catch,
                                               evaluate, try)
@@ -129,3 +132,14 @@ forceList (x:xs) = x `seq` forceList xs
 ------------------------------------------------------------------------------
 liftQ :: forall a m . (Monad m) => m a -> PropertyM m a
 liftQ = QC.run
+
+
+------------------------------------------------------------------------------
+waitabit :: IO ()
+waitabit = threadDelay $ 2*seconds
+
+
+------------------------------------------------------------------------------
+seconds :: Int
+seconds = (10::Int) ^ (6::Int)
+

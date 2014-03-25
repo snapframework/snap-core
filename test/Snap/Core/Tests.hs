@@ -29,6 +29,7 @@ import qualified Control.Monad.Trans.Writer.Lazy      as LWriter
 import           Control.Monad.Trans.Writer.Strict    hiding (pass)
 import           Control.Parallel.Strategies
 import           Data.ByteString.Char8                (ByteString)
+import qualified Data.ByteString.Char8                as S
 import qualified Data.ByteString.Lazy.Char8           as L
 import qualified Data.IntMap                          as IM
 import           Data.IORef
@@ -63,9 +64,10 @@ tests = [ testFail
         , testEscapeHttp
         , testCatchFinishWith
         , testRqBody
-        , testRqBodyTooLong
         , testRqBodyException
         , testRqBodyTermination
+        , testRqBodyTooLong
+        , testRqBodyTooSlow
         , testTrivials
         , testMethod
         , testMethods
@@ -86,6 +88,9 @@ tests = [ testFail
         , testBracketSnap
         , testCoverInstances
         , testPathArgs
+        , testStateTAndExceptions
+        , test304Fixup
+        , testChunkedFixup
         ]
 
 
@@ -295,6 +300,36 @@ testEarlyTermination = testCase "core/earlyTermination" $ do
 
 
 ------------------------------------------------------------------------------
+testStateTAndExceptions :: Test
+testStateTAndExceptions = testCase "core/stateT_exceptions" $ do
+    Test.evalHandler (return ()) h1 >>= assertEqual "h1" True
+    Test.evalHandler (return ()) h2 >>= assertEqual "h2" True
+    Test.evalHandler (return ()) h3 >>= assertEqual "h3" True
+    Test.evalHandler (return ()) h4 >>= assertEqual "h4" True
+    Test.evalHandler (return ()) h5 >>= assertEqual "h5" True
+
+  where
+    useState = do rq <- getRequest
+                  return (rqURI rq == "/")
+
+    h1 = do let m = ((try mzero) :: Snap (Either SomeException Int))
+            (m >> return False) <|> useState
+
+    h2 = do catchFinishWith (getResponse >>= finishWith)
+            useState
+
+    h3 = do catchFinishWith (return ())
+            useState
+
+    h4 = do (void (catchFinishWith mzero)) <|> return ()
+            useState
+
+    h5 = do let m1 = (void (getResponse >>= finishWith)) `mplus` return ()
+            void (catchFinishWith m1)
+            useState
+
+
+------------------------------------------------------------------------------
 testEscapeHttp :: Test
 testEscapeHttp = testCase "core/escapeHttp" $ flip catch catchEscape $ do
     (_, _) <- go (escapeHttp escaper)
@@ -454,6 +489,18 @@ testRqBodyException = testCase "core/requestBodyException" $ do
 
 
 ------------------------------------------------------------------------------
+testRqBodyTooSlow :: Test
+testRqBodyTooSlow = testCase "core/requestBodyTooSlow" $ do
+    str <- Streams.makeInputStream strFunc >>=
+           Streams.throwIfTooSlow (return ()) 100000.0 1
+    expectExceptionH (goEnum str hndlr)
+
+  where
+    strFunc = waitabit >> return (Just "1")
+    hndlr = runRequestBody $ \_ -> throwIO $ ErrorCall "foo"
+
+
+------------------------------------------------------------------------------
 testRqBodyTermination :: Test
 testRqBodyTermination = testCase "core/requestBodyTermination" $ do
     str <- Streams.fromList ["the", "quick", "brown", "fox"]
@@ -486,7 +533,7 @@ testTrivials = testCase "core/trivials" $ do
             liftIO $ assertEqual "localrq" False $ rqIsSecure q
             return ()
 
-        logError "foo"
+        !_ <- logError "foo"
         writeText "zzz"
         writeLazyText "zzz"
 
@@ -522,6 +569,18 @@ testTrivials = testCase "core/trivials" $ do
     coverTypeableInstance (undefined :: Snap ())
     coverShowInstance (EscapeHttp undefined)
 
+    -- number serialization
+    forM_ [ 0, 1, 10, 100, 1000, 10000, 100000, 1000000, 10000000, 10000000000
+          , 100000000000
+          ] $ \i -> do
+              let s = show i
+              rsp_cl <- Test.runHandler (return ()) (clHandler i)
+              assertEqual ("number " ++ s)
+                          (Just $ S.pack s)
+                          (getHeader "content-length" rsp_cl)
+  where
+    clHandler i = do modifyResponse (setContentLength i)
+                     writeBS (S.replicate (fromEnum i) ' ')
 
 ------------------------------------------------------------------------------
 testMethod :: Test
@@ -798,15 +857,62 @@ testCoverInstances = testCase "core/instances" $ do
     coverLWriterT = cover lwt
 
 
+------------------------------------------------------------------------------
 testPathArgs :: Test
-testPathArgs = testCase "types/pathArgs" $ do
+testPathArgs = testCase "core/pathArgs" $ do
     (_, rsp) <- goPath "%e4%b8%ad" m
     b <- getBody rsp
     assertEqual "pathargs url- and utf8-decodes" "ok" b
 
+    Test.evalHandler (Test.get "/%zzzz" Map.empty) m2 >>= assertEqual "m2" True
+    Test.evalHandler (Test.get "/z/foo" Map.empty) m3 >>= assertEqual "m3" "/z/"
+
   where
     m = pathArg f
+
+    m2 = pathArg (\(_ :: Text) -> return False) <|> return True
+
+    m3 = pathArg (\(_ :: Text) -> rqContextPath <$> getRequest)
+
 
     f x = if x == ("\x4e2d" :: Text)
             then writeBS "ok"
             else writeBS $ "not ok: " `mappend` T.encodeUtf8 x
+
+------------------------------------------------------------------------------
+test304Fixup :: Test
+test304Fixup = testCase "core/304fixup" $ do
+    rsp1 <- Test.runHandler (return ()) h1
+    assertEqual "code1" (rspStatus rsp1) 304
+    assertEqual "cl1" Nothing (rspContentLength rsp1)
+    Test.getResponseBody rsp1 >>= assertEqual "body1" ""
+    assertBool "date" $ getHeader "date" rsp1 /= (Just "zzz")
+    assertEqual "cl-header" Nothing $ getHeader "content-length" rsp1
+    assertEqual "transfer-encoding" Nothing $ getHeader "transfer-encoding" rsp1
+
+  where
+    h1 = do let s = "this should get eaten"
+            modifyResponse (setResponseCode 304 .
+                            setContentLength (toEnum $ S.length s) .
+                            setHeader "content-length" "zzz" .
+                            setHeader "transfer-encoding" "chunked" .
+                            setHeader "date" "zzz")
+            writeBS s
+
+
+------------------------------------------------------------------------------
+testChunkedFixup :: Test
+testChunkedFixup = testCase "core/chunked-fixup" $ do
+    rsp1 <- Test.runHandler (return ()) h1
+    Test.getResponseBody rsp1 >>= assertEqual "body1" "OK"
+    assertEqual "transfer-encoding" (Just "chunked")
+        $ getHeader "transfer-encoding" rsp1
+    assertEqual "baz" (Just "baz") $ getHeader "baz" rsp1
+    assertEqual "foo" (Just "foo") $ getHeader "foo" rsp1
+
+  where
+    h1 = do modifyResponse $ setHeader "baz" "baz" .
+                             setHeader "transfer-encoding" "chunked" .
+                             setHeader "foo" "foo" .
+                             setHeader "bar" "bar"
+            writeBS "OK"

@@ -390,7 +390,7 @@ deriving instance Typeable Snap
 -- | Pass the request body stream to a consuming procedure, returning the
 -- result.
 --
--- If the iteratee you pass in here throws an exception, Snap will attempt to
+-- If the stream you pass in here throws an exception, Snap will attempt to
 -- clear the rest of the unread request body before rethrowing the exception.
 -- If your iteratee used 'terminateConnection', however, Snap will give up and
 -- immediately close the socket.
@@ -1024,18 +1024,18 @@ fixupResponse req rsp = {-# SCC "fixupResponse" #-} do
               (Stream _)                -> return rsp
               (SendFile f Nothing)      -> setFileSize f rsp
               (SendFile _ (Just (s,e))) -> return $! setContentLength (e-s) rsp
-    let !cl = rspContentLength rsp'
+    let !cl = if noBody then Nothing else rspContentLength rsp'
     let rsp'' = if noBody
-                  then rsp' { rspBody = Stream $ return . id }
+                  then rsp' { rspBody          = Stream $ return . id
+                            , rspContentLength = Nothing
+                            }
                   else rsp'
     return $! updateHeaders (H.fromList . addCL cl . fixup . H.toList) rsp''
 
   where
     --------------------------------------------------------------------------
     addCL Nothing xs   = xs
-    addCL (Just cl) xs = if noBody
-                           then xs
-                           else ("content-length", word64ToByteString cl):xs
+    addCL (Just cl) xs = ("content-length", word64ToByteString cl):xs
 
     --------------------------------------------------------------------------
     setFileSize :: FilePath -> Response -> IO Response

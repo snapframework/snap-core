@@ -8,7 +8,6 @@ module Snap.Util.FileUploads.Tests
 
 ------------------------------------------------------------------------------
 import           Control.Applicative
-import           Control.Concurrent             (threadDelay)
 import           Control.DeepSeq
 import           Control.Exception.Lifted
 import           Control.Monad
@@ -462,16 +461,6 @@ goSlowEnumerator m s = do
             liftIO waitabit
             Streams.yield $ S.singleton x
             f xs
-
-
-------------------------------------------------------------------------------
-waitabit :: IO ()
-waitabit = threadDelay $ 2*seconds
-
-
-------------------------------------------------------------------------------
-seconds :: Int
-seconds = (10::Int) ^ (6::Int)
 
 
 ------------------------------------------------------------------------------
