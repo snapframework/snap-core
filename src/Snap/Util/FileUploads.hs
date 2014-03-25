@@ -59,4 +59,5 @@ module Snap.Util.FileUploads
   , policyViolationExceptionReason
   ) where
 
-import           Snap.Internal.Util.FileUploads
+
+import           Snap.Internal.Util.FileUploads (BadPartException (badPartExceptionReason), FileUploadException, PartInfo (..), PartProcessor, PartUploadPolicy, PolicyViolationException (policyViolationExceptionReason), UploadPolicy, allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumFormInputSize, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleMultipart, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)

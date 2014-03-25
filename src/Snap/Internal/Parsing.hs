@@ -6,31 +6,30 @@
 ------------------------------------------------------------------------------
 module Snap.Internal.Parsing where
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
-import           Control.Applicative
+import           Blaze.ByteString.Builder         (Builder, fromByteString, fromWord8, toByteString)
+import           Control.Applicative              (Alternative ((<|>), many), Applicative ((*>), (<*), pure), liftA2, (<$>))
 import           Control.Arrow                    (first, second)
-import           Control.Monad
-import           Data.Attoparsec.ByteString.Char8
-import           Data.Bits
+import           Control.Monad                    (Monad (return), MonadPlus (mzero), liftM, when)
+import           Data.Attoparsec.ByteString.Char8 (IResult (Done, Fail, Partial), Parser, Result, anyChar, char, choice, decimal, endOfInput, feed, inClass, isDigit, isSpace, letter_ascii, option, parse, satisfy, string, take, takeTill, takeWhile, takeWhile1)
+import           Data.Bits                        (Bits ((.&.), (.|.), unsafeShiftL))
 import           Data.ByteString.Char8            (ByteString)
-import qualified Data.ByteString.Char8            as S
+import qualified Data.ByteString.Char8            as S (all, append, break, concat, cons, drop, empty, foldl', isPrefixOf, length, null, singleton, span, spanEnd, splitWith, uncons)
 import           Data.ByteString.Internal         (c2w, w2c)
 import           Data.CaseInsensitive             (CI)
-import qualified Data.CaseInsensitive             as CI
-import           Data.Char                        hiding (digitToInt, isDigit,
-                                                   isSpace)
-import           Data.Int
+import qualified Data.CaseInsensitive             as CI (mk)
+import           Data.Char                        (Char, intToDigit, isAlpha, isAlphaNum, isAscii, isControl, isHexDigit, ord)
+import           Data.Int                         (Int64)
 import           Data.List                        (intersperse)
 import           Data.Map                         (Map)
-import qualified Data.Map                         as Map
-import           Data.Maybe
-import           Data.Monoid
-import           Data.Word
-import           GHC.Exts
+import qualified Data.Map                         as Map (empty, insertWith', toList)
+import           Data.Maybe                       (Maybe (..), maybe)
+import           Data.Monoid                      (Monoid (mappend, mconcat, mempty))
+import           Data.Word                        (Word8)
+import           GHC.Exts                         (Int (I#), uncheckedShiftRL#, word2Int#)
 import           GHC.Word                         (Word8 (..))
-import           Prelude                          hiding (head, take, takeWhile)
+import           Prelude                          (Bool (..), Either (..), Enum (fromEnum, toEnum), Eq (..), Num (..), Ord (..), String, and, any, concatMap, elem, error, filter, flip, foldr, fst, id, map, not, otherwise, reverse, show, snd, ($), ($!), (&&), (++), (.), (||))
+import           Snap.Internal.Http.Types         (Cookie (Cookie))
 ------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
 
 
 ------------------------------------------------------------------------------

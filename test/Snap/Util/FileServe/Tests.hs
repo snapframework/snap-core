@@ -7,23 +7,21 @@ module Snap.Util.FileServe.Tests
 
 ------------------------------------------------------------------------------
 import           Control.Applicative            ((<$>), (<|>))
-import           Control.Monad
+import           Control.Monad                  (forM_, liftM)
 import           Data.ByteString                (ByteString)
-import qualified Data.ByteString.Char8          as S
-import qualified Data.HashMap.Strict            as HashMap
-import qualified Data.Map                       as Map
-import           Data.Maybe
-import qualified Data.Text                      as T
-import           Prelude                        hiding (take)
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit                     hiding (Test, path)
-------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
-import           Snap.Internal.Types
-import           Snap.Internal.Util.FileServe
-import qualified Snap.Test                      as Test
-import           Snap.Test.Common
+import qualified Data.ByteString.Char8          as S (break, breakEnd, drop, isInfixOf, pack)
+import qualified Data.HashMap.Strict            as HashMap (empty, fromList, toList)
+import qualified Data.Map                       as Map (empty)
+import           Data.Maybe                     (fromJust, isJust)
+import qualified Data.Text                      as T (unpack)
+import           Snap.Internal.Http.Types       (Request, Response (rspContentLength, rspStatus), getHeader, setHeader)
+import           Snap.Internal.Types            (Snap, pass, runSnap, writeBS)
+import           Snap.Internal.Util.FileServe   (DirectoryConfig (..), decodeFilePath, defaultMimeTypes, fancyDirectoryConfig, serveDirectory, serveDirectoryWith, serveFile, simpleDirectoryConfig)
+import qualified Snap.Test                      as Test (buildRequest, get, getResponseBody, setQueryStringRaw)
+import           Snap.Test.Common               (expectExceptionH)
+import           Test.Framework                 (Test)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (assertBool, assertEqual)
 ------------------------------------------------------------------------------
 
 

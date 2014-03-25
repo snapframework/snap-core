@@ -1,45 +1,45 @@
 {-# LANGUAGE BangPatterns     #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE Rank2Types       #-}
-module Snap.Internal.Routing where
-
-
+module Snap.Internal.Routing
+  ( Route(..)
+  , pRoute
+  , route
+  , routeEarliestNC
+  , routeHeight
+  , routeLocal
+  , splitPath
+  ) where
 ------------------------------------------------------------------------------
 import           Control.Applicative      ((<|>))
 import           Data.ByteString          (ByteString)
-import qualified Data.ByteString          as B
+import qualified Data.ByteString          as B (head, intercalate, length, null, pack, splitWith, tail)
 import           Data.ByteString.Internal (c2w)
 import           Data.HashMap.Strict      (HashMap)
-import qualified Data.HashMap.Strict      as H
-import qualified Data.Map                 as Map
-import           Data.Monoid
+import qualified Data.HashMap.Strict      as H (elems, empty, fromList, lookup, unionWith)
+import qualified Data.Map                 as Map (empty, insertWith, unionWith)
+import           Data.Monoid              (Monoid (..))
+import           Snap.Internal.Http.Types (Params, Request (rqContextPath, rqParams, rqPathInfo))
+import           Snap.Internal.Parsing    (urlDecode)
+import           Snap.Internal.Types      (MonadSnap, getRequest, getsRequest, localRequest, modifyRequest, pass, updateContextPath)
+------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
-import           Snap.Internal.Parsing
-import           Snap.Internal.Types
-
-
-------------------------------------------------------------------------------
-{-|
-
-The internal data type you use to build a routing tree.  Matching is
-done unambiguously.
-
-'Capture' and 'Dir' routes can have a "fallback" route:
-
-  - For 'Capture', the fallback is routed when there is nothing to capture
-  - For 'Dir', the fallback is routed when we can't find a route in its map
-
-Fallback routes are stacked: i.e. for a route like:
-
-> Dir [("foo", Capture "bar" (Action bar) NoRoute)] baz
-
-visiting the URI foo/ will result in the "bar" capture being empty and
-triggering its fallback. It's NoRoute, so we go to the nearest parent
-fallback and try that, which is the baz action.
-
--}
+-- | The internal data type you use to build a routing tree. Matching is
+-- done unambiguously.
+--
+-- 'Capture' and 'Dir' routes can have a "fallback" route:
+--
+--   - For 'Capture', the fallback is routed when there is nothing to capture
+--   - For 'Dir', the fallback is routed when we can't find a route in its map
+--
+-- Fallback routes are stacked: i.e. for a route like:
+--
+-- > Dir [("foo", Capture "bar" (Action bar) NoRoute)] baz
+--
+-- visiting the URI foo/ will result in the "bar" capture being empty and
+-- triggering its fallback. It's NoRoute, so we go to the nearest parent
+-- fallback and try that, which is the baz action.
 data Route a m = Action ((MonadSnap m) => m a)   -- wraps a 'Snap' action
                -- captures the dir in a param
                | Capture ByteString (Route a m) (Route a m)

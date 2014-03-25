@@ -6,54 +6,48 @@
 ------------------------------------------------------------------------------
 module Snap.Core.Tests ( tests ) where
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
-import           Control.Applicative
-import           Control.Concurrent.MVar
-import           Control.DeepSeq
-import           Control.Exception.Lifted             (ErrorCall (..),
-                                                       Exception,
-                                                       SomeException (..),
-                                                       catch, fromException,
-                                                       mask, throwIO, try)
-import           Control.Monad
-import           Control.Monad.Base
+import           Blaze.ByteString.Builder             (fromByteString)
+import           Control.Applicative                  (Alternative ((<|>)), Applicative ((<*>), pure), (<$>))
+import           Control.Concurrent.MVar              (newEmptyMVar, putMVar, takeMVar)
+import           Control.DeepSeq                      (deepseq)
+import           Control.Exception.Lifted             (ErrorCall (..), Exception, SomeException (..), catch, fromException, mask, throwIO, try)
+import           Control.Monad                        (Functor (fmap), Monad ((>>), (>>=), fail, return), MonadPlus (mplus, mzero), forM_, liftM, void)
+import           Control.Monad.Base                   (MonadBase (liftBase))
 import           Control.Monad.IO.Class               (liftIO)
-import           Control.Monad.Trans.Error
-import           Control.Monad.Trans.List
-import           Control.Monad.Trans.Reader
-import qualified Control.Monad.Trans.RWS.Lazy         as LRWS
-import           Control.Monad.Trans.RWS.Strict       hiding (pass)
-import qualified Control.Monad.Trans.State.Lazy       as LState
-import           Control.Monad.Trans.State.Strict
-import qualified Control.Monad.Trans.Writer.Lazy      as LWriter
-import           Control.Monad.Trans.Writer.Strict    hiding (pass)
-import           Control.Parallel.Strategies
+import           Control.Monad.Trans.Error            (ErrorT (runErrorT))
+import           Control.Monad.Trans.List             (ListT (runListT))
+import           Control.Monad.Trans.Reader           (ReaderT (runReaderT))
+import qualified Control.Monad.Trans.RWS.Lazy         as LRWS (RWST (runRWST))
+import           Control.Monad.Trans.RWS.Strict       (RWST (runRWST))
+import qualified Control.Monad.Trans.State.Lazy       as LState (evalStateT)
+import           Control.Monad.Trans.State.Strict     (evalStateT)
+import qualified Control.Monad.Trans.Writer.Lazy      as LWriter (WriterT (runWriterT))
+import           Control.Monad.Trans.Writer.Strict    (WriterT (runWriterT))
+import           Control.Parallel.Strategies          (rdeepseq, using)
 import           Data.ByteString.Char8                (ByteString)
-import qualified Data.ByteString.Char8                as S
-import qualified Data.ByteString.Lazy.Char8           as L
-import qualified Data.IntMap                          as IM
-import           Data.IORef
-import qualified Data.Map                             as Map
+import qualified Data.ByteString.Char8                as S (length, pack, replicate)
+import qualified Data.ByteString.Lazy.Char8           as L (ByteString, fromChunks, isPrefixOf)
+import qualified Data.IntMap                          as IM (toList)
+import           Data.IORef                           (newIORef, readIORef, writeIORef)
+import qualified Data.Map                             as Map (empty, fromList)
 import           Data.Maybe                           (isJust)
 import           Data.Monoid                          (mappend)
 import           Data.Text                            (Text)
-import qualified Data.Text.Encoding                   as T
+import qualified Data.Text.Encoding                   as T (encodeUtf8)
 import           Data.Text.Lazy                       ()
-import           Prelude                              hiding (catch)
+import           Prelude                              (Bool (..), Either (..), Enum (..), Eq (..), IO, Int, Maybe (Just, Nothing), Num (..), Ord (..), Show (..), String, const, either, flip, id, map, maybe, not, seq, undefined, ($), ($!), (&&), (++), (.))
+import           Snap.Internal.Http.Types             (Cookie (Cookie), Method (..), Request (rqBody, rqClientAddr, rqContextPath, rqIsSecure, rqURI), Response (rspContentLength, rspStatus, rspStatusReason, rspTransformingRqBody), addHeader, deleteHeader, emptyResponse, getHeader, setContentLength, setHeader, setResponseCode, setResponseStatus, statusReasonMap)
+import           Snap.Internal.Parsing                (urlDecode, urlEncode)
+import           Snap.Internal.Types                  (EscapeSnap (..), MonadSnap (..), NoHandlerException (NoHandlerException), Snap, addToOutput, bracketSnap, catchFinishWith, dir, escapeHttp, evalSnap, finishWith, getParam, getPostParam, getQueryParam, getRequest, getResponse, getsResponse, ifTop, ipHeaderFilter, localRequest, logError, method, methods, modifyResponse, pass, path, pathArg, putRequest, putResponse, readRequestBody, redirect, redirect', runRequestBody, runSnap, terminateConnection, transformRequestBody, updateContextPath, withRequest, withResponse, writeBS, writeLBS, writeLazyText, writeText)
+import qualified Snap.Test                            as Test (RequestType (RequestWithRawBody), buildRequest, evalHandler, get, getResponseBody, postRaw, runHandler, setRequestType)
+import           Snap.Test.Common                     (coverEqInstance, coverOrdInstance, coverReadInstance, coverShowInstance, coverTypeableInstance, expectExceptionH, forceSameType, waitabit)
 import           System.IO.Streams                    (InputStream)
-import qualified System.IO.Streams                    as Streams
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.Framework.Providers.QuickCheck2
-import           Test.HUnit                           hiding (Test, path)
-import           Test.QuickCheck                      (Gen, arbitrary, elements,
-                                                       oneof, variant)
-------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
-import           Snap.Internal.Parsing
-import           Snap.Internal.Types
-import qualified Snap.Test                            as Test
-import           Snap.Test.Common
+import qualified System.IO.Streams                    as Streams (fromList, makeInputStream, nullInput, nullOutput, read, throwIfTooSlow, toList, write)
+import           Test.Framework                       (Test)
+import           Test.Framework.Providers.HUnit       (testCase)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
+import           Test.HUnit                           (Assertable (assert), assertBool, assertEqual, assertFailure)
+import           Test.QuickCheck                      (Gen, arbitrary, elements, oneof, variant)
 ------------------------------------------------------------------------------
 
 

@@ -26,37 +26,32 @@ module Snap.Internal.Util.FileServe
   ) where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
-import           Blaze.ByteString.Builder.Char8
-import           Control.Applicative
+import           Blaze.ByteString.Builder       (fromByteString, fromWord8, toByteString)
+import           Blaze.ByteString.Builder.Char8 (fromShow)
+import           Control.Applicative            (Alternative ((<|>)), Applicative ((*>), (<*)), (<$>))
 import           Control.Exception.Lifted       (SomeException, catch, evaluate)
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Attoparsec.Char8
+import           Control.Monad                  (Monad ((>>), (>>=), return), filterM, forM_, liftM, unless, void, when, (=<<))
+import           Control.Monad.IO.Class         (MonadIO (..))
+import           Data.Attoparsec.Char8          (Parser, char, endOfInput, option, string)
 import           Data.ByteString.Char8          (ByteString)
-import qualified Data.ByteString.Char8          as S
+import qualified Data.ByteString.Char8          as S (append, concat, intercalate, isSuffixOf, null, pack, takeWhile, unpack)
 import           Data.ByteString.Internal       (c2w)
 import           Data.HashMap.Strict            (HashMap)
-import qualified Data.HashMap.Strict            as Map
-import           Data.List
+import qualified Data.HashMap.Strict            as Map (empty, fromList, lookup)
+import           Data.List                      (drop, elem, filter, foldl', null, sort, (++))
 import           Data.Maybe                     (fromMaybe, isNothing)
-import           Data.Monoid
-import qualified Data.Text                      as T
-import qualified Data.Text.Encoding             as T
-import           Data.Word
-#if MIN_VERSION_base(4,6,0)
-import           Prelude                        hiding (Show, show)
-#else
-import           Prelude                        hiding (Show, catch, show)
-#endif
+import           Data.Monoid                    (Monoid (mappend, mconcat))
+import qualified Data.Text                      as T (Text, pack)
+import qualified Data.Text.Encoding             as T (decodeUtf8, encodeUtf8)
+import           Data.Word                      (Word64)
+import           Prelude                        (Bool (..), Eq (..), FilePath, IO, Maybe (Just, Nothing), Num (..), Ord (..), String, const, either, flip, fromIntegral, id, maybe, not, ($), ($!), (.), (||))
 import qualified Prelude
-import           System.Directory
-import           System.FilePath
-import           System.PosixCompat.Files
-------------------------------------------------------------------------------
-import           Snap.Core
-import           Snap.Internal.Debug
-import           Snap.Internal.Parsing
+import           Snap.Core                      (MonadSnap (..), Request (rqPathInfo, rqQueryString, rqURI), deleteHeader, emptyResponse, finishWith, formatHttpTime, getHeader, getRequest, modifyResponse, parseHttpTime, pass, redirect, sendFile, sendFilePartial, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, urlDecode, writeBS)
+import           Snap.Internal.Debug            (debug)
+import           Snap.Internal.Parsing          (fullyParse, parseNum)
+import           System.Directory               (doesDirectoryExist, doesFileExist, getDirectoryContents)
+import           System.FilePath                (isRelative, joinPath, splitDirectories, takeExtensions, takeFileName, (</>))
+import           System.PosixCompat.Files       (fileSize, getFileStatus, modificationTime)
 
 
 ------------------------------------------------------------------------------

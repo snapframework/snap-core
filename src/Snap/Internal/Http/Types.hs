@@ -18,7 +18,7 @@
 module Snap.Internal.Http.Types where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
+import           Blaze.ByteString.Builder (Builder, fromByteString)
 import           Control.Monad            (unless)
 import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as S
@@ -30,12 +30,12 @@ import qualified Data.IntMap              as IM
 import           Data.List                hiding (take)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
-import           Data.Maybe
-import           Data.Time.Clock
+import           Data.Maybe               (Maybe (..), fromMaybe, maybe)
+import           Data.Time.Clock          (UTCTime)
 import           Data.Word                (Word64)
-import           Foreign.C.Types
-import           Prelude                  hiding (take)
-import           System.IO
+import           Foreign.C.Types          (CTime (..))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fromIntegral, id, ($), ($!), (.))
+import           System.IO                (IOMode (ReadMode), SeekMode (AbsoluteSeek), hSeek, withBinaryFile)
 import           System.IO.Streams        (InputStream, OutputStream)
 import qualified System.IO.Streams        as Streams
 
@@ -48,8 +48,8 @@ import           System.Locale            (defaultTimeLocale)
 #else
 import qualified Data.ByteString.Unsafe   as S
 import           Data.Time.Format         ()
-import           Foreign
-import           Foreign.C.String
+import           Foreign.C.String         (CString)
+import           Foreign.Marshal.Alloc    (mallocBytes)
 #endif
 
 ------------------------------------------------------------------------------

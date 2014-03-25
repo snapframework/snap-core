@@ -2,17 +2,16 @@
 module Snap.Internal.Test.Assertions where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
-import           Control.Monad (liftM)
-import           Data.ByteString.Char8 (ByteString)
-import           Data.Maybe (fromJust)
-import           Data.Monoid (mconcat)
-import qualified System.IO.Streams as Streams
-import           Test.HUnit (Assertion, assertBool, assertEqual)
-import           Text.Regex.Posix ((=~))
-
+import           Blaze.ByteString.Builder (toByteString)
+import           Control.Monad            (liftM)
+import           Data.ByteString.Char8    (ByteString)
+import           Data.Maybe               (fromJust)
+import           Data.Monoid              (mconcat)
+import           Snap.Internal.Http.Types (Response (rspBody, rspStatus), getHeader, rspBodyToEnum)
+import qualified System.IO.Streams        as Streams
+import           Test.HUnit               (Assertion, assertBool, assertEqual)
+import           Text.Regex.Posix         ((=~))
 ------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
 
 ------------------------------------------------------------------------------
 getResponseBody :: Response -> IO ByteString

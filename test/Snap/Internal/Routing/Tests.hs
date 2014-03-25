@@ -10,18 +10,17 @@ import           Control.Exception              (ErrorCall (..), throwIO)
 import           Control.Monad                  (liftM, unless)
 import           Control.Monad.Trans            (liftIO)
 import           Data.ByteString                (ByteString)
-import qualified Data.ByteString                as S
-import qualified Data.Map                       as Map
-import           Data.Maybe
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit                     hiding (Test, path)
-------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
-import           Snap.Internal.Routing
-import           Snap.Internal.Types
-import           Snap.Test
-import           Snap.Test.Common
+import qualified Data.ByteString                as S (append, isPrefixOf)
+import qualified Data.Map                       as Map (empty)
+import           Data.Maybe                     (fromJust)
+import           Snap.Internal.Http.Types       (Request (rqContextPath, rqPathInfo), rqParam, rqSetParam)
+import           Snap.Internal.Routing          (Route (NoRoute), route, routeEarliestNC, routeHeight, routeLocal)
+import           Snap.Internal.Types            (Snap, getParam, getRequest, modifyRequest, pass)
+import           Snap.Test                      (evalHandler, get)
+import           Snap.Test.Common               (expectExceptionH)
+import           Test.Framework                 (Test)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (assertEqual)
 ------------------------------------------------------------------------------
 
 

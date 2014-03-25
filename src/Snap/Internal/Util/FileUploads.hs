@@ -44,48 +44,37 @@ module Snap.Internal.Util.FileUploads
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative
-import           Control.Arrow
-import           Control.Exception.Lifted     (Exception, Handler (..),
-                                               SomeException (..), bracket,
-                                               catch, catches, fromException,
-                                               mask, throwIO, toException)
-import qualified Control.Exception.Lifted     as E
-import           Control.Monad
-import           Data.Attoparsec.Char8
-import qualified Data.Attoparsec.Char8        as Atto
+import           Control.Applicative          (Alternative ((<|>)), Applicative ((*>), (<*), pure))
+import           Control.Arrow                (Arrow (first))
+import           Control.Exception.Lifted     (Exception, Handler (..), SomeException (..), bracket, catch, catches, fromException, mask, throwIO, toException)
+import qualified Control.Exception.Lifted     as E (try)
+import           Control.Monad                (Functor (fmap), Monad ((>>=), return), guard, liftM, sequence, void, when)
+import           Data.Attoparsec.Char8        (Parser, isEndOfLine, string, takeWhile)
+import qualified Data.Attoparsec.Char8        as Atto (try)
 import           Data.ByteString.Char8        (ByteString)
-import qualified Data.ByteString.Char8        as S
+import qualified Data.ByteString.Char8        as S (concat)
 import           Data.ByteString.Internal     (c2w)
-import qualified Data.CaseInsensitive         as CI
-import           Data.Int
-import           Data.List                    hiding (takeWhile)
-import qualified Data.Map                     as Map
-import           Data.Maybe
+import qualified Data.CaseInsensitive         as CI (mk)
+import           Data.Int                     (Int, Int64)
+import           Data.List                    (concat, find, map, (++))
+import qualified Data.Map                     as Map (insertWith', size)
+import           Data.Maybe                   (Maybe (..), fromMaybe, maybe)
 import           Data.Text                    (Text)
-import qualified Data.Text                    as T
-import qualified Data.Text.Encoding           as TE
-import           Data.Typeable
-#if MIN_VERSION_base(4,6,0)
-import           Prelude                      hiding (getLine, takeWhile)
-#else
-import           Prelude                      hiding (catch, getLine, takeWhile)
-#endif
-import           System.Directory
+import qualified Data.Text                    as T (concat, pack, unpack)
+import qualified Data.Text.Encoding           as TE (decodeUtf8)
+import           Data.Typeable                (Typeable, cast)
+import           Prelude                      (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, snd, ($), ($!), (.), (^))
+import           Snap.Core                    (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody, terminateConnection)
+import           Snap.Internal.Parsing        (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters)
+import qualified Snap.Types.Headers           as H (fromList)
+import           System.Directory             (removeFile)
 import           System.FilePath              ((</>))
-import           System.IO                    hiding (isEOF)
-import           System.IO.Streams            (InputStream, MatchInfo (..),
-                                               RateTooSlowException,
-                                               TooManyBytesReadException,
-                                               search)
-import qualified System.IO.Streams            as Streams
-import           System.IO.Streams.Attoparsec
+import           System.IO                    (BufferMode (NoBuffering), Handle, hClose, hSetBuffering)
+import           System.IO.Streams            (InputStream, MatchInfo (..), RateTooSlowException, TooManyBytesReadException, search)
+import qualified System.IO.Streams            as Streams (atEOF, connect, handleToOutputStream, makeInputStream, read, skipToEof, throwIfProducesMoreThan, throwIfTooSlow, toList)
+import           System.IO.Streams.Attoparsec (parseFromStream)
 import           System.PosixCompat.Temp      (mkstemp)
 ------------------------------------------------------------------------------
-import           Snap.Core
-import           Snap.Internal.Parsing
-import qualified Snap.Types.Headers           as H
-
 
 ------------------------------------------------------------------------------
 -- | Reads uploaded files into a temporary directory and calls a user handler

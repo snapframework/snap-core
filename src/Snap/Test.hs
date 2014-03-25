@@ -53,7 +53,5 @@ module Snap.Test
   )
   where
 
-import           Snap.Internal.Test.Assertions
-import           Snap.Internal.Test.RequestBuilder
-
-
+import           Snap.Internal.Test.Assertions     (assert404, assertBodyContains, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
+import           Snap.Internal.Test.RequestBuilder (FileData (..), MultipartParam (..), MultipartParams, RequestBuilder, RequestType (..), addCookies, addHeader, buildRequest, delete, evalHandler, evalHandlerM, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, runHandlerM, setContentType, setHeader, setHttpVersion, setQueryString, setQueryStringRaw, setRequestPath, setRequestType, setSecure)

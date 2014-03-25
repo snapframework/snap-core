@@ -49,7 +49,9 @@ steps:
       remove_redundant: true
 
   # Align the types in record declarations
-  - records: {}
+  #
+  # FIXME(greg): this should be on, see comment below re: "columns"
+  # - records: {}
 
   # Replace tabs by spaces. This is disabled by default.
   - tabs:
@@ -62,7 +64,13 @@ steps:
 
 # A common setting is the number of columns (parts of) code will be wrapped
 # to. Different steps take this into account. Default: 80.
-columns: 80
+#
+
+# NOTE(greg): this should be 80 but stylish-haskell currently has a bad bug
+# that causes it not to wrap long import lists. Rather than get consistently
+# weird output, just don't wrap the lines at all.
+
+columns: 120000
 
 # Sometimes, language extensions are specified in a cabal file or from the
 # command line instead of using language pragmas in the file. stylish-haskell

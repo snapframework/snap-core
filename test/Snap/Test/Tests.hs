@@ -5,25 +5,24 @@ module Snap.Test.Tests
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Monad
+import           Control.Monad                     (MonadPlus (mzero), liftM)
 import           Control.Monad.IO.Class            (liftIO)
 import           Data.ByteString.Char8             (ByteString)
-import qualified Data.ByteString.Char8             as S
-import qualified Data.Map                          as Map
-import qualified System.IO.Streams                 as Streams
+import qualified Data.ByteString.Char8             as S (concat, isSuffixOf, length)
+import qualified Data.Map                          as Map (empty, fromList)
+import           Snap.Core                         (Cookie (Cookie), Method (DELETE, GET, Method, PATCH, POST, PUT), Request (rqContentLength, rqContextPath, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), extendTimeout, getHeader, getParam, logError, redirect, runSnap, writeBS)
+import           Snap.Internal.Http.Types          (Request (..))
+import qualified Snap.Internal.Http.Types          as T (getHeader)
+import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
+import           Snap.Test                         (assert404, assertBodyContains, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
+import           Snap.Test.Common                  (coverShowInstance, expectExceptionH)
+import           Snap.Util.FileUploads             (PartInfo (PartInfo), defaultUploadPolicy, handleMultipart)
+import qualified System.IO.Streams                 as Streams (fromList, toList)
 import           Test.Framework                    (Test)
 import           Test.Framework.Providers.HUnit    (testCase)
 import           Test.HUnit                        (assertBool, assertEqual)
 import           Text.Regex.Posix                  ((=~))
 ------------------------------------------------------------------------------
-import           Snap.Core                         hiding (addHeader,
-                                                    setContentType, setHeader)
-import           Snap.Internal.Http.Types          (Request (..))
-import qualified Snap.Internal.Http.Types          as T
-import           Snap.Internal.Test.RequestBuilder
-import           Snap.Test
-import           Snap.Test.Common
-import           Snap.Util.FileUploads
 
 ------------------------------------------------------------------------------
 tests :: [Test]

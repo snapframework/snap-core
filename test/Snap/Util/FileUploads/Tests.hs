@@ -7,34 +7,34 @@ module Snap.Util.FileUploads.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative
-import           Control.DeepSeq
-import           Control.Exception.Lifted
-import           Control.Monad
-import           Control.Monad.IO.Class
+import           Control.Applicative            (Alternative ((<|>)))
+import           Control.DeepSeq                (deepseq)
+import           Control.Exception.Lifted       (Exception (fromException), Handler (Handler), SomeException (SomeException), catch, catches, finally, throw)
+import           Control.Monad                  (Monad ((>>=), return), liftM)
+import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S
-import           Data.IORef
+import           Data.IORef                     (atomicModifyIORef, newIORef, readIORef, writeIORef)
 import           Data.List                      (foldl')
 import qualified Data.Map                       as Map
-import           Data.Maybe
+import           Data.Maybe                     (Maybe (..), fromJust, maybe)
 import qualified Data.Text                      as T
-import           Data.Typeable
-import           Prelude                        hiding (catch)
-import           System.Directory
+import           Data.Typeable                  (Typeable)
+import           Prelude                        (Bool (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
+import           Snap.Internal.Http.Types       (Request (rqBody), Response, setHeader)
+import           Snap.Internal.Types            (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
+import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (GenericFileUploadException), PartInfo (partContentType, partFileName), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)
+import qualified Snap.Test                      as Test
+import           Snap.Test.Common               (coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)
+import           System.Directory               (createDirectoryIfMissing, getDirectoryContents, removeDirectoryRecursive)
 import           System.IO.Streams              (RateTooSlowException)
 import qualified System.IO.Streams              as Streams
-import           System.Mem
-import           System.Timeout
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit                     hiding (Test, path)
+import           System.Mem                     (performGC)
+import           System.Timeout                 (timeout)
+import           Test.Framework                 (Test)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (assertBool, assertEqual)
 ------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
-import           Snap.Internal.Types
-import           Snap.Internal.Util.FileUploads
-import qualified Snap.Test                      as Test
-import           Snap.Test.Common
 
 
 ------------------------------------------------------------------------------

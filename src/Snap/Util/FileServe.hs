@@ -18,4 +18,4 @@ module Snap.Util.FileServe
   , serveFileAs
   ) where
 
-import           Snap.Internal.Util.FileServe
+import           Snap.Internal.Util.FileServe (DirectoryConfig (..), HandlerMap, MimeMap, defaultDirectoryConfig, defaultIndexGenerator, defaultMimeTypes, fancyDirectoryConfig, fileType, getSafePath, serveDirectory, serveDirectoryWith, serveFile, serveFileAs, simpleDirectoryConfig)

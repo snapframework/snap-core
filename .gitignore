@@ -3,6 +3,7 @@ TAGS
 test/TAGS
 cabal-dev
 dist/
+*.imports
 *.tix
 .hpc
 *.prof

@@ -7,12 +7,11 @@ module Snap.Types.Headers.Tests (tests) where
 import           Data.CaseInsensitive           as CI
 import           Data.List                      (sort)
 import qualified Data.Set                       as Set
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit                     (assertBool, assertEqual)
-------------------------------------------------------------------------------
-import           Snap.Test.Common
+import           Snap.Test.Common               (coverShowInstance)
 import qualified Snap.Types.Headers             as H
+import           Test.Framework                 (Test)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (assertBool, assertEqual)
 ------------------------------------------------------------------------------
 
 tests :: [Test]

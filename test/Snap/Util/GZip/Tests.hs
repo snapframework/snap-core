@@ -5,30 +5,29 @@
 
 module Snap.Util.GZip.Tests
   ( tests ) where
-
-import           Blaze.ByteString.Builder
+------------------------------------------------------------------------------
+import           Blaze.ByteString.Builder             (fromByteString)
 import qualified Codec.Compression.GZip               as GZip
 import qualified Codec.Compression.Zlib               as Zlib
 import           Data.ByteString.Char8                (ByteString)
 import qualified Data.ByteString.Char8                as S
 import qualified Data.ByteString.Lazy.Char8           as L
 import           Data.CaseInsensitive                 (CI)
-import           Data.Digest.Pure.MD5
+import           Data.Digest.Pure.MD5                 (md5)
 import           Data.Serialize                       (encode)
+import           Snap.Core                            (Request, Response, Snap, getHeader, modifyResponse, runSnap, setContentType, setHeader, setResponseBody, writeBS)
+import qualified Snap.Test                            as Test
+import           Snap.Test.Common                     (coverTypeableInstance, expectException, expectExceptionH, liftQ)
+import           Snap.Util.GZip                       (BadAcceptEncodingException, noCompression, withCompression)
 import qualified System.IO.Streams                    as Streams
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.Framework.Providers.QuickCheck2
+import           Test.Framework                       (Test)
+import           Test.Framework.Providers.HUnit       (testCase)
+import           Test.Framework.Providers.QuickCheck2 (testProperty)
 import           Test.HUnit                           (assertEqual)
 import qualified Test.HUnit                           as H
-import           Test.QuickCheck
-import           Test.QuickCheck.Monadic              hiding (run)
-
-import           Snap.Core
-import qualified Snap.Test                            as Test
-import           Snap.Test.Common
-import           Snap.Util.GZip
-
+import           Test.QuickCheck                      (Arbitrary (arbitrary))
+import           Test.QuickCheck.Monadic              (PropertyM, assert, forAllM, monadicIO)
+------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
 tests :: [Test]

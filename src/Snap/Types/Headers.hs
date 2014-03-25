@@ -56,7 +56,8 @@ import qualified Data.CaseInsensitive        as CI
 import qualified Data.CaseInsensitive.Unsafe as CI
 import qualified Data.List                   as List
 import           Data.Maybe                  (fromMaybe)
-import           Prelude                     hiding (foldr, lookup, null)
+import           Prelude                     (Bool (..), Eq (..), Maybe (..), Show (..), fst, id, map, otherwise, uncurry, ($), ($!), (.))
+------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
 newtype Headers = H { unH :: [(ByteString, ByteString)] }

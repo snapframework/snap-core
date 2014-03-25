@@ -6,18 +6,17 @@ module Snap.Internal.Parsing.Tests ( tests ) where
 ------------------------------------------------------------------------------
 import           Control.Applicative            (many)
 import           Data.Attoparsec.Char8          (IResult (..), char, string)
-import qualified Data.ByteString.Char8          as S
-import qualified Data.Map                       as Map
+import qualified Data.ByteString.Char8          as S (concat)
+import qualified Data.Map                       as Map (fromList)
 import           Data.Word                      (Word8)
-import           System.Random
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit                     hiding (Test, path)
-import           Test.QuickCheck
-------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
-import           Snap.Internal.Parsing
-import           Snap.Test.Common
+import           Snap.Internal.Http.Types       (Cookie (Cookie, cookieDomain, cookieExpires, cookieHttpOnly, cookieName, cookiePath, cookieSecure, cookieValue))
+import           Snap.Internal.Parsing          (finish, fullyParse, fullyParse', pAvPairs, pHeaders, pQuotedString, parseCookie, parseToCompletion, parseUrlEncoded, unsafeFromHex, unsafeFromNat)
+import           Snap.Test.Common               (expectExceptionH)
+import           System.Random                  (Random (random, randomR))
+import           Test.Framework                 (Test)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (assertEqual)
+import           Test.QuickCheck                (Arbitrary (arbitrary), choose)
 ------------------------------------------------------------------------------
 
 tests :: [Test]

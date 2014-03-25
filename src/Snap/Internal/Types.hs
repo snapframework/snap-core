@@ -88,30 +88,26 @@ module Snap.Internal.Types
   ) where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
-import           Blaze.ByteString.Builder.Char.Utf8
-import           Control.Applicative
-import           Control.Exception.Lifted           (ErrorCall (..), Exception,
-                                                     Handler (..),
-                                                     SomeException (..), catch,
-                                                     catches, mask, onException,
-                                                     throwIO)
-import           Control.Monad
-import           Control.Monad.Base
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Control
-import           Control.Monad.Trans.State
+import           Blaze.ByteString.Builder           (Builder, fromByteString, fromLazyByteString)
+import           Blaze.ByteString.Builder.Char.Utf8 (fromLazyText, fromText)
+import           Control.Applicative                (Alternative ((<|>), empty), Applicative ((<*>), pure), (<$>))
+import           Control.Exception.Lifted           (ErrorCall (..), Exception, Handler (..), SomeException (..), catch, catches, mask, onException, throwIO)
+import           Control.Monad                      (Functor (..), Monad (..), MonadPlus (..), ap, liftM, unless, (=<<))
+import           Control.Monad.Base                 (MonadBase (..))
+import           Control.Monad.IO.Class             (MonadIO (..))
+import           Control.Monad.Trans.Control        (MonadBaseControl (..))
+import           Control.Monad.Trans.State          (StateT (..))
 import           Data.ByteString.Char8              (ByteString)
-import qualified Data.ByteString.Char8              as S
-import qualified Data.ByteString.Internal           as S
-import qualified Data.ByteString.Lazy.Char8         as L
+import qualified Data.ByteString.Char8              as S (break, concat, drop, dropWhile, intercalate, length, take, takeWhile)
+import qualified Data.ByteString.Internal           as S (create, inlinePerformIO)
+import qualified Data.ByteString.Lazy.Char8         as L (ByteString, fromChunks)
 import           Data.CaseInsensitive               (CI)
-import           Data.Maybe
-import qualified Data.Text                          as T
-import qualified Data.Text.Lazy                     as LT
-import           Data.Time
-import           Data.Typeable
-import           Data.Word                          (Word8, Word64)
+import           Data.Maybe                         (Maybe (..), listToMaybe, maybe)
+import qualified Data.Text                          as T (Text)
+import qualified Data.Text.Lazy                     as LT (Text)
+import           Data.Time                          (Day (ModifiedJulianDay), UTCTime (UTCTime))
+import           Data.Typeable                      (TyCon, Typeable, Typeable1 (..), mkTyCon3, mkTyConApp)
+import           Data.Word                          (Word64, Word8)
 import           Foreign.Ptr                        (Ptr, plusPtr)
 import           Foreign.Storable                   (poke)
 #if MIN_VERSION_base(4,6,0)
@@ -122,10 +118,10 @@ import           Prelude                            hiding (catch, take)
 import           System.IO.Streams                  (InputStream, OutputStream)
 import qualified System.IO.Streams                  as Streams
 import           System.Posix.Types                 (FileOffset)
-import           System.PosixCompat.Files           hiding (setFileSize)
+import           System.PosixCompat.Files           (fileSize, getFileStatus)
 ------------------------------------------------------------------------------
 import qualified Data.Readable                      as R
-import           Snap.Internal.Http.Types
+import           Snap.Internal.Http.Types           (Cookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (..), Response (..), ResponseBody (..), StreamProc, addHeader, addResponseCookie, c_format_http_time, c_format_log_time, c_parse_http_time, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, normalizeMethod, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqSetParam, rspBodyMap, rspBodyToEnum, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus, set_c_locale, statusReasonMap, toStr)
 import           Snap.Internal.Parsing              (urlDecode)
 import qualified Snap.Types.Headers                 as H
 ------------------------------------------------------------------------------
@@ -316,12 +312,15 @@ instance (MonadBaseControl IO) Snap where
     {-# INLINE restoreM #-}
 
 
+------------------------------------------------------------------------------
 {-# INLINE snapToStateT #-}
 snapToStateT :: Snap a -> StateT SnapState IO (SnapResult a)
 snapToStateT m = StateT $ \st -> do
     unSnap m (\a st' -> return (SnapValue a, st'))
              (\z st' -> return (Zero z, st')) st
 
+
+------------------------------------------------------------------------------
 {-# INLINE stateTToSnap #-}
 stateTToSnap :: StateT SnapState IO (SnapResult a) -> Snap a
 stateTToSnap m = Snap $ \sk fk st -> do
@@ -329,6 +328,7 @@ stateTToSnap m = Snap $ \sk fk st -> do
     case a of
       SnapValue x -> sk x st'
       Zero z      -> fk z st'
+
 
 ------------------------------------------------------------------------------
 instance MonadPlus Snap where

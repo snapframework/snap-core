@@ -19,24 +19,22 @@ module Snap.Test.Common
   , waitabit
   , seconds
   ) where
-
 ------------------------------------------------------------------------------
 import           Control.Concurrent          (threadDelay)
-import           Control.DeepSeq
-import           Control.Exception.Lifted    (SomeException (..), catch,
-                                              evaluate, try)
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Control
+import           Control.DeepSeq             (deepseq)
+import           Control.Exception.Lifted    (SomeException (..), catch, evaluate, try)
+import           Control.Monad               (Monad ((>>), fail, return), liftM, replicateM)
+import           Control.Monad.IO.Class      (MonadIO (..))
+import           Control.Monad.Trans.Control (MonadBaseControl)
 import qualified Data.ByteString             as S
 import           Data.ByteString.Internal    (c2w)
 import qualified Data.ByteString.Lazy        as L
-import           Data.Typeable
-import           Prelude                     hiding (catch)
-import           Test.QuickCheck
-import           Test.QuickCheck.Monadic
+import           Data.Typeable               (Typeable (..))
+import           Prelude                     (Either (..), Eq (..), IO, Int, Num (..), Ord (..), Ordering (..), Read (..), Show (..), map, seq, ($), (.), (^))
+import           Test.QuickCheck             (Arbitrary (arbitrary), choose)
+import           Test.QuickCheck.Monadic     (PropertyM)
 import qualified Test.QuickCheck.Monadic     as QC
-
+------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
 instance Arbitrary S.ByteString where

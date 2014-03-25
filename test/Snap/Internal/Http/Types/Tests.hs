@@ -4,27 +4,23 @@
 ------------------------------------------------------------------------------
 module Snap.Internal.Http.Types.Tests ( tests ) where
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
-import           Control.Monad
-import           Control.Parallel.Strategies
-import qualified Data.ByteString.Char8          as S
+import           Blaze.ByteString.Builder       (fromByteString)
+import           Control.Parallel.Strategies    (rdeepseq, using)
+import qualified Data.ByteString.Char8          as S (concat)
 import           Data.ByteString.Lazy.Char8     ()
 import           Data.List                      (sort)
-import qualified Data.Map                       as Map
-import           Data.Time.Calendar
-import           Data.Time.Clock
-import           Prelude                        hiding (take)
-import qualified System.IO.Streams              as Streams
-import           Test.Framework
-import           Test.Framework.Providers.HUnit
-import           Test.HUnit                     hiding (Test, path)
-import           Text.Regex.Posix
-------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types
-import           Snap.Internal.Parsing
-import qualified Snap.Test                      as Test
-import qualified Snap.Types.Headers             as H
-
+import qualified Data.Map                       as Map (empty, insert, lookup)
+import           Data.Time.Calendar             (Day (ModifiedJulianDay))
+import           Data.Time.Clock                (UTCTime (UTCTime))
+import           Snap.Internal.Http.Types       (Cookie (Cookie), HasHeaders (headers, updateHeaders), Method (CONNECT, DELETE, GET, HEAD, Method, OPTIONS, PATCH, POST, PUT, TRACE), Request (rqCookies, rqParams), Response (rspContentLength, rspStatus, rspStatusReason), addHeader, addResponseCookie, deleteResponseCookie, emptyResponse, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, rqModifyParams, rqParam, rqSetParam, setContentLength, setContentType, setResponseBody, setResponseCode, setResponseStatus)
+import           Snap.Internal.Parsing          (urlDecode)
+import qualified Snap.Test                      as Test (buildRequest, get, getResponseBody)
+import qualified Snap.Types.Headers             as H (lookup, set)
+import qualified System.IO.Streams              as Streams (write)
+import           Test.Framework                 (Test)
+import           Test.Framework.Providers.HUnit (testCase)
+import           Test.HUnit                     (assertBool, assertEqual)
+import           Text.Regex.Posix               ((=~))
 
 ------------------------------------------------------------------------------
 tests :: [Test]

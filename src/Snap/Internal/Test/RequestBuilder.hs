@@ -36,33 +36,31 @@ module Snap.Internal.Test.RequestBuilder
   ) where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder
-import           Blaze.ByteString.Builder.Char8
-import           Control.Applicative
-import           Control.Monad
-import           Control.Monad.State.Strict     hiding (get, put)
+import           Blaze.ByteString.Builder       (Builder, fromByteString, fromWord8, toByteString)
+import           Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
+import           Control.Applicative            (Applicative)
+import           Control.Monad                  (liftM, replicateM, void)
+import           Control.Monad.State.Strict     (MonadIO (..), MonadState, MonadTrans, StateT, execStateT, modify)
 import qualified Control.Monad.State.Strict     as State
-import           Data.Bits
+import           Data.Bits                      (Bits ((.&.), unsafeShiftR))
 import qualified Data.ByteString                as S8
 import           Data.ByteString.Char8          (ByteString)
 import qualified Data.ByteString.Char8          as S
 import           Data.CaseInsensitive           (CI, original)
 import qualified Data.Map                       as Map
-import           Data.Monoid
+import           Data.Monoid                    (Monoid (mappend, mconcat, mempty))
 import qualified Data.Vector                    as V
-import           Data.Word
-import qualified System.IO.Streams              as Streams
-import           System.PosixCompat.Time
-import           System.Random
-import           Text.Printf                    (printf)
-------------------------------------------------------------------------------
-import           Snap.Core                      hiding (addHeader,
-                                                 setContentType, setHeader)
-import           Snap.Internal.Http.Types       hiding (addHeader,
-                                                 setContentType, setHeader)
+import           Data.Word                      (Word8)
+import           Snap.Core                      (Cookie (Cookie), Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
+import           Snap.Internal.Http.Types       (Request (Request, rqBody), Response (rspBody, rspContentLength), rspBodyToEnum)
 import qualified Snap.Internal.Http.Types       as H
 import           Snap.Internal.Types            (evalSnap)
 import qualified Snap.Types.Headers             as H
+import qualified System.IO.Streams              as Streams
+import           System.PosixCompat.Time        (epochTime)
+import           System.Random                  (Random (randomIO))
+import           Text.Printf                    (printf)
+------------------------------------------------------------------------------
 
 
 ------------------------------------------------------------------------------

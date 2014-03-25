@@ -12,31 +12,25 @@ module Snap.Util.GZip
   , BadAcceptEncodingException
   ) where
 
-import           Blaze.ByteString.Builder
-import           Control.Applicative
-import           Control.Exception
-import           Control.Monad
-import           Control.Monad.IO.Class
-import           Data.Attoparsec.Char8
+import           Blaze.ByteString.Builder (Builder)
+import           Control.Applicative      (Alternative ((<|>), many), Applicative ((*>), (<*), pure), (<$>))
+import           Control.Exception        (Exception, throwIO)
+import           Control.Monad            (Functor (fmap), Monad ((>>), (>>=), return), MonadPlus (mplus), void, when)
+import           Control.Monad.IO.Class   (MonadIO (liftIO))
+import           Data.Attoparsec.Char8    (Parser, char, endOfInput, isAlpha_ascii, isDigit, skipSpace, string, takeWhile, takeWhile1)
 import           Data.ByteString.Char8    (ByteString)
-import qualified Data.ByteString.Char8    as S
-import qualified Data.Char                as Char
-import           Data.Maybe
+import qualified Data.ByteString.Char8    as S (takeWhile)
+import qualified Data.Char                as Char (isSpace)
+import           Data.Maybe               (Maybe (Just, Nothing), fromMaybe, isJust, maybe)
 import           Data.Set                 (Set)
-import qualified Data.Set                 as Set
-import           Data.Typeable
-#if MIN_VERSION_base(4,6,0)
-import           Prelude                  hiding (read, takeWhile)
-#else
-import           Prelude                  hiding (catch, read, takeWhile)
-#endif
+import qualified Data.Set                 as Set (fromList, member)
+import           Data.Typeable            (Typeable)
+import           Prelude                  (Either (..), Eq (..), IO, Ord (..), Show (show), id, not, ($), ($!), (&&), (++), (||))
+import           Snap.Core                (MonadSnap, clearContentLength, finishWith, getHeader, getRequest, getResponse, modifyResponse, modifyResponseBody, setHeader)
+import           Snap.Internal.Debug      (debug)
+import           Snap.Internal.Parsing    (fullyParse)
 import           System.IO.Streams        (OutputStream)
-import qualified System.IO.Streams        as Streams
-----------------------------------------------------------------------------
-import           Snap.Core
-import           Snap.Internal.Debug
-import           Snap.Internal.Parsing
-
+import qualified System.IO.Streams        as Streams (compressBuilder, gzipBuilder)
 
 ------------------------------------------------------------------------------
 -- | Runs a 'Snap' web handler with compression if available.

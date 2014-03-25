@@ -1,26 +1,22 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# LANGUAGE CPP                  #-}
-{-# LANGUAGE PackageImports       #-}
+{-# LANGUAGE CPP            #-}
+{-# LANGUAGE PackageImports #-}
 
-module Snap.Internal.Instances where
-
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Error
-import           Control.Monad.Trans.List
-import           Control.Monad.Trans.RWS.Strict    hiding (pass)
-import qualified Control.Monad.Trans.RWS.Lazy      as LRWS
-import           Control.Monad.Trans.Reader
-import           Control.Monad.Trans.State.Strict
-import qualified Control.Monad.Trans.State.Lazy    as LState
-import           Control.Monad.Trans.Writer.Strict hiding (pass)
-import qualified Control.Monad.Trans.Writer.Lazy   as LWriter
-import           Data.Monoid
-#if !MIN_VERSION_base(4,6,0)
-import           Prelude                     hiding (catch)
-#endif
-
+module Snap.Internal.Instances () where
 ------------------------------------------------------------------------------
-import           Snap.Internal.Types
+import           Control.Monad.Trans.Class         (MonadTrans (lift))
+import           Control.Monad.Trans.Error         (Error, ErrorT)
+import           Control.Monad.Trans.List          (ListT)
+import           Control.Monad.Trans.Reader        (ReaderT)
+import qualified Control.Monad.Trans.RWS.Lazy      as LRWS (RWST)
+import           Control.Monad.Trans.RWS.Strict    (RWST)
+import qualified Control.Monad.Trans.State.Lazy    as LState (StateT)
+import           Control.Monad.Trans.State.Strict  (StateT)
+import qualified Control.Monad.Trans.Writer.Lazy   as LWriter (WriterT)
+import           Control.Monad.Trans.Writer.Strict (WriterT)
+import           Data.Monoid                       (Monoid)
+import           Snap.Internal.Types               (MonadSnap (..))
+------------------------------------------------------------------------------
 
 
 ------------------------------------------------------------------------------

@@ -16,19 +16,19 @@
 module Snap.Internal.Debug where
 
 ------------------------------------------------------------------------------
-import           Control.Monad.IO.Class
+import           Control.Monad.IO.Class (MonadIO (..))
 
 #ifndef NODEBUG
-import           Control.Concurrent
-import           Control.Exception
-import           Data.Char
-import           Data.List
-import           Data.Maybe
-import           Foreign.C.Error
-import           System.Environment
-import           System.IO
-import           System.IO.Unsafe
-import           Text.Printf
+import           Control.Concurrent     (MVar, myThreadId, newMVar, withMVar)
+import           Control.Exception      (SomeException, try)
+import           Data.Char              (toLower)
+import           Data.List              (stripPrefix)
+import           Data.Maybe             (fromMaybe)
+import           Foreign.C.Error        (errnoToIOError, getErrno)
+import           System.Environment     (getEnv)
+import           System.IO              (hFlush, hPutStrLn, stderr)
+import           System.IO.Unsafe       (unsafePerformIO)
+import           Text.Printf            (printf)
 #endif
 ------------------------------------------------------------------------------
 
