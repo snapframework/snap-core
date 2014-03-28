@@ -9,8 +9,9 @@ module Snap.Util.FileUploads.Tests
 ------------------------------------------------------------------------------
 import           Control.Applicative            (Alternative ((<|>)))
 import           Control.DeepSeq                (deepseq)
-import           Control.Exception.Lifted       (Exception (fromException), Handler (Handler), SomeException (SomeException), catch, catches, finally, throw)
-import           Control.Monad                  (Monad ((>>=), return), liftM)
+import           Control.Exception              (evaluate)
+import           Control.Exception.Lifted       (Exception (fromException, toException), Handler (Handler), catch, catches, finally, throw)
+import           Control.Monad                  (Monad ((>>=), return), liftM, void)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S
@@ -23,7 +24,7 @@ import           Data.Typeable                  (Typeable)
 import           Prelude                        (Bool (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
 import           Snap.Internal.Http.Types       (Request (rqBody), Response, setHeader)
 import           Snap.Internal.Types            (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
-import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (GenericFileUploadException), PartInfo (partContentType, partFileName), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)
+import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)
 import qualified Snap.Test                      as Test
 import           Snap.Test.Common               (coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)
 import           System.Directory               (createDirectoryIfMissing, getDirectoryContents, removeDirectoryRecursive)
@@ -333,15 +334,25 @@ testTrivials = testCase "fileUploads/trivials" $ do
 
     let pvi = PolicyViolationException ""
     coverTypeableInstance pvi
-    let (Just (_ :: PolicyViolationException)) = fromException (SomeException pvi)
+    evaluate $ ((fromJust $
+                 fromException (toException pvi)) :: PolicyViolationException)
+    evaluate $ ((fromJust $
+                 fromException (toException pvi)) :: FileUploadException)
     let !_ = policyViolationExceptionReason pvi
 
     let bpi = BadPartException ""
     coverTypeableInstance bpi
     let !_ = badPartExceptionReason bpi
-    return ()
 
-    coverShowInstance $ GenericFileUploadException ""
+    coverShowInstance $ WrappedFileUploadException $ BadPartException ""
+    coverShowInstance $ PartInfo "" Nothing ""
+
+    let !gfui = WrappedFileUploadException $ BadPartException ""
+    evaluate $ fileUploadExceptionReason gfui
+
+    void $ evaluate
+         $ getMaximumNumberOfFormInputs
+         $ setMaximumNumberOfFormInputs 2 policy
 
   where
     policy = setProcessFormInputs False $

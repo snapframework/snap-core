@@ -284,17 +284,19 @@ data PartInfo =
 -- > foo `catch` \(e :: FileUploadException) -> ...
 --
 -- you can catch a 'BadPartException', a 'PolicyViolationException', etc.
-data FileUploadException =
-    GenericFileUploadException Text
-  | forall e . (Exception e, Show e) => WrappedFileUploadException e Text
+data FileUploadException = forall e . (ExceptionWithReason e, Show e) =>
+                           WrappedFileUploadException e
   deriving (Typeable)
 
 
 ------------------------------------------------------------------------------
+class Exception e => ExceptionWithReason e where
+    exceptionReason :: e -> Text
+
+
+------------------------------------------------------------------------------
 instance Show FileUploadException where
-    show (GenericFileUploadException r) = "File upload exception: " ++
-                                          T.unpack r
-    show (WrappedFileUploadException e _) = show e
+    show (WrappedFileUploadException e) = show e
 
 
 ------------------------------------------------------------------------------
@@ -303,20 +305,18 @@ instance Exception FileUploadException
 
 ------------------------------------------------------------------------------
 fileUploadExceptionReason :: FileUploadException -> Text
-fileUploadExceptionReason (GenericFileUploadException r) = r
-fileUploadExceptionReason (WrappedFileUploadException _ r) = r
+fileUploadExceptionReason (WrappedFileUploadException e) = exceptionReason e
 
 
 ------------------------------------------------------------------------------
-uploadExceptionToException :: Exception e => e -> Text -> SomeException
-uploadExceptionToException e r =
-    SomeException $ WrappedFileUploadException e r
+uploadExceptionToException :: ExceptionWithReason e => e -> SomeException
+uploadExceptionToException = toException . WrappedFileUploadException
 
 
 ------------------------------------------------------------------------------
-uploadExceptionFromException :: Exception e => SomeException -> Maybe e
+uploadExceptionFromException :: ExceptionWithReason e => SomeException -> Maybe e
 uploadExceptionFromException x = do
-    WrappedFileUploadException e _ <- fromException x
+    WrappedFileUploadException e <- fromException x
     cast e
 
 
@@ -325,11 +325,14 @@ data BadPartException = BadPartException { badPartExceptionReason :: Text }
   deriving (Typeable)
 
 instance Exception BadPartException where
-    toException e@(BadPartException r) = uploadExceptionToException e r
+    toException = uploadExceptionToException
     fromException = uploadExceptionFromException
 
+instance ExceptionWithReason BadPartException where
+    exceptionReason (BadPartException e) = T.concat ["Bad part: ", e]
+
 instance Show BadPartException where
-  show (BadPartException s) = "Bad part: " ++ T.unpack s
+  show = T.unpack . exceptionReason
 
 
 ------------------------------------------------------------------------------
@@ -338,9 +341,13 @@ data PolicyViolationException = PolicyViolationException {
     } deriving (Typeable)
 
 instance Exception PolicyViolationException where
-    toException e@(PolicyViolationException r) =
-        uploadExceptionToException e r
+    toException e@(PolicyViolationException _) =
+        uploadExceptionToException e
     fromException = uploadExceptionFromException
+
+instance ExceptionWithReason PolicyViolationException where
+    exceptionReason (PolicyViolationException r) =
+        T.concat ["File upload policy violation: ", r]
 
 instance Show PolicyViolationException where
   show (PolicyViolationException s) = "File upload policy violation: "
