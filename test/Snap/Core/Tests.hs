@@ -38,7 +38,7 @@ import           Data.Text.Lazy                       ()
 import           Prelude                              (Bool (..), Either (..), Enum (..), Eq (..), IO, Int, Maybe (Just, Nothing), Num (..), Ord (..), Show (..), String, const, either, flip, id, map, maybe, not, seq, undefined, ($), ($!), (&&), (++), (.))
 import           Snap.Internal.Http.Types             (Cookie (Cookie), Method (..), Request (rqBody, rqClientAddr, rqContextPath, rqIsSecure, rqURI), Response (rspContentLength, rspStatus, rspStatusReason, rspTransformingRqBody), addHeader, deleteHeader, emptyResponse, getHeader, setContentLength, setHeader, setResponseCode, setResponseStatus, statusReasonMap)
 import           Snap.Internal.Parsing                (urlDecode, urlEncode)
-import           Snap.Internal.Types                  (EscapeSnap (..), MonadSnap (..), NoHandlerException (NoHandlerException), Snap, addToOutput, bracketSnap, catchFinishWith, dir, escapeHttp, evalSnap, finishWith, getParam, getPostParam, getQueryParam, getRequest, getResponse, getsResponse, ifTop, ipHeaderFilter, localRequest, logError, method, methods, modifyResponse, pass, path, pathArg, putRequest, putResponse, readRequestBody, redirect, redirect', runRequestBody, runSnap, terminateConnection, transformRequestBody, updateContextPath, withRequest, withResponse, writeBS, writeLBS, writeLazyText, writeText)
+import           Snap.Internal.Types                  (EscapeSnap (..), MonadSnap (..), NoHandlerException (NoHandlerException), Snap, addToOutput, bracketSnap, catchFinishWith, dir, escapeHttp, evalSnap, finishWith, getParam, getParams, getPostParam, getPostParams, getQueryParam, getQueryParams, getRequest, getResponse, getsResponse, ifTop, ipHeaderFilter, localRequest, logError, method, methods, modifyResponse, pass, path, pathArg, putRequest, putResponse, readRequestBody, redirect, redirect', runRequestBody, runSnap, setTimeout, terminateConnection, transformRequestBody, updateContextPath, withRequest, withResponse, writeBS, writeLBS, writeLazyText, writeText)
 import qualified Snap.Test                            as Test (RequestType (RequestWithRawBody), buildRequest, evalHandler, get, getResponseBody, postRaw, runHandler, setRequestType)
 import           Snap.Test.Common                     (coverEqInstance, coverOrdInstance, coverReadInstance, coverShowInstance, coverTypeableInstance, expectExceptionH, forceSameType, waitabit)
 import           System.IO.Streams                    (InputStream)
@@ -185,26 +185,29 @@ testCatchIO = testCase "core/catchIO" $ do
 go :: Snap a -> IO (Request,Response)
 go m = do
     zomgRq <- mkZomgRq
-    runSnap m dummy (const (return ())) zomgRq
+    runSnap m dummy timeoutModifier zomgRq
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
+    timeoutModifier !f = return $! f 0 `seq` ()
 
 
 ------------------------------------------------------------------------------
 goMeth :: Method -> Snap a -> IO (Request,Response)
 goMeth m s = do
     methRq <- mkMethodRq m
-    runSnap s dummy (const (return ())) methRq
+    runSnap s dummy timeoutModifier methRq
   where
     dummy !x = return $! (show x `using` rdeepseq) `seq` ()
+    timeoutModifier !f = return $! f 0 `seq` ()
 
 
 ------------------------------------------------------------------------------
 goIP :: Snap a -> IO (Request,Response)
 goIP m = do
     rq <- mkIpHeaderRq
-    runSnap m dummy (const (return ())) rq
+    runSnap m dummy timeoutModifier rq
   where
+    timeoutModifier !f = return $! f 0 `seq` ()
     dummy = const $ return ()
 
 
@@ -212,8 +215,9 @@ goIP m = do
 goPath :: ByteString -> Snap a -> IO (Request,Response)
 goPath s m = do
     rq <- mkRequest s
-    runSnap m dummy (const (return ())) rq
+    runSnap m dummy timeoutModifier rq
   where
+    timeoutModifier !f = return $! f 0 `seq` ()
     dummy = const $ return ()
 
 
@@ -534,6 +538,11 @@ testTrivials = testCase "core/trivials" $ do
         let req' = updateContextPath 0 req
         let cp1 = rqContextPath req
         let cp2 = rqContextPath req'
+
+        setTimeout 30
+        !_ <- getParams
+        !_ <- getPostParams
+        !_ <- getQueryParams
 
         liftIO $ assertEqual "updateContextPath 0" cp1 cp2
 

@@ -608,8 +608,8 @@ runHandler = runHandlerM rs
   where
     rs rq s = do
         (_,rsp) <- liftIO $ runSnap s
-                               (const $ return $! ())
-                               (const $ return $! ())
+                               (\x -> return $! (x `seq` ()))
+                               (\f -> let !_ = f 0 in return $! ())
                                rq
 
         return rsp

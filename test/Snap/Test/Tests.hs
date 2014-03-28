@@ -5,19 +5,23 @@ module Snap.Test.Tests
   ) where
 
 ------------------------------------------------------------------------------
+import           Control.Exception                 (ErrorCall (..))
 import           Control.Monad                     (MonadPlus (mzero), liftM)
 import           Control.Monad.IO.Class            (liftIO)
 import           Data.ByteString.Char8             (ByteString)
-import qualified Data.ByteString.Char8             as S (concat, isSuffixOf, length)
-import qualified Data.Map                          as Map (empty, fromList)
-import           Snap.Core                         (Cookie (Cookie), Method (DELETE, GET, Method, PATCH, POST, PUT), Request (rqContentLength, rqContextPath, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), extendTimeout, getHeader, getParam, logError, redirect, runSnap, writeBS)
-import           Snap.Internal.Http.Types          (Request (..))
-import qualified Snap.Internal.Http.Types          as T (getHeader)
+import qualified Data.ByteString.Char8             as S
+import qualified Data.Map                          as Map
+import           Data.Maybe                        (fromJust, isJust)
+import           Data.Text                         (Text)
+import           Data.Time.Clock                   (getCurrentTime)
+import           Snap.Core                         (Cookie (Cookie, cookieExpires), Method (DELETE, GET, Method, PATCH, POST, PUT), Request (rqContentLength, rqContextPath, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Snap, expireCookie, extendTimeout, getCookie, getHeader, getParam, logError, readCookie, redirect, runSnap, terminateConnection, writeBS)
+import           Snap.Internal.Http.Types          (Request (..), Response (rspCookies))
+import qualified Snap.Internal.Http.Types          as T
 import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
 import           Snap.Test                         (assert404, assertBodyContains, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
 import           Snap.Test.Common                  (coverShowInstance, expectExceptionH)
 import           Snap.Util.FileUploads             (PartInfo (PartInfo), defaultUploadPolicy, handleMultipart)
-import qualified System.IO.Streams                 as Streams (fromList, toList)
+import qualified System.IO.Streams                 as Streams
 import           Test.Framework                    (Test)
 import           Test.Framework.Providers.HUnit    (testCase)
 import           Test.HUnit                        (assertBool, assertEqual)
@@ -39,6 +43,8 @@ tests = [ testDefaultBuild
         , testAssert404
         , testAssertBodyContains
         , testAssertRedirect
+        , testCookies
+        , testTerminate
         , testTrivials
         ]
 
@@ -337,8 +343,55 @@ testAssertRedirect = testCase "test/requestBuilder/testAssertRedirect" $ do
 
 
 ------------------------------------------------------------------------------
+testCookies :: Test
+testCookies = testCase "test/requestBuilder/cookies" $ do
+    evalHandler (get "/" Map.empty) (getCookie "foo")
+        >>= assertEqual "cookie1" Nothing
+    evalHandler (get "/" Map.empty >> addCookies [c1]) (getCookie "foo")
+        >>= assertEqual "cookie2" (Just c1)
+    evalHandler (get "/" Map.empty >> addCookies [c1]) (readCookie "foo")
+        >>= assertEqual "cookie3" ("bar" :: Text)
+    expectExceptionH $
+        evalHandler (get "/" Map.empty >> addCookies [c2])
+                    ((readCookie "foo") :: Snap Int)
+    expectExceptionH $
+        evalHandler (get "/" Map.empty >> addCookies [c2])
+                    ((readCookie "bar") :: Snap Int)
+    rsp <- runHandler (get "/" Map.empty) expire
+
+    let h = Map.lookup "foo" (rspCookies rsp)
+    assertBool "isJust" (isJust h)
+
+    now <- getCurrentTime
+    let tm = fromJust $ cookieExpires $ fromJust h
+    assertBool "time" (tm < now)
+    return $! show tm `seq` ()
+
+    -- FIXME(greg): the following test currently fails because we're rendering
+    -- the set-cookie headers in the server instead of in fixupResponse where
+    -- it should be happening
+
+    -- let h = getHeader "set-cookie" rsp
+    -- assertBool "isJust" (isJust h)
+    -- let (Just cookie) = h
+    -- assertEqual "cookie" "" cookie
+  where
+    c1 = Cookie "foo" "bar" Nothing Nothing Nothing False False
+    c2 = Cookie "foo" "zzzzz" Nothing Nothing Nothing False False
+
+    expire = expireCookie "foo" Nothing
+
+
+------------------------------------------------------------------------------
+testTerminate :: Test
+testTerminate = testCase "test/requestBuilder/terminate" $
+                expectExceptionH $
+                evalHandler (return ()) (terminateConnection $ ErrorCall "foo")
+
+
+------------------------------------------------------------------------------
 testTrivials :: Test
-testTrivials = testCase "requestBuilder/trivials" $ do
+testTrivials = testCase "test/requestBuilder/trivials" $ do
     coverShowInstance (FormData [])
     coverShowInstance (Files [])
     coverShowInstance (FileData "" "" "")

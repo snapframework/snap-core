@@ -110,11 +110,7 @@ import           Data.Typeable                      (TyCon, Typeable, Typeable1 
 import           Data.Word                          (Word64, Word8)
 import           Foreign.Ptr                        (Ptr, plusPtr)
 import           Foreign.Storable                   (poke)
-#if MIN_VERSION_base(4,6,0)
-import           Prelude                            hiding (take)
-#else
-import           Prelude                            hiding (catch, take)
-#endif
+import           Prelude                            (Bool (..), Either (..), Eq (..), FilePath, IO, Int, Num (..), Ord (..), Show (..), String, const, divMod, elem, filter, fromIntegral, id, map, max, otherwise, quot, ($), ($!), (++), (.), (||))
 import           System.IO.Streams                  (InputStream, OutputStream)
 import qualified System.IO.Streams                  as Streams
 import           System.Posix.Types                 (FileOffset)
@@ -311,7 +307,6 @@ instance (MonadBaseControl IO) Snap where
     restoreM = stateTToSnap . restoreM . unStSnap
     {-# INLINE restoreM #-}
 
-
 ------------------------------------------------------------------------------
 {-# INLINE snapToStateT #-}
 snapToStateT :: Snap a -> StateT SnapState IO (SnapResult a)
@@ -375,13 +370,8 @@ snapTyCon = mkTyCon "Snap.Core.Snap"
 #endif
 {-# NOINLINE snapTyCon #-}
 
-#if __GLASGOW_HASKELL__ < 708
 instance Typeable1 Snap where
     typeOf1 _ = mkTyConApp snapTyCon []
-#else
-deriving instance Typeable Snap
-#endif
-
 #else
 deriving instance Typeable Snap
 #endif
@@ -966,10 +956,10 @@ runSnap (Snap m) logerr timeoutAction req =
         resp' <- liftIO $ fixupResponse req' resp
         return (req', resp')
 
-    diediedie z st = do
+    diediedie z !st = do
         rsp <- case z of
-                 PassOnProcessing     -> return $ fourohfour
-                 (EarlyTermination x) -> return $ x
+                 PassOnProcessing     -> return fourohfour
+                 (EarlyTermination x) -> return x
                  (EscapeSnap e)       -> throwIO e
         return (_snapRequest st, rsp)
 
