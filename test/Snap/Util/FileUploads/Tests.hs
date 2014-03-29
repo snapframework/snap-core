@@ -48,6 +48,7 @@ instance Exception TestException
 tests :: [Test]
 tests = [ testSuccess1
         , testSuccess2
+        , testBadParses
         , testPerPartPolicyViolation1
         , testPerPartPolicyViolation2
         , testFormInputPolicyViolation
@@ -131,6 +132,53 @@ testSuccess2 = testCase "fileUploads/success2" $
         liftIO $ assertEqual "num params" 4 n
 
     hndl' ref _ _ = atomicModifyIORef ref (\x -> (x+1, ()))
+
+
+------------------------------------------------------------------------------
+testBadParses :: Test
+testBadParses = testCase "fileUploads/badParses" $ do
+                harness tmpdir hndl mixedTestBodyWithBadTypes
+  where
+    tmpdir = "tempdir_bad_types"
+
+    hndl = do
+        xs <- handleFileUploads tmpdir
+                                defaultUploadPolicy
+                                (const $ allowWithMaximumSize 300000)
+                                hndl'
+
+        let fileMap = foldl' f Map.empty xs
+        p1   <- getParam "field1"
+        p1P  <- getPostParam "field1"
+        p1Q  <- getQueryParam "field1"
+        p2   <- getParam "field2"
+        pBoo <- getParam "boo"
+
+        liftIO $ do
+            assertEqual "file1 contents"
+                        (Just ("text/plain", file1Contents))
+                        (Map.lookup "file1.txt" fileMap)
+
+            assertEqual "file2 contents"
+                        (Just ("text/plain", file2Contents))
+                        (Map.lookup "file2.gif" fileMap)
+
+            assertEqual "field1 param contents" (Just formContents1) p1
+            assertEqual "field1 POST contents" (Just formContents1) p1P
+            assertEqual "field1 query contents" Nothing p1Q
+            assertEqual "field2 contents" Nothing p2
+            assertEqual "boo contents" (Just "boo") pBoo
+
+    f mp (fn, ct, x) = Map.insert fn (ct,x) mp
+
+    hndl' partInfo =
+        either throw
+               (\fp -> do
+                    x <- liftIO $ S.readFile fp
+                    let fn = fromJust $ partFileName partInfo
+                    let ct = partContentType partInfo
+                    return (fn, ct, x))
+
 
 
 ------------------------------------------------------------------------------
@@ -555,6 +603,65 @@ mixedTestBody =
          , "--"
          , subBoundaryValue
          , "--\r\n"
+         , "--"
+         , boundaryValue
+         , "--\r\n"
+         ]
+
+------------------------------------------------------------------------------
+mixedTestBodyWithBadTypes :: ByteString
+mixedTestBodyWithBadTypes =
+    S.concat
+         [ "--"
+         , boundaryValue
+         , crlf
+         , "content-type: ;\x01;\x01;\x01;\r\n"
+         , "content-disposition: form-data; name=\"field1\"\r\n\r\n"
+         , formContents1
+         , crlf
+         , "--"
+         , boundaryValue
+         , crlf
+         , "content-disposition: form-data;\x01;;;\x01 name=\"field2\"\r\n"
+         , crlf
+         , formContents2
+         , crlf
+         , "--"
+         , boundaryValue
+         , crlf
+         , "content-disposition: \x01\x01\x01\x01\r\n"
+         , "Content-type: multipart/mixed; boundary="
+         , subBoundaryValue
+         , crlf
+         , crlf
+         , "--"
+         , subBoundaryValue
+         , crlf
+         , "Content-disposition: attachment; filename=\"file1.txt\"\r\n"
+         , "Content-Type: ;\x01;\x01;\x01;\r\n"
+         , crlf
+         , file1Contents
+         , crlf
+         , "--"
+         , subBoundaryValue
+         , crlf
+         , "Content-disposition: attachment; filename=\"file2.gif\"\r\n"
+         , "Content-type: ;\x01;\x01;\x01\r\n"
+         , "Content-Transfer-Encoding: binary\r\n"
+         , crlf
+         , file2Contents
+         , crlf
+         , "--"
+         , subBoundaryValue
+         , "--\r\n"
+         , "--"
+         , boundaryValue
+         , crlf
+         , "Content-type: multipart/mixed; \x01\x01;;\x01;\r\n"
+         , "Content-disposition: form-data; name=boo\r\n"
+         , crlf
+         , "boo"
+         , crlf
          , "--"
          , boundaryValue
          , "--\r\n"

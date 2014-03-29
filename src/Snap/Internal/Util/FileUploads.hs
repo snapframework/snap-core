@@ -48,7 +48,7 @@ import           Control.Applicative          (Alternative ((<|>)), Applicative 
 import           Control.Arrow                (Arrow (first))
 import           Control.Exception.Lifted     (Exception, Handler (..), SomeException (..), bracket, catch, catches, fromException, mask, throwIO, toException)
 import qualified Control.Exception.Lifted     as E (try)
-import           Control.Monad                (Functor (fmap), Monad ((>>=), return), guard, liftM, sequence, void, when)
+import           Control.Monad                (Functor (fmap), Monad ((>>=), return), MonadPlus (mzero), guard, liftM, sequence, void, when)
 import           Data.Attoparsec.Char8        (Parser, isEndOfLine, string, takeWhile)
 import qualified Data.Attoparsec.Char8        as Atto (try)
 import           Data.ByteString.Char8        (ByteString)
@@ -71,7 +71,7 @@ import           System.Directory             (removeFile)
 import           System.FilePath              ((</>))
 import           System.IO                    (BufferMode (NoBuffering), Handle, hClose, hSetBuffering)
 import           System.IO.Streams            (InputStream, MatchInfo (..), RateTooSlowException, TooManyBytesReadException, search)
-import qualified System.IO.Streams            as Streams (atEOF, connect, handleToOutputStream, makeInputStream, read, skipToEof, throwIfProducesMoreThan, throwIfTooSlow, toList)
+import qualified System.IO.Streams            as Streams
 import           System.IO.Streams.Attoparsec (parseFromStream)
 import           System.PosixCompat.Temp      (mkstemp)
 ------------------------------------------------------------------------------
@@ -568,7 +568,7 @@ internalHandleMultipart ::
     -> (PartInfo -> InputStream ByteString -> IO a)  -- ^ part processor
     -> InputStream ByteString
     -> IO [a]
-internalHandleMultipart boundary clientHandler stream = go
+internalHandleMultipart !boundary clientHandler !stream = go
   where
     --------------------------------------------------------------------------
     go = do
@@ -578,18 +578,18 @@ internalHandleMultipart boundary clientHandler stream = go
         liftM concat $ processParts goPart bmstream
 
     --------------------------------------------------------------------------
-    pBoundary b = Atto.try $ do
+    pBoundary !b = Atto.try $ do
       _ <- string "--"
       string b
 
     --------------------------------------------------------------------------
-    fullBoundary b       = S.concat ["\r\n", "--", b]
-    pLine                = takeWhile (not . isEndOfLine . c2w) <* eol
-    parseFirstBoundary b = pBoundary b <|> (pLine *> parseFirstBoundary b)
+    fullBoundary !b       = S.concat ["\r\n", "--", b]
+    pLine                 = takeWhile (not . isEndOfLine . c2w) <* eol
+    parseFirstBoundary !b = pBoundary b <|> (pLine *> parseFirstBoundary b)
 
 
     --------------------------------------------------------------------------
-    takeHeaders str = hdrs `catch` handler
+    takeHeaders !str = hdrs `catch` handler
       where
         hdrs = do
             str' <- Streams.throwIfProducesMoreThan mAX_HDRS_SIZE str
@@ -599,7 +599,7 @@ internalHandleMultipart boundary clientHandler stream = go
             throwIO $ BadPartException "headers exceeded maximum size"
 
     --------------------------------------------------------------------------
-    goPart str = do
+    goPart !str = do
         hdrs <- takeHeaders str
 
         -- are we using mixed?
@@ -617,7 +617,7 @@ internalHandleMultipart boundary clientHandler stream = go
 
 
     --------------------------------------------------------------------------
-    processMixed fieldName str mixedBoundary = do
+    processMixed !fieldName !str !mixedBoundary = do
         -- swallow the first boundary
         _  <- parseFromStream (parseFirstBoundary mixedBoundary) str
         bm <- search (fullBoundary mixedBoundary) str
@@ -625,7 +625,7 @@ internalHandleMultipart boundary clientHandler stream = go
 
 
     --------------------------------------------------------------------------
-    mixedStream fieldName str = do
+    mixedStream !fieldName !str = do
         hdrs <- takeHeaders str
 
         let (contentType, _) = getContentType hdrs
@@ -644,7 +644,7 @@ getContentType hdrs = (contentType, boundary)
                        getHeader "content-type" hdrs
 
     eCT = fullyParse contentTypeValue pContentTypeWithParameters
-    (contentType, params) = either (const ("text/plain", [])) id eCT
+    (!contentType, !params) = either (const ("text/plain", [])) id eCT
 
     boundary = findParam "boundary" params
 
@@ -676,10 +676,12 @@ partStream :: InputStream MatchInfo -> IO (InputStream ByteString)
 partStream st = Streams.makeInputStream go
 
   where
-    go = Streams.read st >>= maybe (return Nothing) f
+    go = do
+        s <- Streams.read st
+        return $! s >>= f
 
-    f (NoMatch s) = return $ Just s
-    f _           = return Nothing
+    f (NoMatch s) = return s
+    f _           = mzero
 
 
 
@@ -706,14 +708,9 @@ processParts partFunc stream = go id
               Streams.skipToEof pStream
               return $! Just x
 
-    go !soFar = do
-        b <- Streams.atEOF stream
-        if b
-          then return $ soFar []
-          else partStream stream >>=
-               part >>=
-               maybe (return $ soFar [])
-                     (\x -> go (soFar . (x:)))
+    go !soFar = partStream stream >>=
+                part >>=
+                maybe (return $ soFar []) (\x -> go (soFar . (x:)))
 
     pBoundaryEnd = (eol *> pure False) <|> (string "--" *> pure True)
 

@@ -215,6 +215,7 @@ pValueWithParameters :: Parser (ByteString, [(CI ByteString, ByteString)])
 pValueWithParameters = do
     value  <- liftM trim (pSpaces *> takeWhile (/= ';'))
     params <- many pParam
+    endOfInput
     return (value, map (first CI.mk) params)
 
   where
@@ -227,6 +228,7 @@ pContentTypeWithParameters :: Parser ( ByteString
 pContentTypeWithParameters = do
     value  <- liftM trim (pSpaces *> takeWhile (not . isSep))
     params <- many (pSpaces *> satisfy isSep *> pSpaces *> pParameter)
+    endOfInput
     return $! (value, map (first CI.mk) params)
 
   where
