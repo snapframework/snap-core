@@ -21,12 +21,13 @@ import qualified Data.Map                       as Map
 import           Data.Maybe                     (Maybe (..), fromJust, maybe)
 import qualified Data.Text                      as T
 import           Data.Typeable                  (Typeable)
-import           Prelude                        (Bool (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
+import           Prelude                        (Bool (..), Either (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
 import           Snap.Internal.Http.Types       (Request (rqBody), Response, setHeader)
 import           Snap.Internal.Types            (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
-import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)
+import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout, toPartDisposition)
 import qualified Snap.Test                      as Test
-import           Snap.Test.Common               (coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)
+import           Snap.Test.Common               (coverEqInstance, coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)
+import qualified Snap.Types.Headers             as H
 import           System.Directory               (createDirectoryIfMissing, getDirectoryContents, removeDirectoryRecursive)
 import           System.IO.Streams              (RateTooSlowException)
 import qualified System.IO.Streams              as Streams
@@ -51,7 +52,10 @@ tests = [ testSuccess1
         , testBadParses
         , testPerPartPolicyViolation1
         , testPerPartPolicyViolation2
-        , testFormInputPolicyViolation
+        , testFormInputsPolicyViolation
+        , testFormSizePolicyViolation
+        , testNoFileName
+        , testNoFileNameTooBig
         , testTooManyHeaders
         , testNoBoundary
         , testNoMixedBoundary
@@ -131,7 +135,7 @@ testSuccess2 = testCase "fileUploads/success2" $
         n <- liftIO $ readIORef ref
         liftIO $ assertEqual "num params" 4 n
 
-    hndl' ref _ _ = atomicModifyIORef ref (\x -> (x+1, ()))
+    hndl' !ref !_ !_ = atomicModifyIORef ref (\x -> (x+1, ()))
 
 
 ------------------------------------------------------------------------------
@@ -235,15 +239,55 @@ testPerPartPolicyViolation2 = testCase "fileUploads/perPartPolicyViolation2" $
 
 
 ------------------------------------------------------------------------------
-testFormInputPolicyViolation :: Test
-testFormInputPolicyViolation = testCase "fileUploads/formInputTooBig" $
-                               (harness tmpdir hndl mixedTestBody `catch` h)
+testNoFileName :: Test
+testNoFileName = testCase "fileUploads/noFileName" $
+                 (harness tmpdir hndl noFileNameTestBody)
+  where
+    tmpdir = "tempdir_noname"
+
+    hndl = handleFileUploads tmpdir defaultUploadPolicy
+                             (const $ allowWithMaximumSize 400000)
+                             hndl'
+
+    hndl' pinfo !_ = do
+        assertEqual "filename" Nothing $ partFileName pinfo
+        assertEqual "disposition" DispositionFile $ partDisposition pinfo
+
+
+------------------------------------------------------------------------------
+testNoFileNameTooBig :: Test
+testNoFileNameTooBig = testCase "fileUploads/noFileNameTooBig" $
+                       (harness tmpdir hndl noFileNameTestBody `catch` h)
   where
     h !(e :: FileUploadException) = do
         let r = fileUploadExceptionReason e
         assertBool "correct exception"
                    (T.isInfixOf "form input" r &&
-                    T.isInfixOf "exceeded maximum" r)
+                    T.isInfixOf "exceeded maximum permissible" r)
+
+    tmpdir = "tempdir_noname_toobig"
+
+    hndl = handleFileUploads tmpdir defaultUploadPolicy
+                             (const $ allowWithMaximumSize 1)
+                             hndl'
+
+    hndl' pinfo !e = do
+        let (Left !x) = e
+        coverShowInstance x
+        assertEqual "filename" Nothing $ partFileName pinfo
+        assertEqual "disposition" DispositionFile $ partDisposition pinfo
+
+
+------------------------------------------------------------------------------
+testFormSizePolicyViolation :: Test
+testFormSizePolicyViolation = testCase "fileUploads/formSizePolicy" $
+                              (harness tmpdir hndl mixedTestBody `catch` h)
+  where
+    h !(e :: FileUploadException) = do
+        let r = fileUploadExceptionReason e
+        assertBool "correct exception"
+                   (T.isInfixOf "form input" r &&
+                    T.isInfixOf "exceeded maximum permissible" r)
 
     tmpdir = "tempdir_formpol"
 
@@ -251,6 +295,28 @@ testFormInputPolicyViolation = testCase "fileUploads/formInputTooBig" $
 
     hndl = handleFileUploads tmpdir policy
                              (const $ allowWithMaximumSize 4)
+                             hndl'
+
+    hndl' xs _ = show xs `deepseq` return ()
+
+
+------------------------------------------------------------------------------
+testFormInputsPolicyViolation :: Test
+testFormInputsPolicyViolation = testCase "fileUploads/formInputsPolicy" $
+                                (harness tmpdir hndl mixedTestBody `catch` h)
+  where
+    h !(e :: FileUploadException) = do
+        let r = fileUploadExceptionReason e
+        assertBool "correct exception"
+                   (T.isInfixOf "number of form inputs" r &&
+                    T.isInfixOf "exceeded maximum" r)
+
+    tmpdir = "tempdir_formpol2"
+
+    policy = setMaximumNumberOfFormInputs 0 defaultUploadPolicy
+
+    hndl = handleFileUploads tmpdir policy
+                             (\x -> x `seq` allowWithMaximumSize 4000)
                              hndl'
 
     hndl' xs _ = show xs `deepseq` return ()
@@ -393,7 +459,9 @@ testTrivials = testCase "fileUploads/trivials" $ do
     let !_ = badPartExceptionReason bpi
 
     coverShowInstance $ WrappedFileUploadException $ BadPartException ""
-    coverShowInstance $ PartInfo "" Nothing ""
+    coverShowInstance $ PartInfo "" Nothing "" DispositionFile (H.empty)
+    coverShowInstance $ toPartDisposition ""
+    coverEqInstance $ DispositionOther ""
 
     let !gfui = WrappedFileUploadException $ BadPartException ""
     evaluate $ fileUploadExceptionReason gfui
@@ -738,3 +806,55 @@ bigHeadersBody =
          , boundaryValue
          , "--\r\n"
          ])
+
+
+------------------------------------------------------------------------------
+noFileNameTestBody :: ByteString
+noFileNameTestBody =
+    S.concat
+         [ "--"
+         , boundaryValue
+         , crlf
+         , "content-disposition: form-data; name=\"field1\"\r\n"
+         , crlf
+         , formContents1
+         , crlf
+         , "--"
+         , boundaryValue
+         , crlf
+         , "content-disposition: form-data; name=\"field2\"\r\n"
+         , crlf
+         , formContents2
+         , crlf
+         , "--"
+         , boundaryValue
+         , crlf
+         , "content-disposition: form-data; name=\"files\"\r\n"
+         , "Content-type: multipart/mixed; boundary="
+         , subBoundaryValue
+         , crlf
+         , crlf
+         , "--"
+         , subBoundaryValue
+         , crlf
+         , "Content-disposition: file\r\n"
+         , "Content-Type: text/plain\r\n"
+         , crlf
+         , file1Contents
+         , crlf
+         , "--"
+         , subBoundaryValue
+         , crlf
+         , "Content-disposition: file\r\n"
+         , "Content-type: image/gif\r\n"
+         , "Content-Transfer-Encoding: binary\r\n"
+         , crlf
+         , file2Contents
+         , crlf
+         , "--"
+         , subBoundaryValue
+         , "--\r\n"
+         , "--"
+         , boundaryValue
+         , "--\r\n"
+         ]

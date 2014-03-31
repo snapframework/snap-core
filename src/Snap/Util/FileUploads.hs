@@ -26,7 +26,13 @@ module Snap.Util.FileUploads
   , PartProcessor
 
     -- * Uploaded parts
-  , PartInfo(..)
+  , PartInfo
+  , PartDisposition(..)
+  , partFieldName
+  , partFileName
+  , partContentType
+  , partHeaders
+  , partDisposition
 
     -- ** Policy
     -- *** General upload policy
@@ -60,4 +66,4 @@ module Snap.Util.FileUploads
   ) where
 
 
-import           Snap.Internal.Util.FileUploads (BadPartException (badPartExceptionReason), FileUploadException, PartInfo (..), PartProcessor, PartUploadPolicy, PolicyViolationException (policyViolationExceptionReason), UploadPolicy, allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumFormInputSize, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleMultipart, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)
+import           Snap.Internal.Util.FileUploads (BadPartException (badPartExceptionReason), FileUploadException, PartDisposition (..), PartInfo (..), PartProcessor, PartUploadPolicy, PolicyViolationException (policyViolationExceptionReason), UploadPolicy, allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumFormInputSize, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleMultipart, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)

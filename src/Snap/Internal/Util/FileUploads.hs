@@ -13,6 +13,8 @@ module Snap.Internal.Util.FileUploads
 
     -- * Uploaded parts
   , PartInfo(..)
+  , PartDisposition(..)
+  , toPartDisposition
 
     -- ** Policy
     -- *** General upload policy
@@ -46,24 +48,24 @@ module Snap.Internal.Util.FileUploads
 ------------------------------------------------------------------------------
 import           Control.Applicative          (Alternative ((<|>)), Applicative ((*>), (<*), pure))
 import           Control.Arrow                (Arrow (first))
-import           Control.Exception.Lifted     (Exception, Handler (..), SomeException (..), bracket, catch, catches, fromException, mask, throwIO, toException)
+import           Control.Exception.Lifted     (Exception, SomeException (..), bracket, catch, fromException, mask, throwIO, toException)
 import qualified Control.Exception.Lifted     as E (try)
 import           Control.Monad                (Functor (fmap), Monad ((>>=), return), MonadPlus (mzero), guard, liftM, sequence, void, when)
 import           Data.Attoparsec.Char8        (Parser, isEndOfLine, string, takeWhile)
 import qualified Data.Attoparsec.Char8        as Atto (try)
 import           Data.ByteString.Char8        (ByteString)
-import qualified Data.ByteString.Char8        as S (concat)
+import qualified Data.ByteString.Char8        as S
 import           Data.ByteString.Internal     (c2w)
 import qualified Data.CaseInsensitive         as CI (mk)
 import           Data.Int                     (Int, Int64)
 import           Data.List                    (concat, find, map, (++))
 import qualified Data.Map                     as Map (insertWith', size)
-import           Data.Maybe                   (Maybe (..), fromMaybe, maybe)
+import           Data.Maybe                   (Maybe (..), fromMaybe, isJust, maybe)
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T (concat, pack, unpack)
 import qualified Data.Text.Encoding           as TE (decodeUtf8)
 import           Data.Typeable                (Typeable, cast)
-import           Prelude                      (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, snd, ($), ($!), (.), (^))
+import           Prelude                      (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, otherwise, snd, ($), ($!), (.), (^), (||))
 import           Snap.Core                    (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody, terminateConnection)
 import           Snap.Internal.Parsing        (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters)
 import qualified Snap.Types.Headers           as H (fromList)
@@ -143,11 +145,9 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
 
         takeIt maxSize = do
             str' <- Streams.throwIfProducesMoreThan maxSize stream
-            fileReader tmpdir partHandler partInfo str' `catches`
-                       [ Handler $ tooMany maxSize
-                       , Handler $ policyViolation ]
+            fileReader tmpdir partHandler partInfo str' `catch` tooMany maxSize
 
-        tooMany maxSize (_ :: TooManyBytesReadException) =
+        tooMany maxSize (_ :: TooManyBytesReadException) = do
             partHandler partInfo
                         (Left $
                          PolicyViolationException $
@@ -155,8 +155,6 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
                                   , fn
                                   , "\" exceeded maximum allowable size "
                                   , T.pack $ show maxSize ])
-
-        policyViolation e = partHandler partInfo $ Left e
 
         disallowed =
             partHandler partInfo
@@ -267,15 +265,30 @@ handleMultipart uploadPolicy origPartHandler = do
 
 
 ------------------------------------------------------------------------------
+data PartDisposition = DispositionAttachment
+                     | DispositionFile
+                     | DispositionFormData
+                     | DispositionOther ByteString
+  deriving (Eq, Show)
+
+------------------------------------------------------------------------------
 -- | 'PartInfo' contains information about a \"part\" in a request uploaded
 -- with @Content-type: multipart/form-data@.
-data PartInfo =
-    PartInfo { partFieldName   :: !ByteString
-             , partFileName    :: !(Maybe ByteString)
-             , partContentType :: !ByteString
-             }
+data PartInfo = PartInfo { partFieldName   :: !ByteString
+                         , partFileName    :: !(Maybe ByteString)
+                         , partContentType :: !ByteString
+                         , partDisposition :: !PartDisposition
+                         , partHeaders     :: !(Headers)
+                         }
   deriving (Show)
 
+
+------------------------------------------------------------------------------
+toPartDisposition :: ByteString -> PartDisposition
+toPartDisposition s | s == "attachment" = DispositionAttachment
+                    | s == "file"       = DispositionFile
+                    | s == "form-data"  = DispositionFormData
+                    | otherwise         = DispositionOther s
 
 ------------------------------------------------------------------------------
 -- | All of the exceptions defined in this package inherit from
@@ -522,10 +535,14 @@ captureVariableOrReadFile ::
     -> PartProcessor a                         -- ^ file reading code
     -> PartProcessor (Capture a)
 captureVariableOrReadFile maxSize fileHandler partInfo stream =
-    case partFileName partInfo of
-      Nothing -> variable `catch` handler
-      _       -> liftM File $ fileHandler partInfo stream
+    if isFile
+      then liftM File $ fileHandler partInfo stream
+      else variable `catch` handler
+
   where
+    isFile = isJust (partFileName partInfo) ||
+             partDisposition partInfo == DispositionFile
+
     variable = do
         x <- liftM S.concat $
              Streams.throwIfProducesMoreThan maxSize stream >>= Streams.toList
@@ -604,7 +621,7 @@ internalHandleMultipart !boundary clientHandler !stream = go
 
         -- are we using mixed?
         let (contentType, mboundary) = getContentType hdrs
-        let (fieldName, fileName)    = getFieldName hdrs
+        let (fieldName, fileName, disposition) = getFieldHeaderInfo hdrs
 
         if contentType == "multipart/mixed"
           then maybe (throwIO $ BadPartException $
@@ -612,7 +629,7 @@ internalHandleMultipart !boundary clientHandler !stream = go
                      (processMixed fieldName str)
                      mboundary
           else do
-              let info = PartInfo fieldName fileName contentType
+              let info = PartInfo fieldName fileName contentType disposition hdrs
               liftM (:[]) $ clientHandler info str
 
 
@@ -628,10 +645,10 @@ internalHandleMultipart !boundary clientHandler !stream = go
     mixedStream !fieldName !str = do
         hdrs <- takeHeaders str
 
-        let (contentType, _) = getContentType hdrs
-        let (_, fileName   ) = getFieldName hdrs
+        let (contentType, _)           = getContentType hdrs
+        let (_, fileName, disposition) = getFieldHeaderInfo hdrs
 
-        let info = PartInfo fieldName fileName contentType
+        let info = PartInfo fieldName fileName contentType disposition hdrs
         clientHandler info str
 
 
@@ -650,16 +667,18 @@ getContentType hdrs = (contentType, boundary)
 
 
 ------------------------------------------------------------------------------
-getFieldName :: Headers -> (ByteString, Maybe ByteString)
-getFieldName hdrs = (fieldName, fileName)
+getFieldHeaderInfo :: Headers -> (ByteString, Maybe ByteString, PartDisposition)
+getFieldHeaderInfo hdrs = (fieldName, fileName, disposition)
   where
-    contentDispositionValue = fromMaybe "" $
+    contentDispositionValue = fromMaybe "unknown" $
                               getHeader "content-disposition" hdrs
 
     eDisposition = fullyParse contentDispositionValue pValueWithParameters
 
-    (!_, dispositionParameters) =
-        either (const ("", [])) id eDisposition
+    (!dispositionType, dispositionParameters) =
+        either (const ("unknown", [])) id eDisposition
+
+    disposition = toPartDisposition dispositionType
 
     fieldName = fromMaybe "" $ findParam "name" dispositionParameters
 
