@@ -9,9 +9,9 @@ module Snap.Util.FileUploads.Tests
 ------------------------------------------------------------------------------
 import           Control.Applicative            (Alternative ((<|>)))
 import           Control.DeepSeq                (deepseq)
-import           Control.Exception              (evaluate)
+import           Control.Exception              (ErrorCall (..), evaluate, throwIO)
 import           Control.Exception.Lifted       (Exception (fromException, toException), Handler (Handler), catch, catches, finally, throw)
-import           Control.Monad                  (Monad ((>>=), return), liftM, void)
+import           Control.Monad                  (Monad ((>>=), (>>), return), liftM, void)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S
@@ -62,6 +62,7 @@ tests = [ testSuccess1
         , testWrongContentType
         , testSlowEnumerator
         , testSlowEnumerator2
+        , testAbortedBody
         , testTrivials
         , testDisconnectionCleanup
         ]
@@ -388,9 +389,26 @@ testTooManyHeaders = testCase "fileUploads/tooManyHeaders" $
 
 
 ------------------------------------------------------------------------------
+testAbortedBody :: Test
+testAbortedBody = testCase "fileUploads/abortedBody" $
+                  expectExceptionH $
+                  harness' goAndAbort tmpdir hndl abortedTestBody
+  where
+    tmpdir = "tempdir_abort"
+
+    hndl = handleFileUploads tmpdir defaultUploadPolicy
+                             (const $ allowWithMaximumSize 400000)
+                             hndl'
+
+    hndl' xs _ = show xs `deepseq` return ()
+
+
+
+------------------------------------------------------------------------------
 testSlowEnumerator :: Test
 testSlowEnumerator = testCase "fileUploads/tooSlow" $
-                     (harness' goSlowEnumerator tmpdir hndl mixedTestBody
+                     ((harness' goSlowEnumerator tmpdir hndl mixedTestBody
+                        >> error "shouldn't get here")
                                `catches` [Handler h0])
   where
     h0 (e :: EscapeSnap) = do
@@ -398,7 +416,7 @@ testSlowEnumerator = testCase "fileUploads/tooSlow" $
             (me :: Maybe RateTooSlowException) = fromException se
         maybe (throw e) h me
 
-    h (e :: RateTooSlowException) = e `seq` return ()
+    h (e :: RateTooSlowException) = coverShowInstance e
 
     tmpdir = "tempdir_tooslow"
 
@@ -588,6 +606,22 @@ goSlowEnumerator m s = do
             liftIO waitabit
             Streams.yield $ S.singleton x
             f xs
+
+
+------------------------------------------------------------------------------
+goAndAbort :: Snap a -> ByteString -> IO Response
+goAndAbort m s = do
+    rq <- mkRequest s
+    e  <- Streams.fromGenerator generator
+    let rq' = rq { rqBody = e }
+    mx <- timeout (20*seconds) (liftM snd (runIt m rq'))
+    maybe (error "timeout") return mx
+
+  where
+    generator = do
+        Streams.yield s
+        liftIO $ throwIO
+               $ ErrorCall "For in that sleep of death what dreams may come."
 
 
 ------------------------------------------------------------------------------
@@ -858,3 +892,21 @@ noFileNameTestBody =
          , boundaryValue
          , "--\r\n"
          ]
+
+
+------------------------------------------------------------------------------
+abortedTestBody :: ByteString
+abortedTestBody =
+ S.concat [ "--"
+          , boundaryValue
+          , crlf
+          , "content-disposition: form-data; name=\"field1\"\r\n"
+          , crlf
+          , formContents1
+          , crlf
+          , "--"
+          , boundaryValue
+          , crlf
+          , "content-disposition: form-data; name=\"field2\"\r\n"
+          , "fdjkljflsdkjfsd"
+          ]

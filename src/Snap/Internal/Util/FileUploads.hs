@@ -65,14 +65,14 @@ import           Data.Text                    (Text)
 import qualified Data.Text                    as T (concat, pack, unpack)
 import qualified Data.Text.Encoding           as TE (decodeUtf8)
 import           Data.Typeable                (Typeable, cast)
-import           Prelude                      (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, otherwise, snd, ($), ($!), (.), (^), (||))
-import           Snap.Core                    (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody, terminateConnection)
+import           Prelude                      (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, otherwise, putStrLn, snd, ($), ($!), (.), (^), (||))
+import           Snap.Core                    (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody)
 import           Snap.Internal.Parsing        (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters)
 import qualified Snap.Types.Headers           as H (fromList)
 import           System.Directory             (removeFile)
 import           System.FilePath              ((</>))
 import           System.IO                    (BufferMode (NoBuffering), Handle, hClose, hSetBuffering)
-import           System.IO.Streams            (InputStream, MatchInfo (..), RateTooSlowException, TooManyBytesReadException, search)
+import           System.IO.Streams            (InputStream, MatchInfo (..), TooManyBytesReadException, search)
 import qualified System.IO.Streams            as Streams
 import           System.IO.Streams.Attoparsec (parseFromStream)
 import           System.PosixCompat.Temp      (mkstemp)
@@ -224,8 +224,9 @@ handleMultipart uploadPolicy origPartHandler = do
                       return
                       mbBoundary
 
-    captures <- runRequestBody (proc bumpTimeout boundary partHandler) `catch`
-                terminateSlow
+    -- RateTooSlowException will be caught and properly dealt with by
+    -- runRequestBody
+    captures <- runRequestBody (proc bumpTimeout boundary partHandler)
     procCaptures captures id
 
   where
@@ -233,9 +234,6 @@ handleMultipart uploadPolicy origPartHandler = do
     uploadRate  = minimumUploadRate uploadPolicy
     uploadSecs  = minimumUploadSeconds uploadPolicy
     maxFormVars = maximumNumberOfFormInputs uploadPolicy
-
-    --------------------------------------------------------------------------
-    terminateSlow (e :: RateTooSlowException) = terminateConnection e
 
     --------------------------------------------------------------------------
     proc bumpTimeout boundary partHandler stream = do
@@ -550,15 +548,13 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
 
     fieldName = partFieldName partInfo
 
-    handler (e :: SomeException) =
-        maybe (throwIO e)
-              (const $ throwIO $ PolicyViolationException $
-                     T.concat [ "form input '"
-                              , TE.decodeUtf8 fieldName
-                              , "' exceeded maximum permissible size ("
-                              , T.pack $ show maxSize
-                              , " bytes)" ])
-              (fromException e :: Maybe TooManyBytesReadException)
+    handler (_ :: TooManyBytesReadException) =
+        throwIO $ PolicyViolationException $
+                T.concat [ "form input '"
+                         , TE.decodeUtf8 fieldName
+                         , "' exceeded maximum permissible size ("
+                         , T.pack $ show maxSize
+                         , " bytes)" ]
 
 
 ------------------------------------------------------------------------------
