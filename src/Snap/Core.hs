@@ -108,6 +108,10 @@ module Snap.Core
   , rqModifyParams
   , rqSetParam
 
+    -- *** Deprecated functions
+  , rqRemoteAddr
+  , rqRemotePort
+
     -- ** Responses
   , emptyResponse
   , setResponseCode
@@ -158,7 +162,7 @@ module Snap.Core
   ) where
 
 ------------------------------------------------------------------------------
-import           Snap.Internal.Http.Types (Cookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (rqClientAddr, rqClientPort, rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqLocalHostname, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqServerAddr, rqServerPort, rqURI, rqVersion), Response (rspStatus, rspStatusReason), addHeader, addResponseCookie, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqSetParam, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus)
+import           Snap.Internal.Http.Types (Cookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (rqClientAddr, rqClientPort, rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqLocalHostname, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqServerAddr, rqServerPort, rqURI, rqVersion), Response (rspStatus, rspStatusReason), addHeader, addResponseCookie, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqRemoteAddr, rqRemotePort, rqSetParam, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus)
 import           Snap.Internal.Instances  ()
 import           Snap.Internal.Parsing    (buildUrlEncoded, parseUrlEncoded, printUrlEncoded, urlDecode, urlEncode, urlEncodeBuilder)
 import           Snap.Internal.Routing    (route, routeLocal)

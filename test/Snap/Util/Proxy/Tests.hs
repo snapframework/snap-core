@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 {-# LANGUAGE BangPatterns      #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -9,7 +11,7 @@ import           Data.ByteString.Char8          (ByteString)
 import qualified Data.ByteString.Char8          as S
 import           Data.CaseInsensitive           (CI (..))
 import qualified Data.Map                       as Map
-import           Snap.Core                      (Request (rqClientAddr, rqClientPort), Snap, withRequest)
+import           Snap.Core                      (Request (rqClientAddr, rqClientPort), Snap, rqRemotePort, withRequest)
 import           Snap.Test                      (RequestBuilder, evalHandler, get, setHeader)
 import           Snap.Test.Common               (coverEqInstance, coverOrdInstance, coverReadInstance, coverShowInstance)
 import           Snap.Util.Proxy                (ProxyType (NoProxy, X_Forwarded_For), behindProxy)
@@ -83,7 +85,7 @@ testForwardedFor = testCase "proxy/forwarded-for" $ do
   where
     handler = behindProxy X_Forwarded_For $ do
                   !a <- reportRemoteAddr
-                  !p <- reportRemotePort
+                  !p <- reportRemotePort'
                   return $! (a,p)
 
     ip      = "5.6.7.8"
@@ -126,6 +128,12 @@ reportRemoteAddr = withRequest $ \req -> return $ rqClientAddr req
 ------------------------------------------------------------------------------
 reportRemotePort :: Snap Int
 reportRemotePort = withRequest $ \req -> return $ rqClientPort req
+
+
+------------------------------------------------------------------------------
+-- Cover deprecated rqRemotePort
+reportRemotePort' :: Snap Int
+reportRemotePort' = withRequest $ \req -> return $ rqRemotePort req
 
 
 ------------------------------------------------------------------------------

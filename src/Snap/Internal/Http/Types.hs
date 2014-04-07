@@ -816,3 +816,14 @@ statusReasonMap = IM.fromList [
         (504, "Gateway Time-out"),
         (505, "HTTP Version not supported")
     ]
+
+
+------------------------------------------------------------------------------
+-- Deprecated functions
+rqRemoteAddr :: Request -> ByteString
+rqRemoteAddr = rqClientAddr
+{-# DEPRECATED rqRemoteAddr "(snap-core >= 1.0.0.0) please use rqClientAddr, this will be removed in 1.1.*" #-}
+
+rqRemotePort :: Request -> Int
+rqRemotePort = rqClientPort
+{-# DEPRECATED rqRemotePort "(snap-core >= 1.0.0.0) please use rqClientPort, this will be removed in 1.1.*" #-}

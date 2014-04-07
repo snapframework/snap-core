@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
+
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE Rank2Types          #-}
@@ -36,7 +38,7 @@ import           Data.Text                            (Text)
 import qualified Data.Text.Encoding                   as T (encodeUtf8)
 import           Data.Text.Lazy                       ()
 import           Prelude                              (Bool (..), Either (..), Enum (..), Eq (..), IO, Int, Maybe (Just, Nothing), Num (..), Ord (..), Show (..), String, const, either, flip, id, map, maybe, not, seq, undefined, ($), ($!), (&&), (++), (.))
-import           Snap.Internal.Http.Types             (Cookie (Cookie), Method (..), Request (rqBody, rqClientAddr, rqContextPath, rqIsSecure, rqURI), Response (rspContentLength, rspStatus, rspStatusReason, rspTransformingRqBody), addHeader, deleteHeader, emptyResponse, getHeader, setContentLength, setHeader, setResponseCode, setResponseStatus, statusReasonMap)
+import           Snap.Internal.Http.Types             (Cookie (Cookie), Method (..), Request (rqBody, rqClientAddr, rqContextPath, rqIsSecure, rqURI), Response (rspContentLength, rspStatus, rspStatusReason, rspTransformingRqBody), addHeader, deleteHeader, emptyResponse, getHeader, rqRemoteAddr, setContentLength, setHeader, setResponseCode, setResponseStatus, statusReasonMap)
 import           Snap.Internal.Parsing                (urlDecode, urlEncode)
 import           Snap.Internal.Types                  (EscapeSnap (..), MonadSnap (..), NoHandlerException (NoHandlerException), Snap, addToOutput, bracketSnap, catchFinishWith, dir, escapeHttp, evalSnap, finishWith, getParam, getParams, getPostParam, getPostParams, getQueryParam, getQueryParams, getRequest, getResponse, getsResponse, ifTop, ipHeaderFilter, localRequest, logError, method, methods, modifyResponse, pass, path, pathArg, putRequest, putResponse, readRequestBody, redirect, redirect', runRequestBody, runSnap, setTimeout, terminateConnection, transformRequestBody, updateContextPath, withRequest, withResponse, writeBS, writeLBS, writeLazyText, writeText)
 import qualified Snap.Test                            as Test (RequestType (RequestWithRawBody), buildRequest, evalHandler, get, getResponseBody, postRaw, runHandler, setRequestType)
@@ -745,7 +747,7 @@ testIpHeaderFilter = testCase "core/ipHeaderFilter" $ do
     assertEqual "ipHeaderFilter" "1.2.3.4" b
 
 
-    (_,r2) <- go f
+    (_,r2) <- go f'
     b2 <- getBody r2
     assertEqual "ipHeaderFilter" "127.0.0.1" b2
 
@@ -753,6 +755,11 @@ testIpHeaderFilter = testCase "core/ipHeaderFilter" $ do
     f = do
         ipHeaderFilter
         ip <- liftM rqClientAddr getRequest
+        writeBS ip
+
+    f' = do
+        ipHeaderFilter
+        ip <- liftM rqRemoteAddr getRequest
         writeBS ip
 
 
