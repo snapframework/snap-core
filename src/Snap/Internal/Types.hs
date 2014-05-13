@@ -957,11 +957,13 @@ runSnap (Snap m) logerr timeoutAction req =
         return (req', resp')
 
     diediedie z !st = do
-        rsp <- case z of
-                 PassOnProcessing     -> return fourohfour
-                 (EarlyTermination x) -> return x
-                 (EscapeSnap e)       -> throwIO e
-        return (_snapRequest st, rsp)
+        resp <- case z of
+                  PassOnProcessing     -> return fourohfour
+                  (EarlyTermination x) -> return x
+                  (EscapeSnap e)       -> throwIO e
+        let req' = _snapRequest st
+        resp' <- liftIO $ fixupResponse req' resp
+        return (req', resp')
 
     --------------------------------------------------------------------------
     fourohfour = do
