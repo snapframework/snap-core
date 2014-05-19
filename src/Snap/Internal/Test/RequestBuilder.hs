@@ -1,3 +1,6 @@
+{- Temporary workaround for https://ghc.haskell.org/trac/ghc/ticket/9127 -}
+{-# OPTIONS_GHC -fno-warn-unused-binds  #-}
+
 {-# LANGUAGE BangPatterns               #-}
 {-# LANGUAGE CPP                        #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}

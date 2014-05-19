@@ -34,7 +34,10 @@ import           Data.Maybe               (Maybe (..), fromMaybe, maybe)
 import           Data.Time.Clock          (UTCTime)
 import           Data.Word                (Word64)
 import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fromIntegral, id, ($), ($!), (.))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fromIntegral, id, ($), (.))
+#ifdef PORTABLE
+import           Prelude                  (($!))
+#endif
 import           System.IO                (IOMode (ReadMode), SeekMode (AbsoluteSeek), hSeek, withBinaryFile)
 import           System.IO.Streams        (InputStream, OutputStream)
 import qualified System.IO.Streams        as Streams
