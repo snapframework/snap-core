@@ -106,7 +106,11 @@ import           Data.Maybe                         (Maybe (..), listToMaybe, ma
 import qualified Data.Text                          as T (Text)
 import qualified Data.Text.Lazy                     as LT (Text)
 import           Data.Time                          (Day (ModifiedJulianDay), UTCTime (UTCTime))
+#if __GLASGOW_HASKELL__ < 708
 import           Data.Typeable                      (TyCon, Typeable, Typeable1 (..), mkTyCon3, mkTyConApp)
+#else
+import           Data.Typeable                      (Typeable)
+#endif
 import           Data.Word                          (Word64, Word8)
 import           Foreign.Ptr                        (Ptr, plusPtr)
 import           Foreign.Storable                   (poke)

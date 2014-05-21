@@ -25,7 +25,7 @@ import           Data.Maybe               (Maybe (Just, Nothing), fromMaybe, isJ
 import           Data.Set                 (Set)
 import qualified Data.Set                 as Set (fromList, member)
 import           Data.Typeable            (Typeable)
-import           Prelude                  (Either (..), Eq (..), IO, Ord (..), Show (show), id, not, ($), ($!), (&&), (++), (||))
+import           Prelude                  (Either (..), Eq (..), IO, Show (show), id, not, ($), ($!), (&&), (++), (||))
 import           Snap.Core                (MonadSnap, clearContentLength, finishWith, getHeader, getRequest, getResponse, modifyResponse, modifyResponseBody, setHeader)
 import           Snap.Internal.Debug      (debug)
 import           Snap.Internal.Parsing    (fullyParse)
