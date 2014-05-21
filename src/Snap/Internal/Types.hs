@@ -1222,7 +1222,7 @@ expireCookie :: (MonadSnap m)
 expireCookie nm dm = do
   let old = UTCTime (ModifiedJulianDay 0) 0
   modifyResponse $ addResponseCookie
-                 $ Cookie nm "" (Just old) Nothing dm False False
+                 $ Cookie nm "" (Just old) dm Nothing False False
 
 
 ------------------------------------------------------------------------------
