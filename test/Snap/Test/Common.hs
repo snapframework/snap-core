@@ -29,7 +29,7 @@ import           Control.Monad.Trans.Control (MonadBaseControl)
 import qualified Data.ByteString             as S
 import           Data.ByteString.Internal    (c2w)
 import qualified Data.ByteString.Lazy        as L
-import           Data.Typeable               (Typeable (..))
+import           Data.Typeable               (Typeable, typeOf)
 import           Prelude                     (Either (..), Eq (..), IO, Int, Num (..), Ord (..), Ordering (..), Read (..), Show (..), map, seq, ($), (.), (^))
 import           Test.QuickCheck             (Arbitrary (arbitrary), choose)
 import           Test.QuickCheck.Monadic     (PropertyM)
