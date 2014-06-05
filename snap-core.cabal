@@ -100,7 +100,7 @@ Library
     Snap.Internal.Debug,
     Snap.Internal.Http.Types,
     Snap.Internal.Parsing,
-    Snap.Internal.Types,        -- FIXME: rename
+    Snap.Internal.Types,
     Snap.Test,
     Snap.Types.Headers,
     Snap.Util.FileServe,
