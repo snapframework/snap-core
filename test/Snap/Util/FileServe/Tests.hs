@@ -15,7 +15,7 @@ import qualified Data.Map                       as Map (empty)
 import           Data.Maybe                     (fromJust, isJust)
 import qualified Data.Text                      as T (unpack)
 import           Snap.Internal.Http.Types       (Request, Response (rspContentLength, rspStatus), getHeader, setHeader)
-import           Snap.Internal.Types            (Snap, pass, runSnap, writeBS)
+import           Snap.Internal.Types            (Snap, fixupResponse, pass, runSnap, writeBS)
 import           Snap.Internal.Util.FileServe   (DirectoryConfig (..), decodeFilePath, defaultMimeTypes, fancyDirectoryConfig, serveDirectory, serveDirectoryWith, serveFile, simpleDirectoryConfig)
 import qualified Snap.Test                      as Test (buildRequest, get, getResponseBody, setQueryStringRaw)
 import           Snap.Test.Common               (expectExceptionH)
@@ -67,7 +67,10 @@ expect302 p m = do
 
 ------------------------------------------------------------------------------
 runIt :: Snap a -> Request -> IO (Request, Response)
-runIt m rq = runSnap m d d rq
+runIt m rq = do
+    (rq', rsp) <- runSnap m d d rq
+    rsp' <- fixupResponse rq rsp
+    return (rq', rsp')
   where
     d = const $ return ()
 

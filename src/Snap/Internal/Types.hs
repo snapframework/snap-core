@@ -954,20 +954,14 @@ runSnap :: Snap a
 runSnap (Snap m) logerr timeoutAction req =
     m ok diediedie ss
   where
-    ok _ st = do
-        let req' = _snapRequest st
-        let resp = _snapResponse st
-        resp' <- liftIO $ fixupResponse req' resp
-        return (req', resp')
+    ok _ st = return (_snapRequest st, _snapResponse st)
 
     diediedie z !st = do
         resp <- case z of
                   PassOnProcessing     -> return fourohfour
                   (EarlyTermination x) -> return x
                   (EscapeSnap e)       -> throwIO e
-        let req' = _snapRequest st
-        resp' <- liftIO $ fixupResponse req' resp
-        return (req', resp')
+        return (_snapRequest st, resp)
 
     --------------------------------------------------------------------------
     fourohfour = do
