@@ -174,6 +174,9 @@ insert k0 v (H m) = H $! go id m
     go dl (z@(x,y):xs) | k == x    = dl ((k, concatHeaderValues v y):xs)
                        | otherwise = go (dl . (z:)) xs
 
+    concatHeaderValues :: ByteString -> ByteString -> ByteString
+    concatHeaderValues new old = S.concat [old, ",", new]
+
 
 ------------------------------------------------------------------------------
 -- | Insert a key-value pair into the headers map, without checking whether the
@@ -344,8 +347,3 @@ unsafeFromCaseFoldedList = H
 -- comparisons will be case-sensitive.
 unsafeToCaseFoldedList :: Headers -> [(ByteString, ByteString)]
 unsafeToCaseFoldedList = unH
-
-
-------------------------------------------------------------------------------
-concatHeaderValues :: ByteString -> ByteString -> ByteString
-concatHeaderValues new old = S.concat [old, ",", new]
