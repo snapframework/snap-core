@@ -100,6 +100,7 @@ Library
     Snap.Internal.Debug,
     Snap.Internal.Http.Types,
     Snap.Internal.Parsing,
+    Snap.Internal.Types,        -- FIXME: rename
     Snap.Test,
     Snap.Types.Headers,
     Snap.Util.FileServe,
@@ -110,7 +111,6 @@ Library
   other-modules:
     Snap.Internal.Instances,
     Snap.Internal.Routing,
-    Snap.Internal.Types,
     Snap.Internal.Test.RequestBuilder,
     Snap.Internal.Test.Assertions,
     Snap.Internal.Util.FileServe,
