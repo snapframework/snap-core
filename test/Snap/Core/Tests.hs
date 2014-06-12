@@ -834,7 +834,9 @@ testRedirect = testCase "core/redirect" $ do
 testCoverInstances :: Test
 testCoverInstances = testCase "core/instances" $ do
     coverErrorT
+#if MIN_VERSION_transformers(0,4,0)
     coverExceptT
+#endif
     coverListT
     coverRWST
     coverLRWS
