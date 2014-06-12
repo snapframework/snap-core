@@ -868,9 +868,11 @@ testCoverInstances = testCase "core/instances" $ do
     coverErrorT   = cover (\m -> do
                                (_ :: Either String ()) <- runErrorT m
                                return ())
+#if MIN_VERSION_transformers(0,4,0)
     coverExceptT  = cover (\m -> do
                                (_ :: Either String ()) <- runExceptT m
                                return ())
+#endif
     coverListT    = cover (void . runListT)
     coverRWST     = cover rwst
     coverLRWS     = cover lrwst
