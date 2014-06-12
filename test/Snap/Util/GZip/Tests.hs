@@ -9,17 +9,21 @@ module Snap.Util.GZip.Tests
 import           Blaze.ByteString.Builder             (fromByteString)
 import qualified Codec.Compression.GZip               as GZip
 import qualified Codec.Compression.Zlib               as Zlib
+import           Control.Applicative                  ((<$>))
+import           Control.Monad                        (replicateM)
+import           Data.Bits                            ((.&.))
+import qualified Data.ByteString                      as B
 import           Data.ByteString.Char8                (ByteString)
 import qualified Data.ByteString.Char8                as S
 import qualified Data.ByteString.Lazy.Char8           as L
 import           Data.CaseInsensitive                 (CI)
-import           Data.Digest.Pure.MD5                 (md5)
-import           Data.Serialize                       (encode)
+import           Data.Word                            (Word8)
 import           Snap.Core                            (Request, Response, Snap, getHeader, modifyResponse, runSnap, setContentType, setHeader, setResponseBody, writeBS)
 import qualified Snap.Test                            as Test
 import           Snap.Test.Common                     (coverTypeableInstance, expectException, expectExceptionH, liftQ)
 import           Snap.Util.GZip                       (BadAcceptEncodingException, noCompression, withCompression)
 import qualified System.IO.Streams                    as Streams
+import           System.Random                        (Random (randomIO))
 import           Test.Framework                       (Test)
 import           Test.Framework.Providers.HUnit       (testCase)
 import           Test.Framework.Providers.QuickCheck2 (testProperty)
@@ -348,18 +352,20 @@ testGzipLotsaChunks :: Test
 testGzipLotsaChunks = testCase "gzip/lotsOfChunks" prop
   where
     prop = do
-        let s = L.take 120000 $ L.fromChunks $ frobnicate "dshflkahdflkdhsaflk"
+        a <- genRandom 12000
+        let s = L.take 120000 $ L.cycle $ L.fromChunks [a, B.reverse a]
         (!_,!rsp) <- goGZip (seqSnap $ withCompression $ textPlain s)
 
         body <- Test.getResponseBody rsp
         let s1 = GZip.decompress $ L.fromChunks [body]
         H.assertEqual "streams equal" s s1
 
-    -- in order to get incompressible text (so that we can test whether the
-    -- gzip thread is streaming properly!) we'll iteratively md5 the source
-    -- string
-    frobnicate s = let s' = encode $ md5 $ L.fromChunks [s]
-                   in (s:frobnicate s')
+    genRandom n = B.pack <$> replicateM n randomWord8
+
+    t8 c = toEnum $ c .&. 0xff
+
+    randomWord8 :: IO Word8
+    randomWord8 = t8 <$> randomIO
 
 
 ------------------------------------------------------------------------------

@@ -1,6 +1,13 @@
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
+-- Deprecations warnings turned off due to ErrorT deprecation
+--
+-- It's a pain that this setting is per-module, because we might end up hiding
+-- deprecation warnings that we want to see. TODO: move any code that emits
+-- these warnings to isolated modules.
+
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -17,6 +24,9 @@ import           Control.Monad                        (Functor (fmap), Monad ((>
 import           Control.Monad.Base                   (MonadBase (liftBase))
 import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.Trans.Error            (ErrorT (runErrorT))
+#if MIN_VERSION_transformers(0,4,0)
+import           Control.Monad.Trans.Except           (runExceptT)
+#endif
 import           Control.Monad.Trans.List             (ListT (runListT))
 import           Control.Monad.Trans.Reader           (ReaderT (runReaderT))
 import qualified Control.Monad.Trans.RWS.Lazy         as LRWS (RWST (runRWST))
@@ -824,6 +834,7 @@ testRedirect = testCase "core/redirect" $ do
 testCoverInstances :: Test
 testCoverInstances = testCase "core/instances" $ do
     coverErrorT
+    coverExceptT
     coverListT
     coverRWST
     coverLRWS
@@ -856,6 +867,9 @@ testCoverInstances = testCase "core/instances" $ do
 
     coverErrorT   = cover (\m -> do
                                (_ :: Either String ()) <- runErrorT m
+                               return ())
+    coverExceptT  = cover (\m -> do
+                               (_ :: Either String ()) <- runExceptT m
                                return ())
     coverListT    = cover (void . runListT)
     coverRWST     = cover rwst

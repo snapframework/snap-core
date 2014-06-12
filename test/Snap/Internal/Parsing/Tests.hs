@@ -4,19 +4,19 @@
 ------------------------------------------------------------------------------
 module Snap.Internal.Parsing.Tests ( tests ) where
 ------------------------------------------------------------------------------
-import           Control.Applicative            (many)
-import           Data.Attoparsec.Char8          (IResult (..), char, string)
-import qualified Data.ByteString.Char8          as S (concat)
-import qualified Data.Map                       as Map (fromList)
-import           Data.Word                      (Word8)
-import           Snap.Internal.Http.Types       (Cookie (Cookie, cookieDomain, cookieExpires, cookieHttpOnly, cookieName, cookiePath, cookieSecure, cookieValue))
-import           Snap.Internal.Parsing          (finish, fullyParse, fullyParse', pAvPairs, pHeaders, pQuotedString, parseCookie, parseToCompletion, parseUrlEncoded, unsafeFromHex, unsafeFromNat)
-import           Snap.Test.Common               (expectExceptionH)
-import           System.Random                  (Random (random, randomR))
-import           Test.Framework                 (Test)
-import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit                     (assertEqual)
-import           Test.QuickCheck                (Arbitrary (arbitrary), choose)
+import           Control.Applicative              (many)
+import           Data.Attoparsec.ByteString.Char8 (IResult (..), char, string)
+import qualified Data.ByteString.Char8            as S (concat)
+import qualified Data.Map                         as Map (fromList)
+import           Data.Word                        (Word8)
+import           Snap.Internal.Http.Types         (Cookie (Cookie, cookieDomain, cookieExpires, cookieHttpOnly, cookieName, cookiePath, cookieSecure, cookieValue))
+import           Snap.Internal.Parsing            (finish, fullyParse, fullyParse', pAvPairs, pHeaders, pQuotedString, parseCookie, parseToCompletion, parseUrlEncoded, unsafeFromHex, unsafeFromNat)
+import           Snap.Test.Common                 (expectExceptionH)
+import           System.Random                    (Random (random, randomR))
+import           Test.Framework                   (Test)
+import           Test.Framework.Providers.HUnit   (testCase)
+import           Test.HUnit                       (assertEqual)
+import           Test.QuickCheck                  (Arbitrary (arbitrary), choose)
 ------------------------------------------------------------------------------
 
 tests :: [Test]

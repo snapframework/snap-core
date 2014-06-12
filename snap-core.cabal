@@ -165,9 +165,9 @@ Library
   ghc-prof-options: -prof -auto
 
   if impl(ghc >= 6.12.0)
-    ghc-options: -Wall -fwarn-tabs -O2 -fno-warn-unused-do-bind
+    ghc-options: -Wall -fwarn-tabs -fno-warn-unused-do-bind
   else
-    ghc-options: -Wall -fwarn-tabs -O2
+    ghc-options: -Wall -fwarn-tabs
 
 
 Test-suite testsuite
@@ -242,17 +242,15 @@ Test-suite testsuite
     unordered-containers      >= 0.1.4.3 && < 0.3,
     vector                    >= 0.6     && < 0.11,
     --------------------------------------------------------------------------
-    cereal                     >= 0.3      && <0.5,
     HUnit                      >= 1.2      && <2,
     QuickCheck                 >= 2.3.0.2  && <3,
     parallel                   >= 3        && <4,
-    pureMD5                    == 2.1.*,
     test-framework             >= 0.8.0.3  && <0.9,
     test-framework-hunit       >= 0.2.7    && <0.4,
     test-framework-quickcheck2 >= 0.2.12.1 && <0.4,
     zlib                       >= 0.5      && <0.6
 
-  ghc-options: -O2 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
+  ghc-options: -O0 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
                -fno-warn-unused-do-bind
 
   other-extensions:
