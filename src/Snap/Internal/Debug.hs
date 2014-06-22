@@ -13,7 +13,7 @@
 {-# OPTIONS_GHC -fno-cse         #-}
 
 
-module Snap.Internal.Debug where
+module Snap.Internal.Debug (debug, debugErrno) where
 
 ------------------------------------------------------------------------------
 import           Control.Monad.IO.Class (MonadIO (..))
