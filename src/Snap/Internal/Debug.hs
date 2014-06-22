@@ -1,7 +1,7 @@
--- | An internal Snap module for (optionally) printing debugging
--- messages. Normally 'debug' does nothing, but if you set @DEBUG=1@ in the
--- environment you'll get debugging messages. We use 'unsafePerformIO' to make
--- sure that the call to 'getEnv' is only made once.
+-- | An internal Snap module for (optionally) printing debugging messages. To
+-- enable debug output, compile the library with the @debug@ flag (off by
+-- default) and set the environment variable @DEBUG@ to @1@. We use
+-- 'unsafePerformIO' to make sure that the call to 'getEnv' is only made once.
 --
 -- /N.B./ this is an internal interface, please don't write external code that
 -- depends on it.
@@ -32,7 +32,29 @@ import           Text.Printf            (printf)
 #endif
 ------------------------------------------------------------------------------
 
-debug, debugErrno :: MonadIO m => String -> m ()
+-- | Print out the provided debug message prefixed by the thread ID.
+--
+-- Example:
+--
+-- @
+-- ghci> debug "Some debug message"
+-- [     225] Some debug message
+-- @
+debug :: MonadIO m => String -> m ()
+
+
+-- | Print out the error message corresponding to the 'Foreign.C.Error.Errno'
+-- value returned by 'Foreign.C.Error.getErrno' together with any additional
+-- information provided by the user (usually the location where the error
+-- occurred).
+--
+-- Example:
+--
+-- @
+-- ghci> debugErrno "path/to/Source.hs:34"
+-- [     323] path/to/Source.hs:34: failed (Success)
+-- @
+debugErrno :: MonadIO m => String -> m ()
 
 
 #ifndef NODEBUG
