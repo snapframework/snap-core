@@ -318,25 +318,49 @@ pUrlEscaped = do
 -- reserved purposes may be used unencoded within a URL."
 
 
+
+
 ------------------------------------------------------------------------------
--- | Decodes an URL-escaped string (see
+-- | Decode an URL-escaped string (see
 -- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
+--
+-- Example:
+--
+-- @
+-- ghci> urlDecode "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
+-- Just "1 attoparsec ~= 3 * 10^-2 meters"
+-- @
 urlDecode :: ByteString -> Maybe ByteString
 urlDecode = parseToCompletion pUrlEscaped
 {-# INLINE urlDecode #-}
 
 
 ------------------------------------------------------------------------------
--- | URL-escapes a string (see
+-- | URL-escape a string (see
 -- <http://tools.ietf.org/html/rfc2396.html#section-2.4>)
+--
+-- Example:
+--
+-- @
+-- ghci> urlEncode "1 attoparsec ~= 3 * 10^-2 meters"
+-- "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
+-- @
 urlEncode :: ByteString -> ByteString
 urlEncode = toByteString . urlEncodeBuilder
 {-# INLINE urlEncode #-}
 
 
 ------------------------------------------------------------------------------
--- | URL-escapes a string (see
+-- | URL-escape a string (see
 -- <http://tools.ietf.org/html/rfc2396.html#section-2.4>) into a 'Builder'.
+--
+-- Example:
+--
+-- @
+-- ghci> import Blaze.ByteString.Builder
+-- ghci> toByteString . urlEncodeBuilder $ "1 attoparsec ~= 3 * 10^-2 meters"
+-- "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
+-- @
 urlEncodeBuilder :: ByteString -> Builder
 urlEncodeBuilder = go mempty
   where
@@ -380,7 +404,14 @@ finish x           = x
                     ---------------------------------------
 
 ------------------------------------------------------------------------------
--- | Parses a string encoded in @application/x-www-form-urlencoded@ format.
+-- | Parse a string encoded in @application/x-www-form-urlencoded@ < http://en.wikipedia.org/wiki/POST_%28HTTP%29#Use_for_submitting_web_forms format>.
+--
+-- Example:
+--
+-- @
+-- ghci> parseUrlEncoded "Name=John+Doe&Name=Jane+Doe&Age=23&Formula=a+%2B+b+%3D%3D+13%25%21"
+-- fromList [("Age",["23"]),("Formula",["a + b == 13%!"]),("Name",["John Doe","Jane Doe"])]
+-- @
 parseUrlEncoded :: ByteString -> Map ByteString [ByteString]
 parseUrlEncoded s = foldr ins Map.empty decoded
 
@@ -415,6 +446,18 @@ parseUrlEncoded s = foldr ins Map.empty decoded
 
 
 ------------------------------------------------------------------------------
+-- | Like 'printUrlEncoded', but produces a 'Builder' instead of a
+-- 'ByteString'. Useful for constructing a large string efficiently in
+-- a single step.
+--
+-- Example:
+--
+-- @
+-- ghci> import Data.Monoid
+-- ghci> import Blaze.ByteString.Builder
+-- ghci> toByteString $ fromByteString "http://example.com/script?" <> buildUrlEncoded (fromList [("Name", ["John Doe"]), ("Age", ["23"])])
+-- "http://example.com/script?Age=23&Name=John+Doe"
+-- @
 buildUrlEncoded :: Map ByteString [ByteString] -> Builder
 buildUrlEncoded m = mconcat builders
   where
@@ -429,6 +472,16 @@ buildUrlEncoded m = mconcat builders
 
 
 ------------------------------------------------------------------------------
+-- | Given a collection of key-value pairs with possibly duplicate
+-- keys (represented as a 'Data.Map.Map'), construct a string in
+-- @application/x-www-form-urlencoded@ format.
+--
+-- Example:
+--
+-- @
+-- ghci> printUrlEncoded (fromList [("Name", ["John Doe"]), ("Age", ["23"])])
+-- "Age=23&Name=John+Doe"
+-- @
 printUrlEncoded :: Map ByteString [ByteString] -> ByteString
 printUrlEncoded = toByteString . buildUrlEncoded
 
