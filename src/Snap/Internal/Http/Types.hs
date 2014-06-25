@@ -18,7 +18,7 @@
 module Snap.Internal.Http.Types where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder (Builder, fromByteString)
+import           Blaze.ByteString.Builder (Builder, fromByteString, toByteString)
 import           Control.Monad            (unless)
 import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as S
@@ -31,16 +31,18 @@ import           Data.List                hiding (take)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Maybe               (Maybe (..), fromMaybe, maybe)
+import           Data.Monoid              (mconcat)
 import           Data.Time.Clock          (UTCTime)
 import           Data.Word                (Word64)
 import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fromIntegral, id, ($), (.))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, id, ($), (.))
 #ifdef PORTABLE
 import           Prelude                  (($!))
 #endif
 import           System.IO                (IOMode (ReadMode), SeekMode (AbsoluteSeek), hSeek, withBinaryFile)
 import           System.IO.Streams        (InputStream, OutputStream)
 import qualified System.IO.Streams        as Streams
+import           System.IO.Unsafe         (unsafePerformIO)
 
 ------------------------------------------------------------------------------
 #ifdef PORTABLE
@@ -474,7 +476,9 @@ data Response = Response
 instance Show Response where
   show r = concat [ statusline
                   , hdrs
+                  , contentLength
                   , "\r\n"
+                  , body
                   ]
     where
       statusline = concat [ "HTTP/1.1 "
@@ -483,9 +487,19 @@ instance Show Response where
                           , toStr $ rspStatusReason r
                           , "\r\n" ]
 
-      hdrs = concatMap showHdr $ H.toList $ rspHeaders r
+      hdrs = concatMap showHdr $ H.toList $ rspHeaders $ clearContentLength r
+
+      contentLength = maybe "" (\l -> concat ["Content-Length: ", show l, "\r\n"] ) (rspContentLength r)
 
       showHdr (k,v) = concat [ toStr (CI.original k), ": ", toStr v, "\r\n" ]
+
+      -- io-streams are impure, so we're forced to use 'unsafePerformIO'.
+      body = unsafePerformIO $ do
+        (os, grab) <- Streams.listOutputStream
+        let f = rspBodyToEnum $ rspBody r
+        _ <- f os
+        fmap (B.unpack . toByteString . mconcat) grab
+
 
 
 ------------------------------------------------------------------------------
