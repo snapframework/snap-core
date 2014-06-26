@@ -39,6 +39,7 @@ tests = [ testDefaultBuild
         , testMisc
         , testMultipart
         , testPost
+        , testFormEncoded
         , testToString
         , testAssert404
         , testAssertBodyContains
@@ -62,7 +63,12 @@ testDefaultBuild = testCase "test/requestBuilder/defaultBuild" $ do
     assertEqual "p2" Map.empty $ rqQueryParams req
     assertEqual "p3" Map.empty $ rqPostParams req
 
-
+------------------------------------------------------------------------------
+testFormEncoded :: Test
+testFormEncoded = testCase "test/requestBuilder/postFormEncoded" $ do
+    req <- buildRequest $ postUrlEncoded "/foo/bar"
+                        $ Map.fromList [("baz", ["qux"])]
+    assertEqual "post params" [("baz", ["qux"])] $ Map.toList $ rqPostParams req
 ------------------------------------------------------------------------------
 testSetRequestType :: Test
 testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do
