@@ -167,6 +167,7 @@ buildRequest mm = do
         let !newParams = Map.unionWith (flip (++)) queryParams postParams
 
         rPut $ rq' { rqParams      = newParams
+                   , rqPostParams  = postParams
                    , rqQueryParams = queryParams }
 
     fixupHost = do
