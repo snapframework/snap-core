@@ -18,7 +18,7 @@
 module Snap.Internal.Http.Types where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder (Builder, fromByteString)
+import           Blaze.ByteString.Builder (Builder, fromByteString, toByteString)
 import           Control.Monad            (unless)
 import           Data.ByteString          (ByteString)
 import qualified Data.ByteString          as S
@@ -31,16 +31,18 @@ import           Data.List                hiding (take)
 import           Data.Map                 (Map)
 import qualified Data.Map                 as Map
 import           Data.Maybe               (Maybe (..), fromMaybe, maybe)
+import           Data.Monoid              (mconcat)
 import           Data.Time.Clock          (UTCTime)
 import           Data.Word                (Word64)
 import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fromIntegral, id, ($), (.))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, id, ($), (.))
 #ifdef PORTABLE
 import           Prelude                  (($!))
 #endif
 import           System.IO                (IOMode (ReadMode), SeekMode (AbsoluteSeek), hSeek, withBinaryFile)
 import           System.IO.Streams        (InputStream, OutputStream)
 import qualified System.IO.Streams        as Streams
+import           System.IO.Unsafe         (unsafePerformIO)
 
 ------------------------------------------------------------------------------
 #ifdef PORTABLE
@@ -93,6 +95,16 @@ class HasHeaders a where
 -- | Adds a header key-value-pair to the 'HasHeaders' datatype. If a header
 -- with the same name already exists, the new value is appended to the headers
 -- list.
+--
+-- Example:
+--
+-- @
+-- ghci> import qualified Snap.Types.Headers as H
+-- ghci> addHeader "Host" "localhost" H.empty
+-- H {unH = [("host","localhost")]}
+-- ghci> addHeader "Host" "127.0.0.1" it
+-- H {unH = [("host","localhost,127.0.0.1")]}
+-- @
 addHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
 addHeader k v = updateHeaders $ H.insert k v
 
@@ -100,12 +112,30 @@ addHeader k v = updateHeaders $ H.insert k v
 ------------------------------------------------------------------------------
 -- | Sets a header key-value-pair in a 'HasHeaders' datatype. If a header with
 -- the same name already exists, it is overwritten with the new value.
+--
+-- Example:
+--
+-- @
+-- ghci> import qualified Snap.Types.Headers as H
+-- ghci> setHeader "Host" "localhost" H.empty
+-- H {unH = [("host","localhost")]}
+-- ghci> setHeader "Host" "127.0.0.1" it
+-- H {unH = [("host","127.0.0.1")]}
+-- @
 setHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
 setHeader k v = updateHeaders $ H.set k v
 
 
 ------------------------------------------------------------------------------
 -- | Gets a header value out of a 'HasHeaders' datatype.
+--
+-- Example:
+--
+-- @
+-- ghci> import qualified Snap.Types.Headers as H
+-- ghci> getHeader "Host" $ setHeader "Host" "localhost" H.empty
+-- Just "localhost"
+-- @
 getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
 getHeader k a = H.lookup k $ headers a
 
@@ -113,12 +143,28 @@ getHeader k a = H.lookup k $ headers a
 ------------------------------------------------------------------------------
 -- | Lists all the headers out of a 'HasHeaders' datatype. If many
 -- headers came in with the same name, they will be catenated together.
+--
+-- Example:
+--
+-- @
+-- ghci> import qualified Snap.Types.Headers as H
+-- ghci> listHeaders $ setHeader "Host" "localhost" H.empty
+-- [("host","localhost")]
+-- @
 listHeaders :: (HasHeaders a) => a -> [(CI ByteString, ByteString)]
 listHeaders = H.toList . headers
 
 
 ------------------------------------------------------------------------------
 -- | Clears a header value from a 'HasHeaders' datatype.
+--
+-- Example:
+--
+-- @
+-- ghci> import qualified Snap.Types.Headers as H
+-- ghci> deleteHeader "Host" $ setHeader "Host" "localhost" H.empty
+-- H {unH = []}
+-- @
 deleteHeader :: (HasHeaders a) => CI ByteString -> a -> a
 deleteHeader k = updateHeaders $ H.delete k
 
@@ -193,6 +239,7 @@ normalizeMethod m               = m
 
 
 ------------------------------------------------------------------------------
+-- | Represents a (major, minor) version of the HTTP protocol.
 type HttpVersion = (Int,Int)
 
 
@@ -217,7 +264,7 @@ data Cookie = Cookie {
       -- | Tag as secure cookie?
     , cookieSecure   :: !Bool
 
-      -- | HttpOnly?
+      -- | HTTP only?
     , cookieHttpOnly :: !Bool
 } deriving (Eq, Show)
 
@@ -239,42 +286,166 @@ type Params = Map ByteString [ByteString]
 data Request = Request
     { -- | The server name of the request, as it came in from the request's
       -- @Host:@ header.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqHostName `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "localhost"
+      -- @
       rqHostName      :: ByteString
 
       -- | The remote IP address.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqClientAddr `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "127.0.0.1"
+      -- @
     , rqClientAddr    :: ByteString
 
       -- | The remote TCP port number.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqClientPort `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "60000"
+      -- @
     , rqClientPort    :: {-# UNPACK #-} !Int
 
       -- | The local IP address for this request.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqServerAddr `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "127.0.0.1"
+      -- @
     , rqServerAddr    :: ByteString
 
       -- | Returns the port number the HTTP server is listening on. This may be
       -- useless from the perspective of external requests, e.g. if the server
       -- is running behind a proxy.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqServerPort `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- 8080
+      -- @
     , rqServerPort    :: {-# UNPACK #-} !Int
 
       -- | Returns the HTTP server's idea of its local hostname, including
       -- port. This is as configured with the @Config@ object at startup.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqLocalHostname `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "localhost"
+      -- @
     , rqLocalHostname :: ByteString
 
-      -- | Returns @True@ if this is an @HTTPS@ session.
+      -- | Returns @True@ if this is an HTTPS session.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqIsSecure `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- False
+      -- @
     , rqIsSecure      :: !Bool
+
+      -- | Contains all HTTP 'Headers' associated with this request.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqHeaders `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- H {unH = [("host","localhost")]}
+      -- @
     , rqHeaders       :: Headers
+
+      -- | Actual body of the request.
     , rqBody          :: InputStream ByteString
 
       -- | Returns the @Content-Length@ of the HTTP request body.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqContentLength `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- Nothing
+      -- @
     , rqContentLength :: !(Maybe Word64)
 
       -- | Returns the HTTP request method.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqMethod `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- GET
+      -- @
     , rqMethod        :: !Method
 
       -- | Returns the HTTP version used by the client.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqVersion `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- (1,1)
+      -- @
     , rqVersion       :: {-# UNPACK #-} !HttpVersion
 
       -- | Returns a list of the cookies that came in from the HTTP request
       -- headers.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqCookies `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- []
+      -- @
     , rqCookies       :: [Cookie]
 
       -- | Handlers can be hung on a @URI@ \"entry point\"; this is called the
@@ -291,6 +462,16 @@ data Request = Request
       -- >                            then ""
       -- >                            else S.append "?" q
       -- >                     ]
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqPathInfo `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "foo/bar"
+      -- @
     , rqPathInfo      :: ByteString
 
       -- | The \"context path\" of the request; catenating 'rqContextPath',
@@ -298,21 +479,82 @@ data Request = Request
       -- (ignoring query strings). The 'rqContextPath' always begins and ends
       -- with a slash (@\"\/\"@) character, and represents the path (relative
       -- to your component\/snaplet) you took to get to your handler.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqContextPath `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "/"
+      -- @
     , rqContextPath   :: ByteString
 
       -- | Returns the @URI@ requested by the client.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rqURI `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- "foo/bar"
+      -- @
     , rqURI           :: ByteString
 
       -- | Returns the HTTP query string for this 'Request'.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> rq <- T.buildRequest (T.get "/foo/bar" (M.fromList [("name", ["value"])]))
+      -- ghci> rqQueryString rq
+      -- "name=value"
+      -- @
     , rqQueryString   :: ByteString
 
       -- | Returns the parameters mapping for this 'Request'. \"Parameters\"
       -- are automatically decoded from the URI's query string and @POST@ body
       -- and entered into this mapping. The 'rqParams' value is thus a union of
       -- 'rqQueryParams' and 'rqPostParams'.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> :{
+      -- ghci| rq <- T.buildRequest $ do
+      -- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+      -- ghci|         T.setQueryStringRaw "baz=quux"
+      -- ghci| :}
+      -- ghci> rqParams rq
+      -- fromList [("baz",["qux","quux"])]
+      -- @
     , rqParams        :: Params
 
       -- | The parameter mapping decoded from the URI's query string.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> :{
+      -- ghci| rq <- T.buildRequest $ do
+      -- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+      -- ghci|         T.setQueryStringRaw "baz=quux"
+      -- ghci| :}
+      -- ghci> rqQueryParams rq
+      -- fromList [("baz",["quux"])]
+      -- @
     , rqQueryParams   :: Params
 
       -- | The parameter mapping decoded from the POST body. Note that Snap
@@ -320,6 +562,21 @@ data Request = Request
       -- @Content-Type@ is @application/x-www-form-urlencoded@.
       -- For @multipart/form-data@ use 'Snap.Util.FileUploads.handleFileUploads'
       -- to decode the POST request and fill this mapping.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> :set -XOverloadedStrings
+      -- ghci> import qualified Snap.Test as T
+      -- ghci> import qualified Data.Map as M
+      -- ghci> :{
+      -- ghci| rq <- T.buildRequest $ do
+      -- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+      -- ghci|         T.setQueryStringRaw "baz=quux"
+      -- ghci| :}
+      -- ghci> rqPostParams rq
+      -- fromList [("baz",["qux"])]
+      -- @
     , rqPostParams    :: Params
     }
 
@@ -459,9 +716,23 @@ data Response = Response
     , rspBody               :: ResponseBody
 
       -- | Returns the HTTP status code.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> rspStatus emptyResponse
+      -- 200
+      -- @
     , rspStatus             :: !Int
 
       -- | Returns the HTTP status explanation string.
+      --
+      -- Example:
+      --
+      -- @
+      -- ghci> rspStatusReason emptyResponse
+      -- "OK"
+      -- @
     , rspStatusReason       :: !ByteString
 
       -- | If true, we are transforming the request body with
@@ -474,7 +745,9 @@ data Response = Response
 instance Show Response where
   show r = concat [ statusline
                   , hdrs
+                  , contentLength
                   , "\r\n"
+                  , body
                   ]
     where
       statusline = concat [ "HTTP/1.1 "
@@ -483,9 +756,19 @@ instance Show Response where
                           , toStr $ rspStatusReason r
                           , "\r\n" ]
 
-      hdrs = concatMap showHdr $ H.toList $ rspHeaders r
+      hdrs = concatMap showHdr $ H.toList $ rspHeaders $ clearContentLength r
+
+      contentLength = maybe "" (\l -> concat ["Content-Length: ", show l, "\r\n"] ) (rspContentLength r)
 
       showHdr (k,v) = concat [ toStr (CI.original k), ": ", toStr v, "\r\n" ]
+
+      -- io-streams are impure, so we're forced to use 'unsafePerformIO'.
+      body = unsafePerformIO $ do
+        (os, grab) <- Streams.listOutputStream
+        let f = rspBodyToEnum $ rspBody r
+        _ <- f os
+        fmap (B.unpack . toByteString . mconcat) grab
+
 
 
 ------------------------------------------------------------------------------
@@ -499,6 +782,21 @@ instance HasHeaders Response where
 -- come from the request's query string and any decoded POST body (if the
 -- request's @Content-Type@ is @application\/x-www-form-urlencoded@).
 -- Parameter values can be modified within handlers using "rqModifyParams".
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified Snap.Test as T
+-- ghci> import qualified Data.Map as M
+-- ghci> :{
+-- ghci| rq <- T.buildRequest $ do
+-- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.setQueryStringRaw "baz=quux"
+-- ghci| :}
+-- ghci> rqParam "baz" rq
+-- Just ["qux","quux"]
+-- @
 rqParam :: ByteString           -- ^ parameter name to look up
         -> Request              -- ^ HTTP request
         -> Maybe [ByteString]
@@ -509,6 +807,21 @@ rqParam k rq = Map.lookup k $ rqParams rq
 ------------------------------------------------------------------------------
 -- | Looks up the value(s) for the given named parameter in the POST parameters
 -- mapping.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified Snap.Test as T
+-- ghci> import qualified Data.Map as M
+-- ghci> :{
+-- ghci| rq <- T.buildRequest $ do
+-- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.setQueryStringRaw "baz=quux"
+-- ghci| :}
+-- ghci> rqPostParam "baz" rq
+-- Just ["qux"]
+-- @
 rqPostParam :: ByteString           -- ^ parameter name to look up
             -> Request              -- ^ HTTP request
             -> Maybe [ByteString]
@@ -519,6 +832,21 @@ rqPostParam k rq = Map.lookup k $ rqPostParams rq
 ------------------------------------------------------------------------------
 -- | Looks up the value(s) for the given named parameter in the query
 -- parameters mapping.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified Snap.Test as T
+-- ghci> import qualified Data.Map as M
+-- ghci> :{
+-- ghci| rq <- T.buildRequest $ do
+-- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.setQueryStringRaw "baz=quux"
+-- ghci| :}
+-- ghci> rqQueryParam "baz" rq
+-- Just ["quux"]
+-- @
 rqQueryParam :: ByteString           -- ^ parameter name to look up
              -> Request              -- ^ HTTP request
              -> Maybe [ByteString]
@@ -529,6 +857,23 @@ rqQueryParam k rq = Map.lookup k $ rqQueryParams rq
 ------------------------------------------------------------------------------
 -- | Modifies the parameters mapping (which is a @Map ByteString ByteString@)
 -- in a 'Request' using the given function.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified Snap.Test as T
+-- ghci> import qualified Data.Map as M
+-- ghci> :{
+-- ghci| rq <- T.buildRequest $ do
+-- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.setQueryStringRaw "baz=quux"
+-- ghci| :}
+-- ghci> rqParams rq
+-- fromList [("baz",["qux","quux"])]
+-- ghci> rqParams $ rqModifyParams (M.delete "baz") rq
+-- fromList []
+-- @
 rqModifyParams :: (Params -> Params) -> Request -> Request
 rqModifyParams f r = r { rqParams = p }
   where
@@ -539,6 +884,23 @@ rqModifyParams f r = r { rqParams = p }
 ------------------------------------------------------------------------------
 -- | Writes a key-value pair to the parameters mapping within the given
 -- request.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified Snap.Test as T
+-- ghci> import qualified Data.Map as M
+-- ghci> :{
+-- ghci| rq <- T.buildRequest $ do
+-- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.setQueryStringRaw "baz=quux"
+-- ghci| :}
+-- ghci> rqParams rq
+-- fromList [("baz",["qux","quux"])]
+-- ghci> rqParams $ rqSetParam "baz" ["corge"] rq
+-- fromList [("baz", ["corge"])]
+-- @
 rqSetParam :: ByteString        -- ^ parameter name
            -> [ByteString]      -- ^ parameter values
            -> Request           -- ^ request
@@ -553,6 +915,15 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 
 ------------------------------------------------------------------------------
 -- | An empty 'Response'.
+--
+-- Example:
+--
+-- @
+-- ghci> emptyResponse
+-- HTTP/1.1 200 OK
+--
+--
+-- @
 emptyResponse :: Response
 emptyResponse = Response H.empty Map.empty Nothing
                          (Stream (return . id))
@@ -561,6 +932,24 @@ emptyResponse = Response H.empty Map.empty Nothing
 
 ------------------------------------------------------------------------------
 -- | Sets an HTTP response body to the given stream procedure.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified System.IO.Streams as Streams
+-- ghci> import qualified Blaze.ByteString.Builder as Builder
+-- ghci> :{
+-- ghci| let r = setResponseBody
+-- ghci|         (\out -> do
+-- ghci|             Streams.write (Just $ Builder.fromByteString "Hello, world!") out
+-- ghci|             return out)
+-- ghci|         emptyResponse
+-- ghci| :}
+-- HTTP/1.1 200 OK
+--
+-- Hello, world!
+-- @
 setResponseBody     :: (OutputStream Builder -> IO (OutputStream Builder))
                                    -- ^ new response body
                     -> Response    -- ^ response to modify
@@ -573,6 +962,16 @@ setResponseBody e r = r { rspBody = Stream e }
 -- | Sets the HTTP response status. Note: normally you would use
 -- 'setResponseCode' unless you needed a custom response explanation.
 --
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> setResponseStatus 500 "Internal Server Error" emptyResponse
+-- HTTP/1.1 500 Internal Server Error
+--
+--
+-- @
 setResponseStatus   :: Int        -- ^ HTTP response integer code
                     -> ByteString -- ^ HTTP response explanation
                     -> Response   -- ^ Response to be modified
@@ -583,6 +982,15 @@ setResponseStatus s reason r = r { rspStatus=s, rspStatusReason=reason }
 
 ------------------------------------------------------------------------------
 -- | Sets the HTTP response code.
+--
+-- Example:
+--
+-- @
+-- ghci> setResponseCode 404 emptyResponse
+-- HTTP/1.1 404 Not Found
+--
+--
+-- @
 setResponseCode   :: Int        -- ^ HTTP response integer code
                   -> Response   -- ^ Response to be modified
                   -> Response
@@ -594,6 +1002,37 @@ setResponseCode s r = setResponseStatus s reason r
 
 ------------------------------------------------------------------------------
 -- | Modifies a response body.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified System.IO.Streams as Streams
+-- ghci> import qualified Blaze.ByteString.Builder as Builder
+-- ghci> :{
+-- ghci| let r = setResponseBody
+-- ghci|         (\out -> do
+-- ghci|             Streams.write (Just $ Builder.fromByteString "Hello, world!") out
+-- ghci|             return out)
+-- ghci|         emptyResponse
+-- ghci| :}
+-- ghci> r
+-- HTTP/1.1 200 OK
+--
+-- Hello, world!
+-- ghci> :{
+-- ghci| let r' = modifyResponseBody
+-- ghci|          (\f out -> do
+-- ghci|              out' <- f out
+-- ghci|              Streams.write (Just $ Builder.fromByteString "\nBye, world!") out'
+-- ghci|              return out') r
+-- ghci| :}
+-- ghci> r'
+-- HTTP/1.1 200 OK
+--
+-- Hello, world!
+-- Bye, world!
+-- @
 modifyResponseBody  :: ((OutputStream Builder -> IO (OutputStream Builder)) ->
                         (OutputStream Builder -> IO (OutputStream Builder)))
                     -> Response
@@ -604,6 +1043,17 @@ modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }
 
 ------------------------------------------------------------------------------
 -- | Sets the @Content-Type@ in the 'Response' headers.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> setContentType "text/html" emptyResponse
+-- HTTP/1.1 200 OK
+-- content-type: text/html
+--
+--
+-- @
 setContentType      :: ByteString -> Response -> Response
 setContentType = setHeader "Content-Type"
 {-# INLINE setContentType #-}
@@ -611,6 +1061,15 @@ setContentType = setHeader "Content-Type"
 
 ------------------------------------------------------------------------------
 -- | Adds an HTTP 'Cookie' to 'Response' headers.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
+-- ghci> getResponseCookie "name" $ addResponseCookie cookie emptyResponse
+-- Just (Cookie {cookieName = "name", cookieValue = "value", ...})
+-- @
 addResponseCookie :: Cookie            -- ^ cookie value
                   -> Response          -- ^ response to modify
                   -> Response
@@ -622,6 +1081,14 @@ addResponseCookie ck@(Cookie k _ _ _ _ _ _) r = r { rspCookies = cks' }
 
 ------------------------------------------------------------------------------
 -- | Gets an HTTP 'Cookie' with the given name from 'Response' headers.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> getResponseCookie "cookie-name" emptyResponse
+-- Nothing
+-- @
 getResponseCookie :: ByteString            -- ^ cookie name
                   -> Response              -- ^ response to query
                   -> Maybe Cookie
@@ -630,6 +1097,13 @@ getResponseCookie cn r = Map.lookup cn $ rspCookies r
 
 
 -- | Returns a list of 'Cookie's present in 'Response'
+--
+-- Example:
+--
+-- @
+-- ghci> getResponseCookies emptyResponse
+-- []
+-- @
 getResponseCookies :: Response              -- ^ response to query
                    -> [Cookie]
 getResponseCookies = Map.elems . rspCookies
@@ -639,6 +1113,18 @@ getResponseCookies = Map.elems . rspCookies
 ------------------------------------------------------------------------------
 -- | Deletes an HTTP 'Cookie' from the 'Response' headers. Please note
 -- this does not necessarily erase the cookie from the client browser.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
+-- ghci> let rsp    = addResponseCookie cookie emptyResponse
+-- ghci> getResponseCookie "name" rsp
+-- Just (Cookie {cookieName = "name", cookieValue = "value", ...})
+-- ghci> getResponseCookie "name" $ deleteResponseCookie "name" rsp
+-- Nothing
+-- @
 deleteResponseCookie :: ByteString        -- ^ cookie name
                      -> Response          -- ^ response to modify
                      -> Response
@@ -651,6 +1137,23 @@ deleteResponseCookie cn r = r { rspCookies = cks' }
 ------------------------------------------------------------------------------
 -- | Modifies an HTTP 'Cookie' with given name in 'Response' headers.
 -- Nothing will happen if a matching 'Cookie' can not be found in 'Response'.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import Data.Monoid
+-- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
+-- ghci> let rsp    = addResponseCookie cookie emptyResponse
+-- ghci> getResponseCookie "name" rsp
+-- Just (Cookie {cookieName = "name", cookieValue = "value", ...})
+-- ghci> let f ck@(Cookie { cookieName = name }) = ck { cookieName = name <> "'"}
+-- ghci> let rsp' = modifyResponseCookie "name" f rsp
+-- ghci> getResponseCookie "name'" rsp'
+-- Just (Cookie {cookieName = "name'", ...})
+-- ghci> getResponseCookie "name" rsp'
+-- Just (Cookie {cookieName = "name", ...})
+-- @
 modifyResponseCookie :: ByteString          -- ^ cookie name
                      -> (Cookie -> Cookie)  -- ^ modifier function
                      -> Response            -- ^ response to modify
@@ -674,6 +1177,16 @@ modifyResponseCookie cn f r = maybe r modify $ getResponseCookie cn r
 -- disabled for HTTP\/1.0 clients, forcing a @Connection: close@. For
 -- HTTP\/1.1 clients, Snap will switch to the chunked transfer encoding if
 -- @Content-Length@ is not specified.
+--
+-- Example:
+--
+-- @
+-- ghci> setContentLength 400 emptyResponse
+-- HTTP/1.1 200 OK
+-- Content-Length: 400
+--
+--
+-- @
 setContentLength    :: Word64 -> Response -> Response
 setContentLength !l r = r { rspContentLength = Just l }
 {-# INLINE setContentLength #-}
@@ -681,6 +1194,15 @@ setContentLength !l r = r { rspContentLength = Just l }
 
 ------------------------------------------------------------------------------
 -- | Removes any @Content-Length@ set in the 'Response'.
+--
+-- Example:
+--
+-- @
+-- ghci> clearContentLength $ setContentLength 400 emptyResponse
+-- HTTP/1.1 200 OK
+--
+--
+-- @
 clearContentLength :: Response -> Response
 clearContentLength r = r { rspContentLength = Nothing }
 {-# INLINE clearContentLength #-}
@@ -691,17 +1213,32 @@ clearContentLength r = r { rspContentLength = Nothing }
                                ----------------
 
 ------------------------------------------------------------------------------
--- | Converts a 'CTime' into an HTTP timestamp.
+-- | Convert a 'CTime' into an HTTP timestamp.
+--
+-- Example:
+--
+-- @
+-- ghci> formatHttpTime . fromIntegral $ 10
+-- "Thu, 01 Jan 1970 00:00:10 GMT"
+-- @
 formatHttpTime :: CTime -> IO ByteString
 
 
 ------------------------------------------------------------------------------
--- | Converts a 'CTime' into common log entry format.
+-- | Convert a 'CTime' into common log entry format.
 formatLogTime :: CTime -> IO ByteString
 
 
 ------------------------------------------------------------------------------
 -- | Converts an HTTP timestamp into a 'CTime'.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> parseHttpTime "Thu, 01 Jan 1970 00:00:10 GMT"
+-- 10
+-- @
 parseHttpTime :: ByteString -> IO CTime
 
 #ifdef PORTABLE
