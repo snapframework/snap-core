@@ -35,7 +35,7 @@ import           Data.Monoid              (mconcat)
 import           Data.Time.Clock          (UTCTime)
 import           Data.Word                (Word64)
 import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, id, ($), (.))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, id, not, ($), (.))
 #ifdef PORTABLE
 import           Prelude                  (($!))
 #endif
@@ -583,75 +583,34 @@ data Request = Request
 
 ------------------------------------------------------------------------------
 instance Show Request where
-  show r = concat [ "Request <\n"
-                  , body
-                  , ">" ]
+  show r = concat [ method, " ", uri, " HTTP/", version, "\n"
+                  , hdrs, "\n\n"
+                  , "sn=\"", sname, "\" c=", clntAddr, " s=", srvAddr
+                  , " ctx=", contextpath, " clen=", contentlength, secure
+                  , params, cookies
+                  ]
     where
-      body = concat $ map (("    "++) . (++ "\n")) [
-                      sname
-                    , remote
-                    , local
-                    , beginheaders
-                    , hdrs
-                    , endheaders
-                    , contentlength
-                    , method
-                    , version
-                    , cookies
-                    , pathinfo
-                    , contextpath
-                    , uri
-                    , params
-                    ]
+      method        = show $ rqMethod r
+      uri           = toStr $ rqURI r
+      version       = let (mj, mn) = rqVersion r in show mj ++ "." ++ show mn
+      hdrs          = intercalate "\n" $ map showHdr (H.toList $ rqHeaders r)
+      showHdr (a,b) = (B.unpack $ CI.original a) ++ ": " ++ B.unpack b
+      sname         = toStr $ rqLocalHostname r
+      clntAddr      = concat [toStr $ rqClientAddr r, ":", show $ rqClientPort r]
+      srvAddr       = concat [toStr $ rqServerAddr r, ":", show $ rqServerPort r]
+      contextpath   = toStr $ rqContextPath r
+      contentlength = maybe "n/a" show (rqContentLength r)
+      secure        = if rqIsSecure r then " secure" else ""
 
-      sname         = concat [ "server-name: ", toStr $ rqLocalHostname r ]
-      remote        = concat [ "remote: "
-                             , toStr $ rqClientAddr r
-                             , ":"
-                             , show (rqClientPort r)
-                             ]
-      local         = concat [ "local: "
-                             , toStr $ rqServerAddr r
-                             , ":"
-                             , show $ rqServerPort r
-                             ]
-      beginheaders  =
-          "Headers:\n      ========================================"
-      endheaders    = "  ========================================"
-      hdrs' (a,b)   = (B.unpack $ CI.original a) ++ ": " ++ B.unpack b
-      hdrs          = "      " ++ (concat $ intersperse "\n " $
-                                   map hdrs' (H.toList $ rqHeaders r))
-      contentlength = concat [ "content-length: "
-                             , show $ rqContentLength r
-                             ]
-      method        = concat [ "method: "
-                             , show $ rqMethod r
-                             ]
-      version       = concat [ "version: "
-                             , show $ rqVersion r
-                             ]
-      cookies'      = "      " ++ (concat $ intersperse "\n " $
-                                   map show $ rqCookies r)
-      cookies       = concat
-          [ "cookies:\n"
-          , "      ========================================\n"
-          , cookies'
-          , "\n      ========================================"
-          ]
-      pathinfo      = concat [ "pathinfo: ", toStr $ rqPathInfo r ]
-      contextpath   = concat [ "contextpath: ", toStr $ rqContextPath r ]
-      uri           = concat [ "URI: ", toStr $ rqURI r ]
-      params'       = "      " ++
-                      (concat $ intersperse "\n " $
-                       map (\ (a,b) -> B.unpack a ++ ": " ++ show b) $
-                       Map.toAscList $ rqParams r)
-      params        = concat
-          [ "params:\n"
-          , "      ========================================\n"
-          , params'
-          , "\n      ========================================"
-          ]
+      params        = showFlds "\nparams: " ", " $
+                      map (\ (a,b) -> B.unpack a ++ ": " ++ show b)
+                      (Map.toAscList $ rqParams r)
+      cookies       = showFlds "\ncookies: " "\n         " $
+                      map show (rqCookies r)
 
+      showFlds header delim lst
+                    = if not . null $ lst then header ++ (intercalate delim lst)
+                      else ""
 
 ------------------------------------------------------------------------------
 instance HasHeaders Request where
