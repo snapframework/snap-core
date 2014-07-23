@@ -8,9 +8,8 @@
 -- specified by the user.
 --
 -- Users who wish to handle their file uploads differently can use the
--- lower-level streaming 'Iteratee' interface called 'handleMultipart'. That
--- function takes uploaded files and streams them to an 'Iteratee' consumer of
--- the user's choosing.
+-- lower-level interface called 'handleMultipart'. That function takes
+-- uploaded files and streams them to a consumer of the user's choosing.
 --
 -- Using these functions requires making \"policy\" decisions which Snap can't
 -- really make for users, such as \"what's the largest PDF file a user is

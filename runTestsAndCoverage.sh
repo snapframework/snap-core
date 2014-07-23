@@ -36,11 +36,8 @@ Snap.Internal.Debug
 Snap.Internal.Http.Parser.Tests
 Snap.Internal.Http.Server.Tests
 Snap.Internal.Http.Types.Tests
-Snap.Internal.Iteratee.Debug
-Snap.Internal.Iteratee.Tests
 Snap.Internal.Parsing.Tests
 Snap.Internal.Routing.Tests
-Snap.Iteratee.Tests
 Snap.Test.Common
 Snap.Test.Tests
 Snap.Types.Tests

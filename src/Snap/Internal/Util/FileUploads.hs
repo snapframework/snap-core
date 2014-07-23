@@ -180,7 +180,7 @@ type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
 -- uploaded files to a temporary directory and passes their names to a given
 -- handler) rather than this function; the lower-level 'handleMultipart'
 -- function should be used if you want to stream uploaded files to your own
--- iteratee function.
+-- function.
 --
 -- If the request's @Content-type@ was not \"@multipart/formdata@\", this
 -- function skips processing using 'pass'.
@@ -702,10 +702,9 @@ partStream st = Streams.makeInputStream go
 
 
 ------------------------------------------------------------------------------
--- | Assuming we've already identified the boundary value and run
--- 'bmhEnumeratee' to split the input up into parts which match and parts
--- which don't, run the given 'ByteString' iteratee over each part and grab a
--- list of the resulting values.
+-- | Assuming we've already identified the boundary value and split the input
+-- up into parts which match and parts which don't, run the given 'ByteString'
+-- InputStream over each part and grab a list of the resulting values.
 --
 -- TODO/FIXME: fix description
 processParts :: (InputStream ByteString -> IO a)

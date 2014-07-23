@@ -386,7 +386,7 @@ deriving instance Typeable Snap
 --
 -- If the stream you pass in here throws an exception, Snap will attempt to
 -- clear the rest of the unread request body before rethrowing the exception.
--- If your iteratee used 'terminateConnection', however, Snap will give up and
+-- If you used 'terminateConnection', however, Snap will give up and
 -- immediately close the socket.
 --
 -- FIXME/TODO: reword above
