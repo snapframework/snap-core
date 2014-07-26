@@ -178,70 +178,86 @@ data Zero = PassOnProcessing
 choose not to handle a given request, using 'empty' or its synonym 'pass', and
 you can try alternative handlers with the '<|>' operator:
 
-    > a :: Snap String
-    > a = pass
-    >
-    > b :: Snap String
-    > b = return "foo"
-    >
-    > c :: Snap String
-    > c = a <|> b             -- try running a, if it fails then try b
+    @
+    a :: Snap String
+    a = 'pass'
+
+    b :: Snap String
+    b = return \"foo\"
+
+    c :: Snap String
+    c = a \<|> b             -- try running a, if it fails then try b
+    @
 
 4. Convenience functions ('writeBS', 'writeLBS', 'writeText', 'writeLazyText',
 'addToOutput') for queueing output to be written to the 'Response':
 
-    > a :: (forall a . Enumerator a) -> Snap ()
-    > a someEnumerator = do
-    >     writeBS   "I'm a strict bytestring"
-    >     writeLBS  "I'm a lazy bytestring"
-    >     writeText "I'm strict text"
-    >     addToOutput someEnumerator
+    @
+    a :: ('OutputStream' 'Builder' -> IO ('OutputStream' 'Builder')) -> Snap ()
+    a someEnumerator = do
+        'writeBS'   \"I\'m a strict bytestring\"
+        'writeLBS'  \"I\'m a lazy bytestring\"
+        'writeText' \"I\'m strict text\"
+        'addToOutput' someEnumerator
+    @
 
 5. Early termination: if you call 'finishWith':
 
-    > a :: Snap ()
-    > a = do
-    >     modifyResponse $ setResponseStatus 500 "Internal Server Error"
-    >     writeBS "500 error"
-    >     r <- getResponse
-    >     finishWith r
+    @
+    a :: Snap ()
+    a = do
+        'modifyResponse' $ 'setResponseStatus' 500 \"Internal Server Error\"
+        'writeBS' \"500 error\"
+        r <- 'getResponse'
+        'finishWith' r
+    @
 
     then any subsequent processing will be skipped and supplied 'Response' value
     will be returned from 'runSnap' as-is.
 
 6. Access to the 'IO' monad through a 'MonadIO' instance:
 
-    > a :: Snap ()
-    > a = liftIO fireTheMissiles
+    @
+    a :: Snap ()
+    a = 'liftIO' fireTheMissiles
+    @
 
 7. The ability to set or extend a timeout which will kill the handler thread
 after @N@ seconds of inactivity (the default is 20 seconds):
 
-    > a :: Snap ()
-    > a = setTimeout 30
+    @
+    a :: Snap ()
+    a = 'setTimeout' 30
+    @
 
 8. Throw and catch exceptions using a 'MonadBaseControl' instance:
 
-    > import Control.Exception.Lifted (SomeException, throwIO, catch)
-    >
-    > foo :: Snap ()
-    > foo = bar `catch` \(e::SomeException) -> baz
-    >   where
-    >     bar = throwIO FooException
+    @
+    import "Control.Exception.Lifted" ('SomeException', 'throwIO', 'catch')
+
+    foo :: Snap ()
+    foo = bar \`catch\` \(e::'SomeException') -> baz
+      where
+        bar = 'throwIO' FooException
+    @
 
 9. Log a message to the error log:
 
-    > foo :: Snap ()
-    > foo = logError "grumble."
+    @
+    foo :: Snap ()
+    foo = 'logError' \"grumble.\"
+    @
 -}
 
 -- | You may notice that most of the type signatures in this module contain a
--- @(MonadSnap m) => ...@ typeclass constraint. 'MonadSnap' is a typeclass
+-- @('MonadSnap' m) => ...@ typeclass constraint. 'MonadSnap' is a typeclass
 -- which, in essence, says \"you can get back to the 'Snap' monad from
 -- here\". Using 'MonadSnap' you can extend the 'Snap' monad with additional
 -- functionality and still have access to most of the 'Snap' functions without
--- writing 'lift' everywhere. Instances are already provided for mostof the
--- common monad transformers ('ReaderT', 'WriterT', 'StateT', etc.).
+-- writing 'ControlMonad.Trans.Class.lift' everywhere. Instances are already
+-- provided for mostof the common monad transformers
+-- ('Control.Monad.Trans.Reader.ReaderT', 'Control.Monad.Trans.Writer.WriterT',
+-- 'Control.Monad.Trans.State.StateT', etc.).
 newtype Snap a = Snap {
       unSnap :: forall r . (a -> SnapState -> IO r)
              -> (Zero -> SnapState -> IO r)
