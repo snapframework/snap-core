@@ -194,11 +194,11 @@ you can try alternative handlers with the '<|>' operator:
 
     @
     a :: ('OutputStream' 'Builder' -> IO ('OutputStream' 'Builder')) -> Snap ()
-    a someEnumerator = do
+    a streamProc = do
         'writeBS'   \"I\'m a strict bytestring\"
         'writeLBS'  \"I\'m a lazy bytestring\"
         'writeText' \"I\'m strict text\"
-        'addToOutput' someEnumerator
+        'addToOutput' streamProc
     @
 
 5. Early termination: if you call 'finishWith':
@@ -722,8 +722,8 @@ logError s = liftSnap $ Snap $ \sk _ st -> do
 
 
 ------------------------------------------------------------------------------
--- | Adds the output from the given enumerator to the 'Response'
--- stored in the 'Snap' monad state.
+-- | Run the given stream procedure, adding its output to the 'Response' stored
+-- in the 'Snap' monad state.
 addToOutput :: MonadSnap m
             => (OutputStream Builder -> IO (OutputStream Builder))
                     -- ^ output to add
