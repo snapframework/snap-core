@@ -249,6 +249,8 @@ after @N@ seconds of inactivity (the default is 20 seconds):
     @
 -}
 
+-- Haddock comment broken in two to work around https://github.com/haskell/haddock/issues/313
+
 -- | You may notice that most of the type signatures in this module contain a
 -- @('MonadSnap' m) => ...@ typeclass constraint. 'MonadSnap' is a typeclass
 -- which, in essence, says \"you can get back to the 'Snap' monad from
