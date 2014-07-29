@@ -14,6 +14,14 @@ import           Text.Regex.Posix         ((=~))
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
+-- | Given a 'Response', return its body as a 'ByteString'.
+--
+-- Example:
+--
+-- @
+-- ghci> 'getResponseBody' 'emptyResponse'
+-- \"\"
+-- @
 getResponseBody :: Response -> IO ByteString
 getResponseBody rsp = do
     (os, grab) <- Streams.listOutputStream
@@ -29,7 +37,25 @@ getResponseBody rsp = do
 
 
 ------------------------------------------------------------------------------
--- | Given a Response, asserts that its HTTP status code is 200 (success).
+-- | Given a 'Response', assert that its HTTP status code is 200 (success).
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Test.HUnit" as T
+-- ghci> let test = T.runTestTT . T.TestCase
+-- ghci> test $ 'assertSuccess' 'Snap.Core.emptyResponse'
+-- Cases: 1  Tried: 1  Errors: 0  Failures: 0
+-- Counts {cases = 1, tried = 1, errors = 0, failures = 0}
+-- ghci> test $ 'assertSuccess' ('Snap.Core.setResponseStatus' 500 \"Internal Server Error\" 'Snap.Core.emptyResponse')
+-- ### Failure:
+-- Expected success (200) but got (500)
+-- expected: 200
+--  but got: 500
+-- Cases: 1  Tried: 1  Errors: 0  Failures: 1
+-- Counts {cases = 1, tried = 1, errors = 0, failures = 1}
+-- @
 assertSuccess :: Response -> Assertion
 assertSuccess rsp = assertEqual message 200 status
   where
@@ -38,7 +64,16 @@ assertSuccess rsp = assertEqual message 200 status
 
 
 ------------------------------------------------------------------------------
--- | Given a Response, asserts that its HTTP status code is 404 (Not Found).
+-- | Given a 'Response', assert that its HTTP status code is 404 (Not Found).
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> 'assert404' $ 'Snap.Core.setResponseStatus' 404 \"Not Found\" 'Snap.Core.emptyResponse'
+-- ghci> 'assert404' 'Snap.Core.emptyResponse'
+-- *** Exception: HUnitFailure \"Expected Not Found (404) but got (200)\\nexpected: 404\\n but got: 200\"
+-- @
 assert404 :: Response -> Assertion
 assert404 rsp = assertEqual message 404 status
   where
@@ -47,9 +82,20 @@ assert404 rsp = assertEqual message 404 status
 
 
 ------------------------------------------------------------------------------
--- | Given a Response, asserts that its HTTP status code is between 300 and
--- 399 (a redirect), and that the Location header of the Response points to
--- the specified URI.
+-- | Given a 'Response', assert that its HTTP status code is between 300 and 399
+-- (a redirect), and that the Location header of the 'Response' points to the
+-- specified URI.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> let r' = 'Snap.Core.setResponseStatus' 301 \"Moved Permanently\" 'Snap.Core.emptyResponse'
+-- ghci> let r  = 'Snap.Core.setHeader' \"Location\" \"www.example.com\" r'
+-- ghci> 'assertRedirectTo' \"www.example.com\" r
+-- ghci> 'assertRedirectTo' \"www.example.com\" 'Snap.Core.emptyResponse'
+-- *** Exception: HUnitFailure \"Expected redirect but got status code (200)\"
+-- @
 assertRedirectTo :: ByteString     -- ^ The Response should redirect to this
                                    -- URI
                  -> Response
@@ -66,8 +112,17 @@ assertRedirectTo uri rsp = do
 
 
 ------------------------------------------------------------------------------
--- | Given a Response, asserts that its HTTP status code is between 300 and
--- 399 (a redirect).
+-- | Given a 'Response', assert that its HTTP status code is between 300 and 399
+-- (a redirect).
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> 'assertRedirect' $ 'Snap.Core.setResponseStatus' 301 \"Moved Permanently\" 'Snap.Core.emptyResponse'
+-- ghci> 'assertRedirect' 'Snap.Core.emptyResponse'
+-- *** Exception: HUnitFailure \"Expected redirect but got status code (200)\"
+-- @
 assertRedirect :: Response -> Assertion
 assertRedirect rsp = assertBool message (300 <= status && status <= 399)
   where
@@ -77,8 +132,26 @@ assertRedirect rsp = assertBool message (300 <= status && status <= 399)
 
 
 ------------------------------------------------------------------------------
--- | Given a Response, asserts that its body matches the given regular
+-- | Given a 'Response', assert that its body matches the given regular
 -- expression.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "System.IO.Streams" as Streams
+-- ghci> import qualified "Blaze.ByteString.Builder" as Builder
+-- ghci> :{
+-- ghci| let r = 'Snap.Core.setResponseBody'
+-- ghci|         (\out -> do
+-- ghci|             Streams.write (Just $ Builder.fromByteString \"Hello, world!\") out
+-- ghci|             return out)
+-- ghci|         'Snap.Core.emptyResponse'
+-- ghci| :}
+-- ghci> 'assertBodyContains' \"^Hello\" r
+-- ghci> 'assertBodyContains' \"Bye\" r
+-- *** Exception: HUnitFailure "Expected body to match regexp \\\"\\\"Bye\\\"\\\", but didn\'t"
+-- @
 assertBodyContains :: ByteString  -- ^ Regexp that will match the body content
                    -> Response
                    -> Assertion

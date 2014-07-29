@@ -111,6 +111,18 @@ mkDefaultRequest = do
 -- N.B. /please/ don't use the request you get here in a real Snap application;
 -- things will probably break. Don't say you weren't warned :-)
 --
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'get' \"\/foo\/bar\" M.empty
+-- GET \/foo\/bar HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- @
 buildRequest :: MonadIO m => RequestBuilder m () -> m Request
 buildRequest mm = do
     let (RequestBuilder m) = (mm >> fixup)
@@ -184,6 +196,8 @@ type MultipartParams = [(ByteString, MultipartParam)]
 
 
 ------------------------------------------------------------------------------
+-- | A single \"@multipart/form-data@\" form parameter: either a list of regular
+-- form values or a set of file uploads.
 data MultipartParam =
     FormData [ByteString]
         -- ^ a form variable consisting of the given 'ByteString' values.
@@ -193,6 +207,7 @@ data MultipartParam =
 
 
 ------------------------------------------------------------------------------
+-- | Represents a single file upload for the 'MultipartParam'.
 data FileData = FileData {
       fdFileName    :: ByteString  -- ^ the file's name
     , fdContentType :: ByteString  -- ^ the file's content-type
@@ -217,6 +232,18 @@ data RequestType
 
 ------------------------------------------------------------------------------
 -- | Sets the type of the 'Request' being built.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'delete' \"\/foo\/bar\" M.empty >> 'setRequestType' GetRequest
+-- GET \/foo\/bar HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- @
 setRequestType :: MonadIO m => RequestType -> RequestBuilder m ()
 setRequestType GetRequest = do
     rq   <- rGet
@@ -443,6 +470,19 @@ fixupURI = do
 -- | Sets the request's query string to be the raw bytestring provided,
 -- without any escaping or other interpretation. Most users should instead
 -- choose the 'setQueryString' function, which takes a parameter mapping.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'get' \"\/foo\/bar\" M.empty >> 'setQueryStringRaw' "param0=baz&param1=qux"
+-- GET \/foo\/bar?param0=baz&param1=qux HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- params: param0: ["baz"], param1: ["qux"]
+-- @
 setQueryStringRaw :: Monad m => ByteString -> RequestBuilder m ()
 setQueryStringRaw r = do
     rq <- rGet
@@ -453,6 +493,19 @@ setQueryStringRaw r = do
 ------------------------------------------------------------------------------
 -- | Escapes the given parameter mapping and sets it as the request's query
 -- string.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'get' \"\/foo\/bar\" M.empty >> 'setQueryString' (M.fromList [("param0", ["baz"]), ("param1", ["qux"])])
+-- GET \/foo\/bar?param0=baz&param1=qux HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- params: param0: ["baz"], param1: ["qux"]
+-- @
 setQueryString :: Monad m => Params -> RequestBuilder m ()
 setQueryString p = setQueryStringRaw $ printUrlEncoded p
 
@@ -460,17 +513,67 @@ setQueryString p = setQueryStringRaw $ printUrlEncoded p
 ------------------------------------------------------------------------------
 -- | Sets the given header in the request being built, overwriting any header
 -- with the same name already present.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> :{
+-- ghci| 'buildRequest' $ do get \"\/foo\/bar\" M.empty
+-- ghci|                   'setHeader' \"Accept\" "text\/html"
+-- ghci|                   'setHeader' \"Accept\" "text\/plain"
+-- ghci| :}
+-- GET \/foo\/bar HTTP\/1.1
+-- accept: text\/plain
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- @
 setHeader :: (Monad m) => CI ByteString -> ByteString -> RequestBuilder m ()
 setHeader k v = rModify (H.setHeader k v)
 
 
 ------------------------------------------------------------------------------
 -- | Adds the given header to the request being built.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> :{
+-- ghci| 'buildRequest' $ do 'get' \"\/foo\/bar\" M.empty
+-- ghci|                   'addHeader' \"Accept\" "text\/html"
+-- ghci|                   'addHeader' \"Accept\" "text\/plain"
+-- ghci| :}
+-- GET \/foo\/bar HTTP\/1.1
+-- accept: text\/html,text\/plain
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- @
 addHeader :: (Monad m) => CI ByteString -> ByteString -> RequestBuilder m ()
 addHeader k v = rModify (H.addHeader k v)
 
 ------------------------------------------------------------------------------
 -- | Adds the given cookies to the request being built.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> import "Snap.Core"
+-- ghci> let cookie = 'Snap.Core.Cookie' "name" "value" Nothing Nothing Nothing False False
+-- ghci> 'buildRequest' $ 'get' \"\/foo\/bar\" M.empty >> 'addCookies' [cookie]
+-- GET \/foo\/bar HTTP\/1.1
+-- cookie: name=value
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- cookies: Cookie {cookieName = "name", cookieValue = "value", ...}
+-- @
 addCookies :: (Monad m) => [Cookie] -> RequestBuilder m ()
 addCookies cookies = do
     rModify $ \rq -> rq { rqCookies = rqCookies rq ++ cookies }
@@ -489,6 +592,20 @@ cookieToBS (Cookie k v !_ !_ !_ !_ !_) = cookie
 
 ------------------------------------------------------------------------------
 -- | Sets the request's @content-type@ to the given MIME type.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'put' \"\/foo\/bar\" "text\/html" "some text" >> 'setContentType' "text\/plain"
+-- PUT \/foo\/bar HTTP\/1.1
+-- content-type: text\/plain
+-- content-length: 9
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=9
+-- @
 setContentType :: Monad m => ByteString -> RequestBuilder m ()
 setContentType c = rModify (H.setHeader "Content-Type" c)
 
@@ -496,12 +613,36 @@ setContentType c = rModify (H.setHeader "Content-Type" c)
 ------------------------------------------------------------------------------
 -- | Controls whether the test request being generated appears to be an https
 -- request or not.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'delete' \"\/foo\/bar\" M.empty >> 'setSecure' True
+-- DELETE \/foo\/bar HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a secure
+-- @
 setSecure :: Monad m => Bool -> RequestBuilder m ()
 setSecure b = rModify $ \rq -> rq { rqIsSecure = b }
 
 
 ------------------------------------------------------------------------------
 -- | Sets the test request's http version
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'delete' \"\/foo\/bar\" M.empty >> 'setHttpVersion' (1,0)
+-- DELETE \/foo\/bar HTTP\/1.0
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- @
 setHttpVersion :: Monad m => (Int,Int) -> RequestBuilder m ()
 setHttpVersion v = rModify $ \rq -> rq { rqVersion = v }
 
@@ -511,6 +652,18 @@ setHttpVersion v = rModify $ \rq -> rq { rqVersion = v }
 -- must /not/ contain a query string; if you want to provide a query string
 -- in your test request, you must use 'setQueryString' or 'setQueryStringRaw'.
 -- Note that 'rqContextPath' is never set by any 'RequestBuilder' function.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'get' \"\/foo\/bar\" M.empty >> 'setRequestPath' "\/bar\/foo"
+-- GET \/bar\/foo HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- @
 setRequestPath :: Monad m => ByteString -> RequestBuilder m ()
 setRequestPath p0 = do
     rModify $ \rq -> rq { rqContextPath = "/"
@@ -523,6 +676,19 @@ setRequestPath p0 = do
 
 ------------------------------------------------------------------------------
 -- | Builds an HTTP \"GET\" request with the given query parameters.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'get' \"\/foo\/bar\" (M.fromList [("param0", ["baz", "quux"])])
+-- GET \/foo\/bar?param0=baz&param0=quux HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- params: param0: ["baz","quux"]
+-- @
 get :: MonadIO m =>
        ByteString               -- ^ request path
     -> Params                   -- ^ request's form parameters
@@ -535,6 +701,18 @@ get uri params = do
 
 ------------------------------------------------------------------------------
 -- | Builds an HTTP \"DELETE\" request with the given query parameters.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'delete' \"\/foo\/bar\" M.empty
+-- DELETE \/foo\/bar HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- @
 delete :: MonadIO m =>
           ByteString            -- ^ request path
        -> Params                -- ^ request's form parameters
@@ -548,6 +726,21 @@ delete uri params = do
 ------------------------------------------------------------------------------
 -- | Builds an HTTP \"POST\" request with the given form parameters, using the
 -- \"application/x-www-form-urlencoded\" MIME type.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'postUrlEncoded' \"\/foo\/bar\" (M.fromList [("param0", ["baz", "quux"])])
+-- POST \/foo\/bar HTTP\/1.1
+-- content-type: application\/x-www-form-urlencoded
+-- content-length: 22
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=22
+-- params: param0: ["baz","quux"]
+-- @
 postUrlEncoded :: MonadIO m =>
                   ByteString    -- ^ request path
                -> Params        -- ^ request's form parameters
@@ -560,6 +753,19 @@ postUrlEncoded uri params = do
 ------------------------------------------------------------------------------
 -- | Builds an HTTP \"POST\" request with the given form parameters, using the
 -- \"form-data/multipart\" MIME type.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> 'buildRequest' $ 'postMultipart' \"\/foo\/bar\" [("param0", FormData ["baz", "quux"])]
+-- POST \/foo\/bar HTTP\/1.1
+-- content-type: multipart\/form-data; boundary=snap-boundary-572334111ec0c05ad4812481e8585dfa
+-- content-length: 406
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=406
+-- @
 postMultipart :: MonadIO m =>
                  ByteString        -- ^ request path
               -> MultipartParams   -- ^ multipart form parameters
@@ -571,6 +777,19 @@ postMultipart uri params = do
 
 ------------------------------------------------------------------------------
 -- | Builds an HTTP \"PUT\" request.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> 'buildRequest' $ 'put' \"\/foo\/bar\" "text\/plain" "some text"
+-- PUT \/foo\/bar HTTP\/1.1
+-- content-type: text/plain
+-- content-length: 9
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=9
+-- @
 put :: MonadIO m =>
        ByteString               -- ^ request path
     -> ByteString               -- ^ request body MIME content-type
@@ -585,6 +804,19 @@ put uri contentType putData = do
 ------------------------------------------------------------------------------
 -- | Builds a \"raw\" HTTP \"POST\" request, with the given MIME type and body
 -- contents.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> 'buildRequest' $ 'postRaw' \"\/foo\/bar\" "text/plain" "some text"
+-- POST \/foo\/bar HTTP\/1.1
+-- content-type: text\/plain
+-- content-length: 9
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=9
+-- @
 postRaw :: MonadIO m =>
            ByteString           -- ^ request path
         -> ByteString           -- ^ request body MIME content-type
@@ -604,6 +836,20 @@ postRaw uri contentType postData = do
 -- handler in a real server, except that chunked transfer encoding is not
 -- applied, and the \"Transfer-Encoding\" header is not set (this makes it
 -- easier to test response output).
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> import "Snap.Core"
+-- ghci> 'runHandler' ('get' "foo/bar" M.empty) ('Snap.Core.writeBS' "Hello, world!")
+-- HTTP\/1.1 200 OK
+-- server: Snap/test
+-- date: Thu, 17 Jul 2014 21:03:23 GMT
+--
+-- Hello, world!
+-- @
 runHandler :: MonadIO m =>
               RequestBuilder m ()   -- ^ a request builder
            -> Snap a                -- ^ a web handler
@@ -648,9 +894,21 @@ runHandlerM rSnap rBuilder snap = do
 -- | Given a web handler in the 'Snap' monad, and a 'RequestBuilder' defining a
 -- test request, runs the handler and returns the monadic value it produces.
 --
--- Throws an exception if the 'Snap' handler early-terminates with 'finishWith'
--- or 'mzero'.
+-- Throws an exception if the 'Snap' handler early-terminates with
+-- 'Snap.Core.finishWith' or 'Control.Monad.mzero'.
 --
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import "Control.Monad"
+-- ghci> import qualified "Data.Map" as M
+-- ghci> import "Snap.Core"
+-- ghci> 'evalHandler' ('get' "foo/bar" M.empty) ('Snap.Core.writeBS' "Hello, world!" >> return 42)
+-- 42
+-- ghci> 'evalHandler' ('get' "foo/bar" M.empty) 'Control.Monad.mzero'
+-- *** Exception: No handler for request: failure was pass
+-- @
 evalHandler :: MonadIO m =>
                RequestBuilder m ()
             -> Snap a
@@ -668,9 +926,8 @@ evalHandler = evalHandlerM rs
 -- 'RequestBuilder' defining a test request, runs the handler, returning the
 -- monadic value it produces.
 --
--- Throws an exception if the 'Snap' handler early-terminates with 'finishWith'
--- or 'mzero'.
---
+-- Throws an exception if the 'Snap' handler early-terminates with
+-- 'Snap.Core.finishWith' or 'Control.Monad.mzero'.
 evalHandlerM :: (MonadIO m, MonadSnap n) =>
                 (forall a . Request -> n a -> m a)  -- ^ a function defining
                                                     -- how the 'MonadSnap'
@@ -684,7 +941,15 @@ evalHandlerM rSnap rBuilder snap = do
 
 
 ------------------------------------------------------------------------------
--- | Converts the given response to a bytestring.
+-- | Converts the given 'Response' to a bytestring.
+--
+-- Example:
+--
+-- @
+-- ghci> import "Snap.Core"
+-- ghci> 'responseToString' 'Snap.Core.emptyResponse'
+-- \"HTTP\/1.1 200 OK\\r\\n\\r\\n\"
+-- @
 responseToString :: Response -> IO ByteString
 responseToString resp = do
     let act = rspBodyToEnum $ rspBody resp
@@ -699,6 +964,16 @@ responseToString resp = do
 -- | Converts the given 'Request' to a bytestring.
 --
 -- Since: 1.0.0.0
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> r <- 'buildRequest' $ get \"\/foo\/bar\" M.empty
+-- ghci> 'requestToString' r
+-- \"GET \/foo\/bar HTTP\/1.1\\r\\nhost: localhost\\r\\n\\r\\n\"
+-- @
 requestToString :: Request -> IO ByteString
 requestToString req0 = do
     (req, is) <- maybeChunk
