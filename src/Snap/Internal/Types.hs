@@ -172,7 +172,17 @@ data Zero = PassOnProcessing
 
 1. Stateful access to fetch or modify an HTTP 'Request'.
 
+    @
+    printRqContextPath :: Snap ()
+    printRqContextPath = 'writeBS' . 'rqContextPath' =<< 'getRequest'
+    @
+
 2. Stateful access to fetch or modify an HTTP 'Response'.
+
+    @
+    printRspStatusReason :: Snap ()
+    printRspStatusReason = 'writeBS' . 'rspStatusReason' =<< 'getResponse'
+    @
 
 3. Failure \/ 'Alternative' \/ 'MonadPlus' semantics: a 'Snap' handler can
 choose not to handle a given request, using 'empty' or its synonym 'pass', and
@@ -186,7 +196,7 @@ you can try alternative handlers with the '<|>' operator:
     b = return \"foo\"
 
     c :: Snap String
-    c = a \<|> b             -- try running a, if it fails then try b
+    c = a '<|>' b             -- try running a, if it fails then try b
     @
 
 4. Convenience functions ('writeBS', 'writeLBS', 'writeText', 'writeLazyText',
