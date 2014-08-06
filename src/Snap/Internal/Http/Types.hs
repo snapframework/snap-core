@@ -1358,10 +1358,13 @@ statusReasonMap = IM.fromList [
 
 ------------------------------------------------------------------------------
 -- Deprecated functions
+
+-- | See 'rqClientAddr'.
 rqRemoteAddr :: Request -> ByteString
 rqRemoteAddr = rqClientAddr
-{-# DEPRECATED rqRemoteAddr "(snap-core >= 1.0.0.0) please use rqClientAddr, this will be removed in 1.1.*" #-}
+{-# DEPRECATED rqRemoteAddr "(snap-core >= 1.0.0.0) please use 'rqClientAddr', this will be removed in 1.1.*" #-}
 
+-- | See 'rqClientPort'.
 rqRemotePort :: Request -> Int
 rqRemotePort = rqClientPort
-{-# DEPRECATED rqRemotePort "(snap-core >= 1.0.0.0) please use rqClientPort, this will be removed in 1.1.*" #-}
+{-# DEPRECATED rqRemotePort "(snap-core >= 1.0.0.0) please use 'rqClientPort', this will be removed in 1.1.*" #-}
