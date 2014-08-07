@@ -33,9 +33,10 @@ import qualified Data.Map                 as Map
 import           Data.Maybe               (Maybe (..), fromMaybe, maybe)
 import           Data.Monoid              (mconcat)
 import           Data.Time.Clock          (UTCTime)
+import           Data.Time.Clock.POSIX    (utcTimeToPOSIXSeconds)
 import           Data.Word                (Word64)
 import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, id, not, ($), (.))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, fromInteger, id, not, otherwise, truncate, ($), (.))
 #ifdef PORTABLE
 import           Prelude                  (($!))
 #endif
@@ -715,7 +716,8 @@ instance Show Response where
                           , toStr $ rspStatusReason r
                           , "\r\n" ]
 
-      hdrs = concatMap showHdr $ H.toList $ rspHeaders $ clearContentLength r
+      hdrs = concatMap showHdr $ H.toList $ renderCookies r
+             $ rspHeaders $ clearContentLength r
 
       contentLength = maybe "" (\l -> concat ["Content-Length: ", show l, "\r\n"] ) (rspContentLength r)
 
@@ -1018,6 +1020,42 @@ setContentType      :: ByteString -> Response -> Response
 setContentType = setHeader "Content-Type"
 {-# INLINE setContentType #-}
 
+
+------------------------------------------------------------------------------
+-- | Convert 'Cookie' into 'ByteString' for output.
+--
+-- TODO: Remove duplication. This function is copied from
+-- snap-server/Snap.Internal.Http.Server.Session.
+cookieToBS :: Cookie -> ByteString
+cookieToBS (Cookie k v mbExpTime mbDomain mbPath isSec isHOnly) = cookie
+  where
+    cookie = S.concat [k, "=", v, path, exptime, domain, secure, hOnly]
+    path = maybe "" (S.append "; path=") mbPath
+    domain = maybe "" (S.append "; domain=") mbDomain
+    exptime = maybe "" (S.append "; expires=" . fmt) mbExpTime
+    secure = if isSec then "; Secure" else ""
+    hOnly = if isHOnly then "; HttpOnly" else ""
+
+    -- TODO: 'formatHttpTime' uses "DD MMM YYYY" instead of "DD-MMM-YYYY",
+    -- unlike the code in 'Snap.Internal.Http.Server.Session'. Is this form
+    -- allowed?
+    fmt = unsafePerformIO . formatHttpTime . toCTime
+
+    toCTime :: UTCTime -> CTime
+    toCTime = fromInteger . truncate . utcTimeToPOSIXSeconds
+
+------------------------------------------------------------------------------
+-- | Render cookies from a given 'Response' to 'Headers'.
+--
+-- TODO: Remove duplication. This function is copied from
+-- snap-server/Snap.Internal.Http.Server.Session.
+renderCookies :: Response -> Headers -> Headers
+renderCookies r hdrs
+    | null cookies = hdrs
+    | otherwise = foldl' (\m v -> H.unsafeInsert "set-cookie" v m) hdrs cookies
+
+  where
+    cookies = fmap cookieToBS . Map.elems $ rspCookies r
 
 ------------------------------------------------------------------------------
 -- | Adds an HTTP 'Cookie' to 'Response' headers.
