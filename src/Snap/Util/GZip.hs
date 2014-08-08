@@ -270,4 +270,3 @@ parseAcceptEncoding s =
       Right x -> return x
   where
     r = fullyParse s acceptParser
-
