@@ -263,21 +263,32 @@ handleMultipart uploadPolicy origPartHandler = do
 
 
 ------------------------------------------------------------------------------
-data PartDisposition = DispositionAttachment
-                     | DispositionFile
-                     | DispositionFormData
-                     | DispositionOther ByteString
+-- | Represents the disposition type specified via the @Content-Disposition@
+-- header field. See <https://www.ietf.org/rfc/rfc1806.txt RFC 1806>.
+data PartDisposition =
+    DispositionAttachment       -- ^ @Content-Disposition: attachment@.
+  | DispositionFile             -- ^ @Content-Disposition: file@.
+  | DispositionFormData         -- ^ @Content-Disposition: form-data@.
+  | DispositionOther ByteString -- ^ Any other value.
   deriving (Eq, Show)
 
 ------------------------------------------------------------------------------
 -- | 'PartInfo' contains information about a \"part\" in a request uploaded
 -- with @Content-type: multipart/form-data@.
-data PartInfo = PartInfo { partFieldName   :: !ByteString
-                         , partFileName    :: !(Maybe ByteString)
-                         , partContentType :: !ByteString
-                         , partDisposition :: !PartDisposition
-                         , partHeaders     :: !(Headers)
-                         }
+data PartInfo =
+  PartInfo
+  { partFieldName   :: !ByteString
+    -- ^ Field name associated with this part (i.e., the name specified with
+    -- @\<input name=\"partFieldName\" ...@).
+  , partFileName    :: !(Maybe ByteString)
+    -- ^ Name of the uploaded file.
+  , partContentType :: !ByteString
+    -- ^ Content type of this part.
+  , partDisposition :: !PartDisposition
+    -- ^ Disposition type of this part. See 'PartDisposition'.
+  , partHeaders     :: !(Headers)
+    -- ^ Remaining headers associated with this part.
+  }
   deriving (Show)
 
 
@@ -315,6 +326,7 @@ instance Exception FileUploadException
 
 
 ------------------------------------------------------------------------------
+-- | Human-readable error message corresponding to the 'FileUploadException'.
 fileUploadExceptionReason :: FileUploadException -> Text
 fileUploadExceptionReason (WrappedFileUploadException e) = exceptionReason e
 
@@ -332,7 +344,11 @@ uploadExceptionFromException x = do
 
 
 ------------------------------------------------------------------------------
-data BadPartException = BadPartException { badPartExceptionReason :: Text }
+-- | Thrown when a part is invalid in some way (e.g. the headers are too large).
+data BadPartException = BadPartException {
+  -- | Human-readable error message corresponding to the 'BadPartException'.
+  badPartExceptionReason :: Text
+  }
   deriving (Typeable)
 
 instance Exception BadPartException where
@@ -347,7 +363,10 @@ instance Show BadPartException where
 
 
 ------------------------------------------------------------------------------
+-- | Thrown when an 'UploadPolicy' or 'PartUploadPolicy' is violated.
 data PolicyViolationException = PolicyViolationException {
+      -- | Human-readable error message corresponding to the
+      -- 'PolicyViolationException'.
       policyViolationExceptionReason :: Text
     } deriving (Typeable)
 
