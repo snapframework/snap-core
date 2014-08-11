@@ -5,6 +5,9 @@
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE ScopedTypeVariables       #-}
 
+--------------------------------------------------------------------------------
+-- | Helpers for running a 'Snap' web handler with compression.
+
 module Snap.Util.GZip
   ( withCompression
   , withCompression'
@@ -64,6 +67,32 @@ import qualified System.IO.Streams                as Streams (compressBuilder, g
 -- that's contained within the 'Snap' monad state will be passed to
 -- 'finishWith' to prevent further processing.
 --
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> let r = T.get \"/\" M.empty >> T.addHeader \"Accept-Encoding\" \"gzip,deflate\"
+-- ghci> let h = 'Snap.Core.modifyResponse' ('Snap.Core.setContentType' \"text\/plain\") >> 'Snap.Core.writeBS' \"some text\"
+-- ghci> T.runHandler r h
+-- HTTP\/1.1 200 OK
+-- content-type: text\/plain
+-- server: Snap\/test
+-- date: Fri, 08 Aug 2014 15:40:45 GMT
+--
+-- some text
+-- ghci> T.runHandler r ('withCompression' h)
+-- HTTP\/1.1 200 OK
+-- content-type: text\/plain
+-- vary: Accept-Encoding
+-- content-encoding: gzip
+-- server: Snap\/test
+-- date: Fri, 08 Aug 2014 15:40:10 GMT
+--
+--
+-- @
 withCompression :: MonadSnap m
                 => m a   -- ^ the web handler to run
                 -> m ()
@@ -124,7 +153,8 @@ withCompression' mimeTable action = do
 
 ------------------------------------------------------------------------------
 -- | Turn off compression by setting \"Content-Encoding: identity\" in the
--- response headers.
+-- response headers. 'withCompression' is a no-op when a content-encoding is
+-- already set.
 noCompression :: MonadSnap m => m ()
 noCompression = modifyResponse $ setHeader "Content-Encoding" "identity"
 
@@ -218,6 +248,7 @@ acceptParser = do
 
 
 ------------------------------------------------------------------------------
+-- | Thrown when the 'Accept-Encoding' request header has invalid format.
 data BadAcceptEncodingException = BadAcceptEncodingException
    deriving (Typeable)
 
@@ -239,4 +270,3 @@ parseAcceptEncoding s =
       Right x -> return x
   where
     r = fullyParse s acceptParser
-
