@@ -33,9 +33,10 @@ import qualified Data.Map                 as Map
 import           Data.Maybe               (Maybe (..), fromMaybe, maybe)
 import           Data.Monoid              (mconcat)
 import           Data.Time.Clock          (UTCTime)
+import           Data.Time.Clock.POSIX    (utcTimeToPOSIXSeconds)
 import           Data.Word                (Word64)
 import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, id, not, ($), (.))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, fromInteger, id, not, otherwise, truncate, ($), (.))
 #ifdef PORTABLE
 import           Prelude                  (($!))
 #endif
@@ -99,10 +100,10 @@ class HasHeaders a where
 -- Example:
 --
 -- @
--- ghci> import qualified Snap.Types.Headers as H
--- ghci> addHeader "Host" "localhost" H.empty
+-- ghci> import qualified "Snap.Types.Headers" as H
+-- ghci> 'addHeader' "Host" "localhost" H.'empty'
 -- H {unH = [("host","localhost")]}
--- ghci> addHeader "Host" "127.0.0.1" it
+-- ghci> 'addHeader' "Host" "127.0.0.1" it
 -- H {unH = [("host","localhost,127.0.0.1")]}
 -- @
 addHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
@@ -116,9 +117,9 @@ addHeader k v = updateHeaders $ H.insert k v
 -- Example:
 --
 -- @
--- ghci> import qualified Snap.Types.Headers as H
--- ghci> setHeader "Host" "localhost" H.empty
--- H {unH = [("host","localhost")]}
+-- ghci> import qualified "Snap.Types.Headers" as H
+-- ghci> 'setHeader' "Host" "localhost" H.'empty'
+-- H {unH = [(\"host\",\"localhost\")]}
 -- ghci> setHeader "Host" "127.0.0.1" it
 -- H {unH = [("host","127.0.0.1")]}
 -- @
@@ -132,8 +133,8 @@ setHeader k v = updateHeaders $ H.set k v
 -- Example:
 --
 -- @
--- ghci> import qualified Snap.Types.Headers as H
--- ghci> getHeader "Host" $ setHeader "Host" "localhost" H.empty
+-- ghci> import qualified "Snap.Types.Headers" as H
+-- ghci> 'getHeader' "Host" $ 'setHeader' "Host" "localhost" H.'empty'
 -- Just "localhost"
 -- @
 getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
@@ -147,8 +148,8 @@ getHeader k a = H.lookup k $ headers a
 -- Example:
 --
 -- @
--- ghci> import qualified Snap.Types.Headers as H
--- ghci> listHeaders $ setHeader "Host" "localhost" H.empty
+-- ghci> import qualified "Snap.Types.Headers" as H
+-- ghci> 'listHeaders' $ 'setHeader' "Host" "localhost" H.'empty'
 -- [("host","localhost")]
 -- @
 listHeaders :: (HasHeaders a) => a -> [(CI ByteString, ByteString)]
@@ -161,8 +162,8 @@ listHeaders = H.toList . headers
 -- Example:
 --
 -- @
--- ghci> import qualified Snap.Types.Headers as H
--- ghci> deleteHeader "Host" $ setHeader "Host" "localhost" H.empty
+-- ghci> import qualified "Snap.Types.Headers" as H
+-- ghci> 'deleteHeader' "Host" $ 'setHeader' "Host" "localhost" H.'empty'
 -- H {unH = []}
 -- @
 deleteHeader :: (HasHeaders a) => CI ByteString -> a -> a
@@ -271,7 +272,7 @@ data Cookie = Cookie {
 
 ------------------------------------------------------------------------------
 -- | A type alias for the HTTP parameters mapping. Each parameter
--- key maps to a list of ByteString values; if a parameter is specified
+-- key maps to a list of 'ByteString' values; if a parameter is specified
 -- multiple times (e.g.: \"@GET /foo?param=bar1&param=bar2@\"), looking up
 -- \"@param@\" in the mapping will give you @[\"bar1\", \"bar2\"]@.
 type Params = Map ByteString [ByteString]
@@ -291,9 +292,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqHostName `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqHostName \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "localhost"
       -- @
       rqHostName      :: ByteString
@@ -304,9 +305,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqClientAddr `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqClientAddr \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "127.0.0.1"
       -- @
     , rqClientAddr    :: ByteString
@@ -317,9 +318,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqClientPort `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqClientPort \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "60000"
       -- @
     , rqClientPort    :: {-# UNPACK #-} !Int
@@ -330,9 +331,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqServerAddr `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqServerAddr \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "127.0.0.1"
       -- @
     , rqServerAddr    :: ByteString
@@ -345,9 +346,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqServerPort `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqServerPort \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- 8080
       -- @
     , rqServerPort    :: {-# UNPACK #-} !Int
@@ -359,9 +360,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqLocalHostname `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqLocalHostname \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "localhost"
       -- @
     , rqLocalHostname :: ByteString
@@ -372,9 +373,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqIsSecure `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqIsSecure \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- False
       -- @
     , rqIsSecure      :: !Bool
@@ -385,9 +386,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqHeaders `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqHeaders \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- H {unH = [("host","localhost")]}
       -- @
     , rqHeaders       :: Headers
@@ -401,9 +402,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqContentLength `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqContentLength \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- Nothing
       -- @
     , rqContentLength :: !(Maybe Word64)
@@ -414,9 +415,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqMethod `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqMethod \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- GET
       -- @
     , rqMethod        :: !Method
@@ -427,9 +428,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqVersion `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqVersion \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- (1,1)
       -- @
     , rqVersion       :: {-# UNPACK #-} !HttpVersion
@@ -441,9 +442,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqCookies `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqCookies \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- []
       -- @
     , rqCookies       :: [Cookie]
@@ -467,9 +468,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqPathInfo `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqPathInfo \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "foo/bar"
       -- @
     , rqPathInfo      :: ByteString
@@ -484,9 +485,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqContextPath `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqContextPath \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "/"
       -- @
     , rqContextPath   :: ByteString
@@ -497,9 +498,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rqURI `fmap` T.buildRequest (T.get "/foo/bar" M.empty)
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rqURI \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
       -- "foo/bar"
       -- @
     , rqURI           :: ByteString
@@ -510,9 +511,9 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
-      -- ghci> rq <- T.buildRequest (T.get "/foo/bar" (M.fromList [("name", ["value"])]))
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
+      -- ghci> rq <- T.buildRequest (T.get "\/foo\/bar" (M.fromList [("name", ["value"])]))
       -- ghci> rqQueryString rq
       -- "name=value"
       -- @
@@ -527,11 +528,11 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
       -- ghci> :{
       -- ghci| rq <- T.buildRequest $ do
-      -- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+      -- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
       -- ghci|         T.setQueryStringRaw "baz=quux"
       -- ghci| :}
       -- ghci> rqParams rq
@@ -545,11 +546,11 @@ data Request = Request
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
       -- ghci> :{
       -- ghci| rq <- T.buildRequest $ do
-      -- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+      -- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
       -- ghci|         T.setQueryStringRaw "baz=quux"
       -- ghci| :}
       -- ghci> rqQueryParams rq
@@ -559,19 +560,19 @@ data Request = Request
 
       -- | The parameter mapping decoded from the POST body. Note that Snap
       -- only auto-decodes POST request bodies when the request's
-      -- @Content-Type@ is @application/x-www-form-urlencoded@.
-      -- For @multipart/form-data@ use 'Snap.Util.FileUploads.handleFileUploads'
+      -- @Content-Type@ is @application\/x-www-form-urlencoded@.
+      -- For @multipart\/form-data@ use 'Snap.Util.FileUploads.handleFileUploads'
       -- to decode the POST request and fill this mapping.
       --
       -- Example:
       --
       -- @
       -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified Snap.Test as T
-      -- ghci> import qualified Data.Map as M
+      -- ghci> import qualified "Snap.Test" as T
+      -- ghci> import qualified "Data.Map" as M
       -- ghci> :{
       -- ghci| rq <- T.buildRequest $ do
-      -- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+      -- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
       -- ghci|         T.setQueryStringRaw "baz=quux"
       -- ghci| :}
       -- ghci> rqPostParams rq
@@ -679,7 +680,7 @@ data Response = Response
       -- Example:
       --
       -- @
-      -- ghci> rspStatus emptyResponse
+      -- ghci> rspStatus 'emptyResponse'
       -- 200
       -- @
     , rspStatus             :: !Int
@@ -689,7 +690,7 @@ data Response = Response
       -- Example:
       --
       -- @
-      -- ghci> rspStatusReason emptyResponse
+      -- ghci> rspStatusReason 'emptyResponse'
       -- "OK"
       -- @
     , rspStatusReason       :: !ByteString
@@ -715,7 +716,8 @@ instance Show Response where
                           , toStr $ rspStatusReason r
                           , "\r\n" ]
 
-      hdrs = concatMap showHdr $ H.toList $ rspHeaders $ clearContentLength r
+      hdrs = concatMap showHdr $ H.toList $ renderCookies r
+             $ rspHeaders $ clearContentLength r
 
       contentLength = maybe "" (\l -> concat ["Content-Length: ", show l, "\r\n"] ) (rspContentLength r)
 
@@ -746,14 +748,14 @@ instance HasHeaders Response where
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import qualified Snap.Test as T
--- ghci> import qualified Data.Map as M
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> import qualified "Data.Map" as M
 -- ghci> :{
 -- ghci| rq <- T.buildRequest $ do
--- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
 -- ghci|         T.setQueryStringRaw "baz=quux"
 -- ghci| :}
--- ghci> rqParam "baz" rq
+-- ghci> 'rqParam' "baz" rq
 -- Just ["qux","quux"]
 -- @
 rqParam :: ByteString           -- ^ parameter name to look up
@@ -771,14 +773,14 @@ rqParam k rq = Map.lookup k $ rqParams rq
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import qualified Snap.Test as T
--- ghci> import qualified Data.Map as M
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> import qualified "Data.Map" as M
 -- ghci> :{
 -- ghci| rq <- T.buildRequest $ do
--- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
 -- ghci|         T.setQueryStringRaw "baz=quux"
 -- ghci| :}
--- ghci> rqPostParam "baz" rq
+-- ghci> 'rqPostParam' "baz" rq
 -- Just ["qux"]
 -- @
 rqPostParam :: ByteString           -- ^ parameter name to look up
@@ -796,14 +798,14 @@ rqPostParam k rq = Map.lookup k $ rqPostParams rq
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import qualified Snap.Test as T
--- ghci> import qualified Data.Map as M
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> import qualified "Data.Map" as M
 -- ghci> :{
 -- ghci| rq <- T.buildRequest $ do
--- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
 -- ghci|         T.setQueryStringRaw "baz=quux"
 -- ghci| :}
--- ghci> rqQueryParam "baz" rq
+-- ghci> 'rqQueryParam' "baz" rq
 -- Just ["quux"]
 -- @
 rqQueryParam :: ByteString           -- ^ parameter name to look up
@@ -821,16 +823,16 @@ rqQueryParam k rq = Map.lookup k $ rqQueryParams rq
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import qualified Snap.Test as T
--- ghci> import qualified Data.Map as M
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> import qualified "Data.Map" as M
 -- ghci> :{
 -- ghci| rq <- T.buildRequest $ do
--- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
 -- ghci|         T.setQueryStringRaw "baz=quux"
 -- ghci| :}
--- ghci> rqParams rq
+-- ghci> 'rqParams' rq
 -- fromList [("baz",["qux","quux"])]
--- ghci> rqParams $ rqModifyParams (M.delete "baz") rq
+-- ghci> 'rqParams' $ 'rqModifyParams' (M.delete "baz") rq
 -- fromList []
 -- @
 rqModifyParams :: (Params -> Params) -> Request -> Request
@@ -848,16 +850,16 @@ rqModifyParams f r = r { rqParams = p }
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import qualified Snap.Test as T
--- ghci> import qualified Data.Map as M
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> import qualified "Data.Map" as M
 -- ghci> :{
 -- ghci| rq <- T.buildRequest $ do
--- ghci|         T.postUrlEncoded "/foo/bar" $ M.fromList [("baz", ["qux"])]
+-- ghci|         T.postUrlEncoded "\/foo\/bar" $ M.fromList [("baz", ["qux"])]
 -- ghci|         T.setQueryStringRaw "baz=quux"
 -- ghci| :}
--- ghci> rqParams rq
+-- ghci> 'rqParams' rq
 -- fromList [("baz",["qux","quux"])]
--- ghci> rqParams $ rqSetParam "baz" ["corge"] rq
+-- ghci> 'rqParams' $ 'rqSetParam' "baz" ["corge"] rq
 -- fromList [("baz", ["corge"])]
 -- @
 rqSetParam :: ByteString        -- ^ parameter name
@@ -878,8 +880,8 @@ rqSetParam k v = rqModifyParams $ Map.insert k v
 -- Example:
 --
 -- @
--- ghci> emptyResponse
--- HTTP/1.1 200 OK
+-- ghci> 'emptyResponse'
+-- HTTP\/1.1 200 OK
 --
 --
 -- @
@@ -896,16 +898,17 @@ emptyResponse = Response H.empty Map.empty Nothing
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import qualified System.IO.Streams as Streams
--- ghci> import qualified Blaze.ByteString.Builder as Builder
+-- ghci> import qualified "System.IO.Streams" as Streams
+-- ghci> import qualified "Blaze.ByteString.Builder" as Builder
 -- ghci> :{
--- ghci| let r = setResponseBody
+-- ghci| let r = 'setResponseBody'
 -- ghci|         (\out -> do
--- ghci|             Streams.write (Just $ Builder.fromByteString "Hello, world!") out
+-- ghci|             Streams.write (Just $ Builder.'fromByteString' \"Hello, world!\") out
 -- ghci|             return out)
--- ghci|         emptyResponse
+-- ghci|         'emptyResponse'
 -- ghci| :}
--- HTTP/1.1 200 OK
+-- ghci> r
+-- HTTP\/1.1 200 OK
 --
 -- Hello, world!
 -- @
@@ -926,8 +929,8 @@ setResponseBody e r = r { rspBody = Stream e }
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> setResponseStatus 500 "Internal Server Error" emptyResponse
--- HTTP/1.1 500 Internal Server Error
+-- ghci> setResponseStatus 500 \"Internal Server Error\" 'emptyResponse'
+-- HTTP\/1.1 500 Internal Server Error
 --
 --
 -- @
@@ -945,8 +948,8 @@ setResponseStatus s reason r = r { rspStatus=s, rspStatusReason=reason }
 -- Example:
 --
 -- @
--- ghci> setResponseCode 404 emptyResponse
--- HTTP/1.1 404 Not Found
+-- ghci> setResponseCode 404 'emptyResponse'
+-- HTTP\/1.1 404 Not Found
 --
 --
 -- @
@@ -966,28 +969,28 @@ setResponseCode s r = setResponseStatus s reason r
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import qualified System.IO.Streams as Streams
--- ghci> import qualified Blaze.ByteString.Builder as Builder
+-- ghci> import qualified "System.IO.Streams" as Streams
+-- ghci> import qualified "Blaze.ByteString.Builder" as Builder
 -- ghci> :{
--- ghci| let r = setResponseBody
+-- ghci| let r = 'setResponseBody'
 -- ghci|         (\out -> do
--- ghci|             Streams.write (Just $ Builder.fromByteString "Hello, world!") out
+-- ghci|             Streams.write (Just $ Builder.'fromByteString' \"Hello, world!\") out
 -- ghci|             return out)
--- ghci|         emptyResponse
+-- ghci|         'emptyResponse'
 -- ghci| :}
 -- ghci> r
--- HTTP/1.1 200 OK
+-- HTTP\/1.1 200 OK
 --
 -- Hello, world!
 -- ghci> :{
--- ghci| let r' = modifyResponseBody
+-- ghci| let r' = 'modifyResponseBody'
 -- ghci|          (\f out -> do
 -- ghci|              out' <- f out
--- ghci|              Streams.write (Just $ Builder.fromByteString "\nBye, world!") out'
+-- ghci|              Streams.write (Just $ Builder.'fromByteString' \"\\nBye, world!\") out'
 -- ghci|              return out') r
 -- ghci| :}
 -- ghci> r'
--- HTTP/1.1 200 OK
+-- HTTP\/1.1 200 OK
 --
 -- Hello, world!
 -- Bye, world!
@@ -1007,9 +1010,9 @@ modifyResponseBody f r = r { rspBody = rspBodyMap f (rspBody r) }
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> setContentType "text/html" emptyResponse
--- HTTP/1.1 200 OK
--- content-type: text/html
+-- ghci> setContentType \"text\/html\" 'emptyResponse'
+-- HTTP\/1.1 200 OK
+-- content-type: text\/html
 --
 --
 -- @
@@ -1019,15 +1022,51 @@ setContentType = setHeader "Content-Type"
 
 
 ------------------------------------------------------------------------------
+-- | Convert 'Cookie' into 'ByteString' for output.
+--
+-- TODO: Remove duplication. This function is copied from
+-- snap-server/Snap.Internal.Http.Server.Session.
+cookieToBS :: Cookie -> ByteString
+cookieToBS (Cookie k v mbExpTime mbDomain mbPath isSec isHOnly) = cookie
+  where
+    cookie = S.concat [k, "=", v, path, exptime, domain, secure, hOnly]
+    path = maybe "" (S.append "; path=") mbPath
+    domain = maybe "" (S.append "; domain=") mbDomain
+    exptime = maybe "" (S.append "; expires=" . fmt) mbExpTime
+    secure = if isSec then "; Secure" else ""
+    hOnly = if isHOnly then "; HttpOnly" else ""
+
+    -- TODO: 'formatHttpTime' uses "DD MMM YYYY" instead of "DD-MMM-YYYY",
+    -- unlike the code in 'Snap.Internal.Http.Server.Session'. Is this form
+    -- allowed?
+    fmt = unsafePerformIO . formatHttpTime . toCTime
+
+    toCTime :: UTCTime -> CTime
+    toCTime = fromInteger . truncate . utcTimeToPOSIXSeconds
+
+------------------------------------------------------------------------------
+-- | Render cookies from a given 'Response' to 'Headers'.
+--
+-- TODO: Remove duplication. This function is copied from
+-- snap-server/Snap.Internal.Http.Server.Session.
+renderCookies :: Response -> Headers -> Headers
+renderCookies r hdrs
+    | null cookies = hdrs
+    | otherwise = foldl' (\m v -> H.unsafeInsert "set-cookie" v m) hdrs cookies
+
+  where
+    cookies = fmap cookieToBS . Map.elems $ rspCookies r
+
+------------------------------------------------------------------------------
 -- | Adds an HTTP 'Cookie' to 'Response' headers.
 --
 -- Example:
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
--- ghci> getResponseCookie "name" $ addResponseCookie cookie emptyResponse
--- Just (Cookie {cookieName = "name", cookieValue = "value", ...})
+-- ghci> let cookie = 'Cookie' \"name\" \"value\" Nothing Nothing Nothing False False
+-- ghci> 'getResponseCookie' \"name\" $ 'addResponseCookie' cookie 'emptyResponse'
+-- Just (Cookie {cookieName = \"name\", cookieValue = \"value\", ...})
 -- @
 addResponseCookie :: Cookie            -- ^ cookie value
                   -> Response          -- ^ response to modify
@@ -1045,7 +1084,7 @@ addResponseCookie ck@(Cookie k _ _ _ _ _ _) r = r { rspCookies = cks' }
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> getResponseCookie "cookie-name" emptyResponse
+-- ghci> 'getResponseCookie' \"cookie-name\" 'emptyResponse'
 -- Nothing
 -- @
 getResponseCookie :: ByteString            -- ^ cookie name
@@ -1060,7 +1099,7 @@ getResponseCookie cn r = Map.lookup cn $ rspCookies r
 -- Example:
 --
 -- @
--- ghci> getResponseCookies emptyResponse
+-- ghci> 'getResponseCookies' 'emptyResponse'
 -- []
 -- @
 getResponseCookies :: Response              -- ^ response to query
@@ -1077,11 +1116,11 @@ getResponseCookies = Map.elems . rspCookies
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
--- ghci> let rsp    = addResponseCookie cookie emptyResponse
--- ghci> getResponseCookie "name" rsp
--- Just (Cookie {cookieName = "name", cookieValue = "value", ...})
--- ghci> getResponseCookie "name" $ deleteResponseCookie "name" rsp
+-- ghci> let cookie = 'Cookie' \"name\" \"value\" Nothing Nothing Nothing False False
+-- ghci> let rsp    = 'addResponseCookie' cookie 'emptyResponse'
+-- ghci> 'getResponseCookie' \"name\" rsp
+-- Just (Cookie {cookieName = \"name\", cookieValue = \"value\", ...})
+-- ghci> 'getResponseCookie' \"name\" $ 'deleteResponseCookie' \"name\" rsp
 -- Nothing
 -- @
 deleteResponseCookie :: ByteString        -- ^ cookie name
@@ -1101,17 +1140,17 @@ deleteResponseCookie cn r = r { rspCookies = cks' }
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> import Data.Monoid
--- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
--- ghci> let rsp    = addResponseCookie cookie emptyResponse
--- ghci> getResponseCookie "name" rsp
--- Just (Cookie {cookieName = "name", cookieValue = "value", ...})
--- ghci> let f ck@(Cookie { cookieName = name }) = ck { cookieName = name <> "'"}
--- ghci> let rsp' = modifyResponseCookie "name" f rsp
--- ghci> getResponseCookie "name'" rsp'
--- Just (Cookie {cookieName = "name'", ...})
--- ghci> getResponseCookie "name" rsp'
--- Just (Cookie {cookieName = "name", ...})
+-- ghci> import "Data.Monoid"
+-- ghci> let cookie = 'Cookie' \"name\" \"value\" Nothing Nothing Nothing False False
+-- ghci> let rsp    = 'addResponseCookie' cookie 'emptyResponse'
+-- ghci> 'getResponseCookie' \"name\" rsp
+-- Just (Cookie {cookieName = \"name\", cookieValue = \"value\", ...})
+-- ghci> let f ck@('Cookie' { cookieName = name }) = ck { cookieName = name <> \"\'\"}
+-- ghci> let rsp' = 'modifyResponseCookie' \"name\" f rsp
+-- ghci> 'getResponseCookie' \"name\'\" rsp\'
+-- Just (Cookie {cookieName = \"name\'\", ...})
+-- ghci> 'getResponseCookie' \"name\" rsp\'
+-- Just (Cookie {cookieName = \"name\", ...})
 -- @
 modifyResponseCookie :: ByteString          -- ^ cookie name
                      -> (Cookie -> Cookie)  -- ^ modifier function
@@ -1140,8 +1179,8 @@ modifyResponseCookie cn f r = maybe r modify $ getResponseCookie cn r
 -- Example:
 --
 -- @
--- ghci> setContentLength 400 emptyResponse
--- HTTP/1.1 200 OK
+-- ghci> setContentLength 400 'emptyResponse'
+-- HTTP\/1.1 200 OK
 -- Content-Length: 400
 --
 --
@@ -1157,8 +1196,8 @@ setContentLength !l r = r { rspContentLength = Just l }
 -- Example:
 --
 -- @
--- ghci> clearContentLength $ setContentLength 400 emptyResponse
--- HTTP/1.1 200 OK
+-- ghci> clearContentLength $ 'setContentLength' 400 'emptyResponse'
+-- HTTP\/1.1 200 OK
 --
 --
 -- @
@@ -1177,8 +1216,8 @@ clearContentLength r = r { rspContentLength = Nothing }
 -- Example:
 --
 -- @
--- ghci> formatHttpTime . fromIntegral $ 10
--- "Thu, 01 Jan 1970 00:00:10 GMT"
+-- ghci> 'formatHttpTime' . 'fromIntegral' $ 10
+-- \"Thu, 01 Jan 1970 00:00:10 GMT\"
 -- @
 formatHttpTime :: CTime -> IO ByteString
 
@@ -1195,7 +1234,7 @@ formatLogTime :: CTime -> IO ByteString
 --
 -- @
 -- ghci> :set -XOverloadedStrings
--- ghci> parseHttpTime "Thu, 01 Jan 1970 00:00:10 GMT"
+-- ghci> 'parseHttpTime' \"Thu, 01 Jan 1970 00:00:10 GMT\"
 -- 10
 -- @
 parseHttpTime :: ByteString -> IO CTime
@@ -1319,10 +1358,13 @@ statusReasonMap = IM.fromList [
 
 ------------------------------------------------------------------------------
 -- Deprecated functions
+
+-- | See 'rqClientAddr'.
 rqRemoteAddr :: Request -> ByteString
 rqRemoteAddr = rqClientAddr
-{-# DEPRECATED rqRemoteAddr "(snap-core >= 1.0.0.0) please use rqClientAddr, this will be removed in 1.1.*" #-}
+{-# DEPRECATED rqRemoteAddr "(snap-core >= 1.0.0.0) please use 'rqClientAddr', this will be removed in 1.1.*" #-}
 
+-- | See 'rqClientPort'.
 rqRemotePort :: Request -> Int
 rqRemotePort = rqClientPort
-{-# DEPRECATED rqRemotePort "(snap-core >= 1.0.0.0) please use rqClientPort, this will be removed in 1.1.*" #-}
+{-# DEPRECATED rqRemotePort "(snap-core >= 1.0.0.0) please use 'rqClientPort', this will be removed in 1.1.*" #-}

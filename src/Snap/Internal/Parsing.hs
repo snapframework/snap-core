@@ -54,6 +54,8 @@ fullyParse' parseFunc feedFunc s p =
     r  = parseFunc p s
     r' = feedFunc r ""
 
+------------------------------------------------------------------------------
+-- Parsers for different tokens in an HTTP request.
 
 ------------------------------------------------------------------------------
 parseNum :: Parser Int64
@@ -61,7 +63,6 @@ parseNum = decimal
 
 
 ------------------------------------------------------------------------------
--- | Parsers for different tokens in an HTTP request.
 sp :: Parser Char
 sp       = char ' '
 
@@ -327,7 +328,7 @@ pUrlEscaped = do
 -- Example:
 --
 -- @
--- ghci> urlDecode "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
+-- ghci> 'urlDecode' "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
 -- Just "1 attoparsec ~= 3 * 10^-2 meters"
 -- @
 urlDecode :: ByteString -> Maybe ByteString
@@ -342,7 +343,7 @@ urlDecode = parseToCompletion pUrlEscaped
 -- Example:
 --
 -- @
--- ghci> urlEncode "1 attoparsec ~= 3 * 10^-2 meters"
+-- ghci> 'urlEncode' "1 attoparsec ~= 3 * 10^-2 meters"
 -- "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
 -- @
 urlEncode :: ByteString -> ByteString
@@ -357,8 +358,8 @@ urlEncode = toByteString . urlEncodeBuilder
 -- Example:
 --
 -- @
--- ghci> import Blaze.ByteString.Builder
--- ghci> toByteString . urlEncodeBuilder $ "1 attoparsec ~= 3 * 10^-2 meters"
+-- ghci> import "Blaze.ByteString.Builder"
+-- ghci> 'toByteString' . 'urlEncodeBuilder' $ "1 attoparsec ~= 3 * 10^-2 meters"
 -- "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
 -- @
 urlEncodeBuilder :: ByteString -> Builder
@@ -409,8 +410,8 @@ finish x           = x
 -- Example:
 --
 -- @
--- ghci> parseUrlEncoded "Name=John+Doe&Name=Jane+Doe&Age=23&Formula=a+%2B+b+%3D%3D+13%25%21"
--- fromList [("Age",["23"]),("Formula",["a + b == 13%!"]),("Name",["John Doe","Jane Doe"])]
+-- ghci> 'parseUrlEncoded' "Name=John+Doe&Name=Jane+Doe&Age=23&Formula=a+%2B+b+%3D%3D+13%25%21"
+-- 'Data.Map.fromList' [("Age",["23"]),("Formula",["a + b == 13%!"]),("Name",["John Doe","Jane Doe"])]
 -- @
 parseUrlEncoded :: ByteString -> Map ByteString [ByteString]
 parseUrlEncoded s = foldr ins Map.empty decoded
@@ -453,9 +454,11 @@ parseUrlEncoded s = foldr ins Map.empty decoded
 -- Example:
 --
 -- @
--- ghci> import Data.Monoid
--- ghci> import Blaze.ByteString.Builder
--- ghci> toByteString $ fromByteString "http://example.com/script?" <> buildUrlEncoded (fromList [("Name", ["John Doe"]), ("Age", ["23"])])
+-- ghci> import "Data.Map"
+-- ghci> import "Data.Monoid"
+-- ghci> import "Blaze.ByteString.Builder"
+-- ghci> let bldr = 'buildUrlEncoded' ('Data.Map.fromList' [("Name", ["John Doe"]), ("Age", ["23"])])
+-- ghci> 'toByteString' $ 'fromByteString' "http://example.com/script?" <> bldr
 -- "http://example.com/script?Age=23&Name=John+Doe"
 -- @
 buildUrlEncoded :: Map ByteString [ByteString] -> Builder
@@ -479,7 +482,7 @@ buildUrlEncoded m = mconcat builders
 -- Example:
 --
 -- @
--- ghci> printUrlEncoded (fromList [("Name", ["John Doe"]), ("Age", ["23"])])
+-- ghci> 'printUrlEncoded' ('Data.Map.fromList' [("Name", ["John Doe"]), ("Age", ["23"])])
 -- "Age=23&Name=John+Doe"
 -- @
 printUrlEncoded :: Map ByteString [ByteString] -> ByteString
@@ -533,7 +536,7 @@ unsafeFromHex = S.foldl' f 0
 
 
 ------------------------------------------------------------------------------
--- | Note: only works for nonnegative naturals
+-- Note: only works for nonnegative naturals
 unsafeFromNat :: (Enum a, Num a, Bits a) => ByteString -> a
 unsafeFromNat = S.foldl' f 0
   where

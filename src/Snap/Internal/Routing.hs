@@ -112,53 +112,47 @@ routeEarliestNC r n = case r of
 -- | A web handler which, given a mapping from URL entry points to web
 -- handlers, efficiently routes requests to the correct handler.
 --
+--
+-- __Usage__
+--
 -- The URL entry points are given as relative paths, for example:
 --
 -- > route [ ("foo/bar/quux", fooBarQuux) ]
 --
--- If the URI of the incoming request is
+-- If the URI of the incoming request is @\/foo\/bar\/quux@ or
+-- @\/foo\/bar\/quux\/...anything...@ then the request will be routed to
+-- @\"fooBarQuux\"@, with 'rqContextPath' set to @\"\/foo\/bar\/quux\/\"@ and
+-- 'rqPathInfo' set to @\"...anything...\"@.
 --
--- > /foo/bar/quux
---
--- or
---
--- > /foo/bar/quux/...anything...
---
--- then the request will be routed to \"@fooBarQuux@\", with 'rqContextPath'
--- set to \"@\/foo\/bar\/quux\/@\" and 'rqPathInfo' set to
--- \"@...anything...@\".
---
--- A path component within an URL entry point beginning with a colon (\"@:@\")
+-- A path component within an URL entry point beginning with a colon (@\":\"@)
 -- is treated as a /variable capture/; the corresponding path component within
 -- the request URI will be entered into the 'rqParams' parameters mapping with
 -- the given name. For instance, if the routes were:
 --
 -- > route [ ("foo/:bar/baz", fooBazHandler) ]
 --
--- Then a request for \"@\/foo\/saskatchewan\/baz@\" would be routed to
--- @fooBazHandler@ with a mapping for:
---
--- > "bar" => "saskatchewan"
---
--- in its parameters table.
+-- Then a request for @\"\/foo\/saskatchewan\/baz\"@ would be routed to
+-- @fooBazHandler@ with a mapping for @\"bar\" => \"saskatchewan\"@ in its
+-- parameters table.
 --
 -- Longer paths are matched first, and specific routes are matched before
 -- captures. That is, if given routes:
 --
 -- > [ ("a", h1), ("a/b", h2), ("a/:x", h3) ]
 --
--- a request for \"@\/a\/b@\" will go to @h2@, \"@\/a\/s@\" for any /s/ will
--- go to @h3@, and \"@\/a@\" will go to @h1@.
+-- a request for @\"\/a\/b\"@ will go to @h2@, @\"\/a\/s\"@ for any /s/ will go
+-- to @h3@, and @\"\/a\"@ will go to @h1@.
 --
--- The following example matches \"@\/article@\" to an article index,
--- \"@\/login@\" to a login, and \"@\/article\/...@\" to an article renderer.
+-- The following example matches @\"\/article\"@ to an article index,
+-- @\"\/login\"@ to a login, and @\"\/article\/...\"@ to an article renderer.
 --
--- > route [ ("article",     renderIndex)
--- >       , ("article/:id", renderArticle)
--- >       , ("login",       method POST doLogin) ]
+-- @
+-- 'route' [ (\"article\",     renderIndex)
+--       , (\"article\/:id\", renderArticle)
+--       , (\"login\",       'Snap.Core.method' POST doLogin) ]
+-- @
 --
---
--- /URL decoding/
+-- __Note: URL decoding__
 --
 -- A short note about URL decoding: path matching and variable capture are done
 -- on /decoded/ URLs, but the contents of 'rqContextPath' and 'rqPathInfo' will
@@ -168,11 +162,40 @@ routeEarliestNC r n = case r of
 -- > route [ ("a b c d/", foo ) ]
 --
 -- A request for \"@/a+b+c+d@\" will be sent to @foo@ with 'rqContextPath' set
--- to \"/a+b+c+d/\".
+-- to @\"/a+b+c+d/\"@.
 --
 -- This behaviour changed as of Snap 0.6.1; previous versions had unspecified
 -- (and buggy!) semantics here.
 --
+--
+-- __Example:__
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as Map
+-- ghci> import qualified "Data.ByteString.Char8" as B8
+-- ghci> import "Snap.Test"
+-- ghci> :{
+-- ghci| let handler = do r \<- 'getRequest'
+-- ghci|                  'Snap.Core.writeBS' $ \"rqContextPath: \" \<> 'rqContextPath' r \<> \"\\n\"
+-- ghci|                  'Snap.Core.writeBS' $ \"rqPathInfo: \" \<> 'rqPathInfo' r \<> \"\\n\"
+-- ghci|                  'Snap.Core.writeBS' $ \"rqParams: \" \<> (B8.pack . show $ 'rqParams' r)
+-- ghci| :}
+-- ghci> 'Snap.Test.runHandler' ('Snap.Test.get' \"\/foo\/bar\" "Map.empty") ('route' [(\"foo\", handler)])
+-- HTTP\/1.1 200 OK
+-- server: Snap\/test
+-- date: Sat, 02 Aug 2014 05:16:59 GMT
+--
+-- rqContextPath: \/foo\/
+-- rqPathInfo: bar
+-- rqParams: fromList []
+-- ghci> 'Snap.Test.runHandler' ('Snap.Test.get' \"\/foo\/bar\" "Map.empty") ('route' [(\"foo\/:bar\", handler)])
+-- [...]
+--
+-- rqContextPath: \/foo\/bar\/
+-- rqPathInfo:
+-- rqParams: fromList [(\"bar\",[\"bar\"])]
+-- @
 route :: MonadSnap m => [(ByteString, m a)] -> m a
 route rts = do
   p <- getsRequest rqPathInfo
@@ -187,6 +210,34 @@ route rts = do
 -- change the request's context path. This is useful if you want to route to a
 -- particular handler but you want that handler to receive the 'rqPathInfo' as
 -- it is.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> import qualified "Data.ByteString.Char8" as B8
+-- ghci> import "Snap.Test"
+-- ghci> :{
+-- ghci| let handler = do r \<- 'getRequest'
+-- ghci|                  'Snap.Core.writeBS' $ \"rqContextPath: \" \<> 'rqContextPath' r \<> \"\\n\"
+-- ghci|                  'Snap.Core.writeBS' $ \"rqPathInfo: \" \<> 'rqPathInfo' r \<> \"\\n\"
+-- ghci|                  'Snap.Core.writeBS' $ \"rqParams: \" \<> (B8.pack . show $ 'rqParams' r)
+-- ghci| :}
+-- ghci> 'Snap.Test.runHandler' ('Snap.Test.get' \"\/foo\/bar\" M.empty) ('routeLocal' [(\"foo\", handler)])
+-- HTTP\/1.1 200 OK
+-- server: Snap\/test
+-- date: Sat, 02 Aug 2014 05:17:28 GMT
+--
+-- rqContextPath: \/
+-- rqPathInfo: foo\/bar
+-- ghci> 'Snap.Test.runHandler' ('Snap.Test.get' \"\/foo\/bar\" M.empty) ('routeLocal' [(\"foo\/:bar\", handler)])
+-- [...]
+--
+-- rqContextPath: \/
+-- rqPathInfo: foo\/bar
+-- rqParams: fromList [(\"bar\",[\"bar\"])]
+-- @
 routeLocal :: MonadSnap m => [(ByteString, m a)] -> m a
 routeLocal rts = do
     req    <- getRequest
