@@ -32,6 +32,7 @@ maintainer:     snap@snapframework.com
 build-type:     Simple
 cabal-version:  >= 1.18
 homepage:       http://snapframework.com/
+bug-reports:    https://github.com/snapframework/snap-core/issues
 category:       Web, Snap, IO-Streams
 
 extra-source-files:
