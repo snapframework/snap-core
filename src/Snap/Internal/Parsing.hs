@@ -354,7 +354,7 @@ urlEncodeBuilder = go mempty
 urlEncodeTable :: FastSet
 urlEncodeTable = generateFS f
   where
-    f c = any ($ (w2c c)) [isAlphaNum, flip elem "$-.!*'(),"]
+    f c = any ($ (w2c c)) [isAlphaNum, flip elem "$_-.!*'(),"]
 
 
 ------------------------------------------------------------------------------
