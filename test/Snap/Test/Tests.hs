@@ -5,19 +5,23 @@ module Snap.Test.Tests
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Exception                 (ErrorCall (..))
+import           Control.Applicative               (Applicative (..))
+import           Control.Exception                 (ErrorCall (..), evaluate)
 import           Control.Monad                     (MonadPlus (mzero), liftM)
 import           Control.Monad.IO.Class            (liftIO)
+import           Control.Monad.Trans               (lift)
 import           Data.ByteString.Char8             (ByteString)
 import qualified Data.ByteString.Char8             as S
+import           Data.Functor                      (Functor (fmap, (<$)))
 import qualified Data.Map                          as Map
 import           Data.Maybe                        (fromJust, isJust)
 import           Data.Text                         (Text)
 import           Data.Time.Clock                   (getCurrentTime)
+import           Prelude                           (Bool (True, False), IO, Int, Maybe (Just, Nothing), Monad (..), Ord (..), const, fail, fromIntegral, return, seq, show, ($), ($!), (*), (.))
 import           Snap.Core                         (Cookie (Cookie, cookieExpires), Method (DELETE, GET, Method, PATCH, POST, PUT), Request (rqContentLength, rqContextPath, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Snap, expireCookie, extendTimeout, getCookie, getHeader, getParam, logError, readCookie, redirect, runSnap, terminateConnection, writeBS)
 import           Snap.Internal.Http.Types          (Request (..), Response (rspCookies))
 import qualified Snap.Internal.Http.Types          as T
-import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
+import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestBuilder, RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
 import           Snap.Test                         (assert404, assertBodyContains, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
 import           Snap.Test.Common                  (coverShowInstance, expectExceptionH)
 import           Snap.Util.FileUploads             (PartInfo, defaultUploadPolicy, handleMultipart, partContentType, partFieldName, partFileName)
@@ -405,6 +409,17 @@ testTrivials = testCase "test/requestBuilder/trivials" $ do
     coverShowInstance (Files [])
     coverShowInstance (FileData "" "" "")
     coverShowInstance GetRequest
+    z <- buildRequest $ do
+             (() <$ (pure () <* rb *> rb2)) >>= lift . evaluate
+             x <- fmap (*4) (return (3 :: Int))
+             lift $ assertEqual "fmap" 12 x
+
+    expectExceptionH $ buildRequest $ fail "foo"
+    z `seq` return ()
+
+  where
+    rb = (return ()) :: (Functor m, Monad m, Applicative m) => RequestBuilder m ()
+    rb2 = (pure ()) :: (Functor m, Monad m, Applicative m) => RequestBuilder m ()
 
 
 ------------------------------------------------------------------------------

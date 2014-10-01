@@ -7,10 +7,12 @@
 module Snap.Internal.Parsing where
 ------------------------------------------------------------------------------
 import           Blaze.ByteString.Builder         (Builder, fromByteString, fromWord8, toByteString)
-import           Control.Applicative              (Alternative ((<|>), many), Applicative ((*>), (<*), pure), liftA2, (<$>))
+import           Blaze.ByteString.Builder.Char8   (fromChar)
+import           Control.Applicative              (Alternative ((<|>)), Applicative ((*>), (<*), pure), liftA2, (<$>))
 import           Control.Arrow                    (first, second)
 import           Control.Monad                    (Monad (return), MonadPlus (mzero), liftM, when)
-import           Data.Attoparsec.ByteString.Char8 (IResult (Done, Fail, Partial), Parser, Result, anyChar, char, choice, decimal, endOfInput, feed, inClass, isDigit, isSpace, letter_ascii, option, parse, satisfy, string, take, takeTill, takeWhile, takeWhile1)
+import           Data.Attoparsec.ByteString.Char8 (IResult (Done, Fail, Partial), Parser, Result, anyChar, char, choice, decimal, endOfInput, feed, inClass, isDigit, isSpace, letter_ascii, many', match, option, parse, satisfy, skipSpace, skipWhile, string, take, takeTill, takeWhile)
+import qualified Data.Attoparsec.ByteString.Char8 as AP
 import           Data.Bits                        (Bits ((.&.), (.|.), unsafeShiftL))
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S (all, append, break, concat, cons, drop, empty, foldl', isPrefixOf, length, null, singleton, span, spanEnd, splitWith, uncons)
@@ -19,15 +21,15 @@ import           Data.CaseInsensitive             (CI)
 import qualified Data.CaseInsensitive             as CI (mk)
 import           Data.Char                        (Char, intToDigit, isAlpha, isAlphaNum, isAscii, isControl, isHexDigit, ord)
 import           Data.Int                         (Int64)
-import           Data.List                        (intersperse)
+import           Data.List                        (concat, intercalate, intersperse)
 import           Data.Map                         (Map)
 import qualified Data.Map                         as Map (empty, insertWith', toList)
 import           Data.Maybe                       (Maybe (..), maybe)
-import           Data.Monoid                      (Monoid (mappend, mconcat, mempty))
+import           Data.Monoid                      (Monoid (mconcat, mempty), (<>))
 import           Data.Word                        (Word8)
 import           GHC.Exts                         (Int (I#), uncheckedShiftRL#, word2Int#)
 import           GHC.Word                         (Word8 (..))
-import           Prelude                          (Bool (..), Either (..), Enum (fromEnum, toEnum), Eq (..), Num (..), Ord (..), String, and, any, concatMap, elem, error, filter, flip, foldr, fst, id, map, not, otherwise, reverse, show, snd, ($), ($!), (&&), (++), (.), (||))
+import           Prelude                          (Bool (..), Either (..), Enum (fromEnum, toEnum), Eq (..), Num (..), Ord (..), String, and, any, concatMap, elem, error, filter, flip, foldr, fst, id, map, not, otherwise, show, snd, ($), ($!), (&&), (++), (.), (||))
 import           Snap.Internal.Http.Types         (Cookie (Cookie))
 ------------------------------------------------------------------------------
 
@@ -37,6 +39,10 @@ import           Snap.Internal.Http.Types         (Cookie (Cookie))
 fullyParse :: ByteString -> Parser a -> Either String a
 fullyParse = fullyParse' parse feed
 
+{-# INLINE (<?>) #-}
+(<?>) :: Parser a -> String -> Parser a
+(<?>) a !b = (AP.<?>) a b
+infix 0 <?>
 
 ------------------------------------------------------------------------------
 {-# INLINE fullyParse' #-}
@@ -47,8 +53,13 @@ fullyParse' :: (Parser a -> ByteString -> Result a)
             -> Either String a
 fullyParse' parseFunc feedFunc s p =
     case r' of
-      (Fail _ _ e) -> Left e
-      (Partial _)  -> Left "parse failed"
+      (Fail _ context e) -> Left $ concat [ "Parsing "
+                                          , intercalate "/" context
+                                          , ": "
+                                          , e
+                                          , "."
+                                          ]
+      (Partial _)  -> Left "parse failed"  -- expected to be impossible
       (Done _ x)   -> Right x
   where
     r  = parseFunc p s
@@ -63,20 +74,15 @@ parseNum = decimal
 
 
 ------------------------------------------------------------------------------
-sp :: Parser Char
-sp       = char ' '
-
-
-------------------------------------------------------------------------------
 untilEOL :: Parser ByteString
-untilEOL = takeWhile notend
+untilEOL = takeWhile notend <?> "untilEOL"
   where
     notend c = not $ c == '\r' || c == '\n'
 
 
 ------------------------------------------------------------------------------
 crlf :: Parser ByteString
-crlf = string "\r\n"
+crlf = string "\r\n" <?> "crlf"
 
 
 ------------------------------------------------------------------------------
@@ -86,19 +92,8 @@ toTable f = inClass $ filter f $ map w2c [0..255]
 
 
 ------------------------------------------------------------------------------
--- | Parser for zero or more spaces.
-spaces :: Parser [Char]
-spaces = many sp
-
-
-------------------------------------------------------------------------------
-pSpaces :: Parser ByteString
-pSpaces = takeWhile isSpace
-
-
-------------------------------------------------------------------------------
-fieldChars :: Parser ByteString
-fieldChars = takeWhile isFieldChar
+skipFieldChars :: Parser ()
+skipFieldChars = skipWhile isFieldChar
 
 
 ------------------------------------------------------------------------------
@@ -111,17 +106,20 @@ isFieldChar = toTable f
 ------------------------------------------------------------------------------
 -- | Parser for request headers.
 pHeaders :: Parser [(ByteString, ByteString)]
-pHeaders = many header
+pHeaders = many' header <?> "headers"
   where
+    --------------------------------------------------------------------------
+    slurp p = fst <$> match p
+
     --------------------------------------------------------------------------
     header            = {-# SCC "pHeaders/header" #-}
                         liftA2 (,)
                             fieldName
-                            (char ':' *> spaces *> contents)
+                            (char ':' *> skipSpace *> contents)
 
     --------------------------------------------------------------------------
     fieldName         = {-# SCC "pHeaders/fieldName" #-}
-                        liftA2 S.cons letter_ascii fieldChars
+                        slurp (letter_ascii *> skipFieldChars)
 
     --------------------------------------------------------------------------
     contents          = {-# SCC "pHeaders/contents" #-}
@@ -135,13 +133,16 @@ pHeaders = many header
 
     --------------------------------------------------------------------------
     leadingWhiteSpace = {-# SCC "pHeaders/leadingWhiteSpace" #-}
-                        takeWhile1 isLeadingWS
+                        skipWhile1 isLeadingWS
 
     --------------------------------------------------------------------------
     continuation      = {-# SCC "pHeaders/continuation" #-}
                         liftA2 S.cons
                                (leadingWhiteSpace *> pure ' ')
                                contents
+
+    --------------------------------------------------------------------------
+    skipWhile1 f = satisfy f *> skipWhile f
 
 
 ------------------------------------------------------------------------------
@@ -155,17 +156,17 @@ pWord = pQuotedString <|> (takeWhile (/= ';'))
 pQuotedString :: Parser ByteString
 pQuotedString = q *> quotedText <* q
   where
-    quotedText = (S.concat . reverse) <$> f []
+    quotedText = toByteString <$> f mempty
 
     f soFar = do
         t <- takeWhile qdtext
-        let soFar' = t:soFar
+        let soFar' = soFar <> fromByteString t
         -- RFC says that backslash only escapes for <">
-        choice [ string "\\\"" *> f ("\"" : soFar')
+        choice [ string "\\\"" *> f (soFar' <> fromChar '"')
                , pure soFar' ]
 
-    q      = char '\"'
-    qdtext = matchAll [ isRFCText, (/= '\"'), (/= '\\') ]
+    q      = char '"'
+    qdtext = matchAll [ isRFCText, (/= '"'), (/= '\\') ]
 
 
 ------------------------------------------------------------------------------
@@ -184,7 +185,7 @@ matchAll x c = and $ map ($ c) x
 pAvPairs :: Parser [(ByteString, ByteString)]
 pAvPairs = do
     a <- pAvPair
-    b <- many (pSpaces *> char ';' *> pSpaces *> pAvPair)
+    b <- many' (skipSpace *> char ';' *> skipSpace *> pAvPair)
     return $! a:b
 
 
@@ -192,17 +193,19 @@ pAvPairs = do
 {-# INLINE pAvPair #-}
 pAvPair :: Parser (ByteString, ByteString)
 pAvPair = do
-    key <- pToken <* pSpaces
-    val <- liftM trim (option "" $ char '=' *> pSpaces *> pWord)
+    key <- pToken <* skipSpace
+    val <- liftM trim (option "" $ char '=' *> skipSpace *> pWord)
     return $! (key, val)
 
 
 ------------------------------------------------------------------------------
 pParameter :: Parser (ByteString, ByteString)
-pParameter = do
-    key <- pToken <* pSpaces
-    val <- liftM trim (char '=' *> pSpaces *> pWord)
-    return $! (trim key, val)
+pParameter = parser <?> "pParameter"
+  where
+    parser = do
+        key <- pToken <* skipSpace
+        val <- liftM trim (char '=' *> skipSpace *> pWord)
+        return $! (trim key, val)
 
 
 ------------------------------------------------------------------------------
@@ -213,26 +216,27 @@ trim = snd . S.span isSpace . fst . S.spanEnd isSpace
 
 ------------------------------------------------------------------------------
 pValueWithParameters :: Parser (ByteString, [(CI ByteString, ByteString)])
-pValueWithParameters = do
-    value  <- liftM trim (pSpaces *> takeWhile (/= ';'))
-    params <- many pParam
-    endOfInput
-    return (value, map (first CI.mk) params)
-
+pValueWithParameters = parser <?> "pValueWithParameters"
   where
-    pParam = pSpaces *> char ';' *> pSpaces *> pParameter
+    parser = do
+        value  <- liftM trim (skipSpace *> takeWhile (/= ';'))
+        params <- many' pParam
+        endOfInput
+        return (value, map (first CI.mk) params)
+    pParam = skipSpace *> char ';' *> skipSpace *> pParameter
 
 
 ------------------------------------------------------------------------------
 pContentTypeWithParameters :: Parser ( ByteString
                                      , [(CI ByteString, ByteString)] )
-pContentTypeWithParameters = do
-    value  <- liftM trim (pSpaces *> takeWhile (not . isSep))
-    params <- many (pSpaces *> satisfy isSep *> pSpaces *> pParameter)
-    endOfInput
-    return $! (value, map (first CI.mk) params)
-
+pContentTypeWithParameters = parser <?> "pContentTypeWithParameters"
   where
+    parser = do
+        value  <- liftM trim (skipSpace *> takeWhile (not . isSep))
+        params <- many' (skipSpace *> satisfy isSep *> skipSpace *> pParameter)
+        endOfInput
+        return $! (value, map (first CI.mk) params)
+
     isSep c = c == ';' || c == ','
 
 
@@ -368,10 +372,10 @@ urlEncodeBuilder = go mempty
     go !b !s = maybe b' esc (S.uncons y)
       where
         (x,y)     = S.span urlEncodeClean s
-        b'        = b `mappend` fromByteString x
+        b'        = b <> fromByteString x
         esc (c,r) = let b'' = if c == ' '
-                                then b' `mappend` fromWord8 (c2w '+')
-                                else b' `mappend` hexd c
+                                then b' <> fromWord8 (c2w '+')
+                                else b' <> hexd c
                     in go b'' r
 
 
@@ -384,7 +388,7 @@ urlEncodeClean = toTable f
 
 ------------------------------------------------------------------------------
 hexd :: Char -> Builder
-hexd c0 = fromWord8 (c2w '%') `mappend` fromWord8 hi `mappend` fromWord8 low
+hexd c0 = fromWord8 (c2w '%') <> fromWord8 hi <> fromWord8 low
   where
     !c        = c2w c0
     toDigit   = c2w . intToDigit

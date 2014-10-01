@@ -12,7 +12,7 @@ import           Data.List                      (sort)
 import qualified Data.Map                       as Map (empty, insert, lookup)
 import           Data.Time.Calendar             (Day (ModifiedJulianDay))
 import           Data.Time.Clock                (UTCTime (UTCTime))
-import           Snap.Internal.Http.Types       (Cookie (Cookie), HasHeaders (headers, updateHeaders), Method (CONNECT, DELETE, GET, HEAD, Method, OPTIONS, PATCH, POST, PUT, TRACE), Request (rqCookies, rqParams), Response (rspContentLength, rspStatus, rspStatusReason), addHeader, addResponseCookie, deleteResponseCookie, emptyResponse, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, rqModifyParams, rqParam, rqSetParam, setContentLength, setContentType, setResponseBody, setResponseCode, setResponseStatus)
+import           Snap.Internal.Http.Types       (Cookie (Cookie), HasHeaders (headers, updateHeaders), Method (CONNECT, DELETE, GET, HEAD, Method, OPTIONS, PATCH, POST, PUT, TRACE), Request (rqCookies, rqIsSecure, rqContentLength, rqParams), Response (rspContentLength, rspStatus, rspStatusReason), addHeader, addResponseCookie, cookieToBS, deleteResponseCookie, emptyResponse, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, rqModifyParams, rqParam, rqSetParam, setContentLength, setContentType, setResponseBody, setResponseCode, setResponseStatus)
 import           Snap.Internal.Parsing          (urlDecode)
 import qualified Snap.Test                      as Test (buildRequest, get, getResponseBody)
 import qualified Snap.Types.Headers             as H (lookup, set)
@@ -26,6 +26,7 @@ import           Text.Regex.Posix               ((=~))
 tests :: [Test]
 tests = [ testTypes
         , testCookies
+        , testCookieToBS
         , testUrlDecode
         , testFormatLogTime
         , testAddHeader
@@ -97,7 +98,11 @@ testTypes = testCase "httpTypes/show" $ do
               rqSetParam "foo" ["bar"] $
               defReq
 
-    let req2 = (addHeader "zomg" "1234" req) { rqCookies = [ cook, cook2 ] }
+    let req2 = (addHeader "zomg" "1234" req)
+               { rqCookies = [ cook, cook2 ]
+               , rqIsSecure = True
+               , rqContentLength = Just 10
+               }
 
     let !a = show req `using` rdeepseq
     let !_ = show req2 `using` rdeepseq
@@ -145,6 +150,19 @@ testTypes = testCase "httpTypes/show" $ do
 
 
 ------------------------------------------------------------------------------
+testCookieToBS :: Test
+testCookieToBS = testCase "httpTypes/cookieToBS" $ do
+    let [b0, b1, b2] = map cookieToBS [cookie0, cookie1, cookie2]
+    assertEqual "cookie0" "foo=bar; HttpOnly" b0
+    assertEqual "cookie1" "foo=bar; Secure" b1
+    assertEqual "cookie2" "foo=bar; path=/; expires=Sat, 30 Jan 2010 00:00:00 GMT; domain=.foo.com; HttpOnly" b2
+  where
+    utc   = UTCTime (ModifiedJulianDay 55226) 0
+    cookie0  = Cookie "foo" "bar" Nothing Nothing Nothing False True
+    cookie1  = Cookie "foo" "bar" Nothing Nothing Nothing True False
+    cookie2  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False True
+
+
 testCookies :: Test
 testCookies = testCase "httpTypes/cookies" $ do
     assertEqual "cookie" (Just cook) rCook

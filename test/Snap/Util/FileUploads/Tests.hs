@@ -89,13 +89,27 @@ testSuccess1 = testCase "fileUploads/success1" $
         p2  <- getParam "field2"
 
         liftIO $ do
+            let Just (a1, a2, a3) = Map.lookup "file1.txt" fileMap
+            let Just (b1, b2, b3) = Map.lookup "file2.gif" fileMap
             assertEqual "file1 contents"
-                        (Just ("text/plain", file1Contents))
-                        (Map.lookup "file1.txt" fileMap)
+                        ("text/plain", file1Contents)
+                        (a1, a2)
+            assertEqual "file1 header 1"
+                        (Just "text/plain")
+                        (H.lookup "content-type" a3)
+            assertEqual "file1 header 2"
+                        (Just "attachment; filename=\"file1.txt\"")
+                        (H.lookup "content-disposition" a3)
 
             assertEqual "file2 contents"
-                        (Just ("image/gif", file2Contents))
-                        (Map.lookup "file2.gif" fileMap)
+                        ("image/gif", file2Contents)
+                        (b1, b2)
+            assertEqual "file2 header 1"
+                        (Just "image/gif")
+                        (H.lookup "content-type" b3)
+            assertEqual "file2 header 2"
+                        (Just "attachment; filename=\"file2.gif\"")
+                        (H.lookup "content-disposition" b3)
 
             assertEqual "field1 contents"
                         (Just formContents1)
@@ -105,7 +119,7 @@ testSuccess1 = testCase "fileUploads/success1" $
             assertEqual "field1 query contents" Nothing p1Q
             assertEqual "field2 contents" (Just formContents2) p2
 
-    f mp (fn, ct, x) = Map.insert fn (ct,x) mp
+    f mp (fn, ct, x, hdrs) = Map.insert fn (ct,x,hdrs) mp
 
     hndl' partInfo =
         either throw
@@ -113,7 +127,8 @@ testSuccess1 = testCase "fileUploads/success1" $
                     x <- liftIO $ S.readFile fp
                     let fn = fromJust $ partFileName partInfo
                     let ct = partContentType partInfo
-                    return (fn, ct, x))
+                    let hdrs = partHeaders partInfo
+                    return (fn, ct, x, hdrs))
 
 
 ------------------------------------------------------------------------------

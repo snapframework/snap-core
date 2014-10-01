@@ -36,7 +36,7 @@ import           Data.Time.Clock          (UTCTime)
 import           Data.Time.Clock.POSIX    (utcTimeToPOSIXSeconds)
 import           Data.Word                (Word64)
 import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromIntegral, fromInteger, id, not, otherwise, truncate, ($), (.))
+import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromInteger, fromIntegral, id, not, otherwise, realToFrac, truncate, ($), (.))
 #ifdef PORTABLE
 import           Prelude                  (($!))
 #endif
