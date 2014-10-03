@@ -2000,9 +2000,9 @@ readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 -- ghci> import qualified "Data.Map" as M
 -- ghci> import qualified "Snap.Test" as T
 -- ghci> let r = T.get \"\/foo\/bar\" M.empty
--- ghci> T.runHandler r ('expireCookie' "name" Nothing)
+-- ghci> T.runHandler r ('expireCookie' "name" Nothing (Just "/"))
 -- HTTP/1.1 200 OK
--- set-cookie: name=; expires=Sat, 24 Dec 1994 06:28:16 GMT
+-- set-cookie: name=; path=/; expires=Sat, 24 Dec 1994 06:28:16 GMT
 -- server: Snap/test
 -- date: Thu, 07 Aug 2014 12:21:27 GMT
 --
@@ -2013,11 +2013,13 @@ expireCookie :: (MonadSnap m)
              -- ^ Cookie name
              -> Maybe ByteString
              -- ^ Cookie domain
+             -> Maybe ByteString
+             -- ^ Cookie path
              -> m ()
-expireCookie nm dm = do
+expireCookie nm dm pt = do
   let old = UTCTime (ModifiedJulianDay 0) 0
   modifyResponse $ addResponseCookie
-                 $ Cookie nm "" (Just old) dm Nothing False False
+                 $ Cookie nm "" (Just old) dm pt False False
 
 
 ------------------------------------------------------------------------------
