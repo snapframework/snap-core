@@ -206,7 +206,7 @@ route rts = do
 
 
 ------------------------------------------------------------------------------
--- | The 'routeLocal' function is the same as 'route'', except it doesn't
+-- | The 'routeLocal' function is the same as 'route', except it doesn't
 -- change the request's context path. This is useful if you want to route to a
 -- particular handler but you want that handler to receive the 'rqPathInfo' as
 -- it is.
