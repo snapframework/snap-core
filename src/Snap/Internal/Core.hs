@@ -80,6 +80,7 @@ module Snap.Internal.Core
   , getCookie
   , readCookie
   , expireCookie
+  , expireCookieAt
   , setTimeout
   , extendTimeout
   , modifyTimeout
@@ -1993,6 +1994,9 @@ readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 ------------------------------------------------------------------------------
 -- | Expire the given 'Cookie' in client's browser.
 --
+-- Sets cookie path to `/`. Use 'expireCookieAt' if you need to expire cookie
+-- at another path.
+--
 -- Example:
 --
 -- @
@@ -2000,7 +2004,7 @@ readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 -- ghci> import qualified "Data.Map" as M
 -- ghci> import qualified "Snap.Test" as T
 -- ghci> let r = T.get \"\/foo\/bar\" M.empty
--- ghci> T.runHandler r ('expireCookie' "name" Nothing (Just "/"))
+-- ghci> T.runHandler r ('expireCookie' "name" Nothing)
 -- HTTP/1.1 200 OK
 -- set-cookie: name=; path=/; expires=Sat, 24 Dec 1994 06:28:16 GMT
 -- server: Snap/test
@@ -2008,7 +2012,37 @@ readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 --
 --
 -- @
-expireCookie :: (MonadSnap m)
+expireCookie :: MonadSnap m
+             => ByteString
+             -- ^ Cookie name
+             -> Maybe ByteString
+             -- ^ Cookie domain
+             -> m ()
+expireCookie nm dm = expireCookieAt nm dm (Just "/")
+
+-- | As 'expireCookie' but allows to specify cookie path.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> let r = T.get \"\/foo\/bar\" M.empty
+-- ghci> T.runHandler r ('expireCookieAt' "name" Nothing (Just "/subsite"))
+-- HTTP/1.1 200 OK
+-- set-cookie: name=; path=/subsite; expires=Sat, 24 Dec 1994 06:28:16 GMT
+-- server: Snap/test
+-- date: Thu, 07 Aug 2014 12:21:27 GMT
+--
+-- ghci> T.runHandler r ('expireCookieAt' "name" (Just "example.com") Nothing)
+-- HTTP/1.1 200 OK
+-- set-cookie: name=; domain=example.com; expires=Sat, 24 Dec 1994 06:28:16 GMT
+-- server: Snap/test
+-- date: Thu, 07 Aug 2014 12:21:37 GMT
+--
+-- @
+expireCookieAt :: (MonadSnap m)
              => ByteString
              -- ^ Cookie name
              -> Maybe ByteString
@@ -2016,11 +2050,10 @@ expireCookie :: (MonadSnap m)
              -> Maybe ByteString
              -- ^ Cookie path
              -> m ()
-expireCookie nm dm pt = do
+expireCookieAt nm dm pt = do
   let old = UTCTime (ModifiedJulianDay 0) 0
   modifyResponse $ addResponseCookie
                  $ Cookie nm "" (Just old) dm pt False False
-
 
 ------------------------------------------------------------------------------
 -- | Causes the handler thread to be killed @n@ seconds from now.
