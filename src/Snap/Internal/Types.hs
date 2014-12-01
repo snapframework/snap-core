@@ -270,7 +270,7 @@ after @N@ seconds of inactivity (the default is 20 seconds):
 -- here\". Using 'MonadSnap' you can extend the 'Snap' monad with additional
 -- functionality and still have access to most of the 'Snap' functions without
 -- writing 'ControlMonad.Trans.Class.lift' everywhere. Instances are already
--- provided for mostof the common monad transformers
+-- provided for most of the common monad transformers
 -- ('Control.Monad.Trans.Reader.ReaderT', 'Control.Monad.Trans.Writer.WriterT',
 -- 'Control.Monad.Trans.State.StateT', etc.).
 newtype Snap a = Snap {
