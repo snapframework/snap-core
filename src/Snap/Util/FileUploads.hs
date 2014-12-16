@@ -22,19 +22,19 @@
 -- Example usage:
 --
 -- @
--- {-# LANGUAGE OverloadedStrings #-}
+-- {-\# LANGUAGE OverloadedStrings #-}
 --
 -- module Main where
 --
--- import qualified "Data.ByteString.Char8" as B8
--- import           "Data.Functor"          ((\<$>))
--- import           "Snap.Core"             (Snap, route, writeBS)
--- import           "Snap.Http.Server"      (quickHttpServe)
+-- import qualified Data.ByteString.Char8 as B8
+-- import           Data.Functor          ((\<$>))
+-- import           "Snap.Core"             ('Snap.Core.Snap', 'Snap.Core.route', 'Snap.Core.writeBS')
+-- import           Snap.Http.Server      (quickHttpServe)
 -- import           "Snap.Util.FileUploads"
--- import           "System.Posix"          (FileOffset, fileSize, getFileStatus)
+-- import           System.Posix          (FileOffset, fileSize, getFileStatus)
 --
--- uploadForm :: Snap ()
--- uploadForm = writeBS \"\<form enctype=\\\"multipart\/form-data\\\" action=\\"\/do-upload\\\" method=\\\"POST\\\">\\
+-- uploadForm :: 'Snap.Core.Snap' ()
+-- uploadForm = 'Snap.Core.writeBS' \"\<form enctype=\\\"multipart\/form-data\\\" action=\\"\/do-upload\\\" method=\\\"POST\\\">\\
 --     \\\<input name=\\\"file\\\" type=\\\"file\\\" \/>\\
 --     \\\<input type=\\\"submit\\\" value=\\\"Send File\\\" \/>\\
 --     \\\<\/form>\"
@@ -43,21 +43,21 @@
 -- getFileSize path = fileSize \<$> getFileStatus path
 --
 -- -- Upload handler that prints out the uploaded file\'s size.
--- doUpload :: Snap ()
+-- doUpload :: 'Snap.Core.Snap' ()
 -- doUpload = do
 --   l \<- 'handleFileUploads' \"\/tmp\" 'defaultUploadPolicy'
 --        (const $ 'allowWithMaximumSize' ('getMaximumFormInputSize' 'defaultUploadPolicy'))
 --        (\\pinfo mbfname -> do fsize \<- either (const $ return 0) getFileSize mbfname
 --                              return ('partFileName' pinfo, fsize))
---   writeBS . B8.pack . show $ l
+--   'writeBS' . B8.pack . show $ l
 --
--- site :: Snap ()
+-- site :: 'Snap.Core.Snap' ()
 -- site = 'Snap.Core.route'
 --   [ (\"\/upload\",    uploadForm)
 --   , (\"\/do-upload\", doUpload)]
 --
 -- main :: IO ()
--- main = 'Snap.Http.Server.quickHttpServe' site
+-- main = quickHttpServe site
 -- @
 module Snap.Util.FileUploads
   ( -- * Functions

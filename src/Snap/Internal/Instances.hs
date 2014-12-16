@@ -23,7 +23,7 @@ import           Control.Monad.Trans.State.Strict  (StateT)
 import qualified Control.Monad.Trans.Writer.Lazy   as LWriter (WriterT)
 import           Control.Monad.Trans.Writer.Strict (WriterT)
 import           Data.Monoid                       (Monoid)
-import           Snap.Internal.Types               (MonadSnap (..))
+import           Snap.Internal.Core                (MonadSnap (..))
 ------------------------------------------------------------------------------
 
 

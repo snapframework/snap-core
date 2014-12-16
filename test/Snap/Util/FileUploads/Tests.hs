@@ -22,8 +22,8 @@ import           Data.Maybe                     (Maybe (..), fromJust, maybe)
 import qualified Data.Text                      as T
 import           Data.Typeable                  (Typeable)
 import           Prelude                        (Bool (..), Either (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
+import           Snap.Internal.Core             (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
 import           Snap.Internal.Http.Types       (Request (rqBody), Response, setHeader)
-import           Snap.Internal.Types            (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
 import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout, toPartDisposition)
 import qualified Snap.Test                      as Test
 import           Snap.Test.Common               (coverEqInstance, coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)

@@ -50,7 +50,7 @@ import           Control.Applicative              (Alternative ((<|>)), Applicat
 import           Control.Arrow                    (Arrow (first))
 import           Control.Exception.Lifted         (Exception, SomeException (..), bracket, catch, fromException, mask, throwIO, toException)
 import qualified Control.Exception.Lifted         as E (try)
-import           Control.Monad                    (Functor (fmap), Monad ((>>=), return), MonadPlus (mzero), guard, liftM, sequence, void, when)
+import           Control.Monad                    (Functor (fmap), Monad ((>>=), return), MonadPlus (mzero), guard, liftM, sequence, void, when, (>=>))
 import           Data.Attoparsec.ByteString.Char8 (Parser, isEndOfLine, string, takeWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (try)
 import           Data.ByteString.Char8            (ByteString)
@@ -82,6 +82,10 @@ import           System.PosixCompat.Temp          (mkstemp)
 -- | Reads uploaded files into a temporary directory and calls a user handler
 -- to process them.
 --
+-- Note: /THE REQUEST MUST BE CORRECTLY ENCODED/. If the request's
+-- @Content-type@ is not \"@multipart/formdata@\", this function skips
+-- processing using 'pass'.
+--
 -- Given a temporary directory, global and file-specific upload policies, and a
 -- user handler, this function consumes a request body uploaded with
 -- @Content-type: multipart/form-data@. Each file is read into the temporary
@@ -104,8 +108,7 @@ import           System.PosixCompat.Temp          (mkstemp)
 --
 -- 2. the file was accepted and exists at the given path.
 --
--- If the request's @Content-type@ was not \"@multipart/formdata@\", this
--- function skips processing using 'pass'.
+-- /Exceptions/
 --
 -- If the client's upload rate passes below the configured minimum (see
 -- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function
@@ -176,19 +179,22 @@ type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
 ------------------------------------------------------------------------------
 -- | Given an upload policy and a function to consume uploaded \"parts\",
 -- consume a request body uploaded with @Content-type: multipart/form-data@.
--- Normally most users will want to use 'handleFileUploads' (which writes
--- uploaded files to a temporary directory and passes their names to a given
--- handler) rather than this function; the lower-level 'handleMultipart'
--- function should be used if you want to stream uploaded files to your own
--- function.
 --
--- If the request's @Content-type@ was not \"@multipart/formdata@\", this
--- function skips processing using 'pass'.
+-- Note: /THE REQUEST MUST BE CORRECTLY ENCODED/. If the request's
+-- @Content-type@ is not \"@multipart/formdata@\", this function skips
+-- processing using 'pass'.
+--
+-- Most users will opt for the higher-level 'handleFileUploads', which writes
+-- to temporary files, rather than 'handleMultipart'. This function should be
+-- chosen, however, if you need to stream uploaded files directly to your own
+-- processing function: e.g. to a database or a remote service via RPC.
 --
 -- If the client's upload rate passes below the configured minimum (see
 -- 'setMinimumUploadRate' and 'setMinimumUploadSeconds'), this function
 -- terminates the connection. This setting is there to protect the server
 -- against slowloris-style denial of service attacks.
+--
+-- /Exceptions/
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
 -- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and
@@ -236,20 +242,19 @@ handleMultipart uploadPolicy origPartHandler = do
     maxFormVars = maximumNumberOfFormInputs uploadPolicy
 
     --------------------------------------------------------------------------
-    proc bumpTimeout boundary partHandler stream = do
-        str <- Streams.throwIfTooSlow bumpTimeout uploadRate uploadSecs stream
-        internalHandleMultipart boundary partHandler str
+    proc bumpTimeout boundary partHandler =
+        Streams.throwIfTooSlow bumpTimeout uploadRate uploadSecs >=>
+        internalHandleMultipart boundary partHandler
 
     --------------------------------------------------------------------------
     procCaptures []                 dl = return $! dl []
     procCaptures ((File x):xs)      dl = procCaptures xs (dl . (x:))
     procCaptures ((Capture k v):xs) dl = do
         rq <- getRequest
-        let n = Map.size $ rqPostParams rq
-        when (n >= maxFormVars) $
-          throwIO $ PolicyViolationException $
-          T.concat [ "number of form inputs exceeded maximum of "
-                   , T.pack $ show maxFormVars ]
+        when (Map.size (rqPostParams rq) >= maxFormVars)
+          $ throwIO . PolicyViolationException
+          $ T.concat [ "number of form inputs exceeded maximum of "
+                     , T.pack $ show maxFormVars ]
         putRequest $ modifyParams (ins k v) rq
         procCaptures xs dl
 
@@ -271,6 +276,7 @@ data PartDisposition =
   | DispositionFormData         -- ^ @Content-Disposition: form-data@.
   | DispositionOther ByteString -- ^ Any other value.
   deriving (Eq, Show)
+
 
 ------------------------------------------------------------------------------
 -- | 'PartInfo' contains information about a \"part\" in a request uploaded
@@ -298,6 +304,7 @@ toPartDisposition s | s == "attachment" = DispositionAttachment
                     | s == "file"       = DispositionFile
                     | s == "form-data"  = DispositionFormData
                     | otherwise         = DispositionOther s
+
 
 ------------------------------------------------------------------------------
 -- | All of the exceptions defined in this package inherit from

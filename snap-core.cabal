@@ -100,10 +100,10 @@ Library
 
   exposed-modules:
     Snap.Core,
+    Snap.Internal.Core,
     Snap.Internal.Debug,
     Snap.Internal.Http.Types,
     Snap.Internal.Parsing,
-    Snap.Internal.Types,
     Snap.Test,
     Snap.Types.Headers,
     Snap.Util.FileServe,
@@ -197,9 +197,9 @@ Test-suite testsuite
     Snap.Util.FileUploads,
     Snap.Util.GZip,
     Snap.Util.Proxy,
+    Snap.Internal.Core,
     Snap.Internal.Instances,
     Snap.Internal.Routing,
-    Snap.Internal.Types,
     Snap.Internal.Test.RequestBuilder,
     Snap.Internal.Test.Assertions,
     Snap.Internal.Util.FileServe,

@@ -55,9 +55,9 @@ import           Data.Monoid                    (Monoid (mappend, mconcat, mempt
 import qualified Data.Vector                    as V
 import           Data.Word                      (Word8)
 import           Snap.Core                      (Cookie (Cookie), Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
+import           Snap.Internal.Core             (evalSnap, fixupResponse)
 import           Snap.Internal.Http.Types       (Request (Request, rqBody), Response (rspBody, rspContentLength), rspBodyToEnum)
 import qualified Snap.Internal.Http.Types       as H
-import           Snap.Internal.Types            (evalSnap, fixupResponse)
 import qualified Snap.Types.Headers             as H
 import qualified System.IO.Streams              as Streams
 import           System.PosixCompat.Time        (epochTime)

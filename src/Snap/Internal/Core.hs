@@ -9,13 +9,13 @@
 {-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE Rank2Types                 #-}
 {-# LANGUAGE ScopedTypeVariables        #-}
+{-# LANGUAGE TypeFamilies               #-}
+{-# LANGUAGE TypeSynonymInstances       #-}
 #if __GLASGOW_HASKELL__ >= 708
 {-# LANGUAGE StandaloneDeriving         #-}
 #endif
-{-# LANGUAGE TypeFamilies               #-}
-{-# LANGUAGE TypeSynonymInstances       #-}
 
-module Snap.Internal.Types
+module Snap.Internal.Core
   ( MonadSnap(..)
   , SnapResult(..)
   , EscapeHttpHandler
@@ -203,11 +203,13 @@ you can try alternative handlers with the '<|>' operator:
     @
 
 4. Convenience functions ('writeBS', 'writeLBS', 'writeText', 'writeLazyText',
-'addToOutput') for queueing output to be written to the 'Response':
+'addToOutput') for queueing output to be written to the 'Response', or for
+streaming to the response using
+<http://hackage.haskell.org/package/io-streams io-streams>:
 
     @
-    a :: ('OutputStream' 'Builder' -> IO ('OutputStream' 'Builder')) -> Snap ()
-    a streamProc = do
+    example :: ('OutputStream' 'Builder' -> IO ('OutputStream' 'Builder')) -> Snap ()
+    example streamProc = do
         'writeBS'   \"I\'m a strict bytestring\"
         'writeLBS'  \"I\'m a lazy bytestring\"
         'writeText' \"I\'m strict text\"
@@ -225,8 +227,8 @@ you can try alternative handlers with the '<|>' operator:
         'finishWith' r
     @
 
-    then any subsequent processing will be skipped and supplied 'Response' value
-    will be returned from 'runSnap' as-is.
+    then any subsequent processing will be skipped and the supplied 'Response'
+    value will be returned from 'runSnap' as-is.
 
 6. Access to the 'IO' monad through a 'MonadIO' instance:
 
@@ -470,7 +472,8 @@ runRequestBody proc = do
 
 
 ------------------------------------------------------------------------------
--- | Returns the request body as a lazy bytestring. /New in 0.6./
+-- | Returns the request body as a lazy bytestring. /Note that the request is
+-- not actually provided lazily!/
 --
 -- Example:
 --
@@ -486,6 +489,8 @@ runRequestBody proc = do
 --
 -- some text
 -- @
+--
+-- /Since: 0.6/
 readRequestBody :: MonadSnap m =>
                    Word64  -- ^ size of the largest request body we're willing
                            -- to accept. If a request body longer than this is

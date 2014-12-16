@@ -19,9 +19,9 @@ import           Data.HashMap.Strict      (HashMap)
 import qualified Data.HashMap.Strict      as H (elems, empty, fromList, lookup, unionWith)
 import qualified Data.Map                 as Map (empty, insertWith, unionWith)
 import           Data.Monoid              (Monoid (..))
+import           Snap.Internal.Core       (MonadSnap, getRequest, getsRequest, localRequest, modifyRequest, pass, updateContextPath)
 import           Snap.Internal.Http.Types (Params, Request (rqContextPath, rqParams, rqPathInfo))
 import           Snap.Internal.Parsing    (urlDecode)
-import           Snap.Internal.Types      (MonadSnap, getRequest, getsRequest, localRequest, modifyRequest, pass, updateContextPath)
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
