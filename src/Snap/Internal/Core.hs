@@ -327,10 +327,13 @@ instance (MonadBase IO) Snap where
 
 
 ------------------------------------------------------------------------------
+
+newtype StSnap a = StSnap {
+      unStSnap :: StM (StateT SnapState IO) (SnapResult a)
+    }
+
 instance (MonadBaseControl IO) Snap where
-    newtype StM Snap a = StSnap {
-          unStSnap :: StM (StateT SnapState IO) (SnapResult a)
-        }
+    type StM Snap a = StSnap a
 
     liftBaseWith f = stateTToSnap $ liftM SnapValue $
                      liftBaseWith $ \g' -> f $ \m ->
