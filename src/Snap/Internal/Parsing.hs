@@ -302,7 +302,7 @@ pUrlEscaped = do
     unEncoded :: Char -> DList ByteString -> Parser (DList ByteString)
     unEncoded !c !l' = do
         let l = l' . ((S.singleton c) :)
-        bs   <- takeTill (flip elem "%+")
+        bs   <- takeTill (flip elem ['%', '+'])
         if S.null bs
           then nextChunk l
           else nextChunk $ l . (bs :)
@@ -354,8 +354,9 @@ urlEncodeBuilder = go mempty
 urlEncodeTable :: FastSet
 urlEncodeTable = generateFS f
   where
-    f c = any ($ (w2c c)) [isAlphaNum, flip elem "$_-.!*'(),"]
-
+    f c = any ($ (w2c c)) [isAlphaNum, flip elem [ '$', '_', '-', '.', '!'
+                                                 , '*' , '\'', '(', ')'
+                                                 , ',' ] ]
 
 ------------------------------------------------------------------------------
 hexd :: Char -> Builder
