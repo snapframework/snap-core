@@ -1490,8 +1490,8 @@ ipHeaderFilter' :: MonadSnap m => CI ByteString -> m ()
 ipHeaderFilter' header = do
     headerContents <- getHeader header <$> getRequest
 
-    let whitespace = " \t\r\n"
-        ipChrs = ".0123456789"
+    let whitespace = [ ' ', '\t', '\r', '\n' ]
+        ipChrs = [ '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' ]
         trim f s = f (`elem` s)
 
         clean = trim S.takeWhile ipChrs . trim S.dropWhile whitespace

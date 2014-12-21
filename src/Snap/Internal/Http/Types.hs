@@ -611,7 +611,7 @@ instance Show Request where
 
       showFlds header delim lst
                     = if not . null $ lst then header ++ (intercalate delim lst)
-                      else ""
+                      else "" :: String
 
 ------------------------------------------------------------------------------
 instance HasHeaders Request where
