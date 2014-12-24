@@ -35,14 +35,14 @@ import           Control.Monad                    (Monad ((>>), (>>=), return), 
 import           Control.Monad.IO.Class           (MonadIO (..))
 import           Data.Attoparsec.ByteString.Char8 (Parser, char, endOfInput, option, string)
 import           Data.ByteString.Char8            (ByteString)
-import qualified Data.ByteString.Char8            as S (append, concat, intercalate, isSuffixOf, null, pack, takeWhile, unpack)
+import qualified Data.ByteString.Char8            as S (append, concat, intercalate, isSuffixOf, null, pack, takeWhile)
 import           Data.ByteString.Internal         (c2w)
 import           Data.HashMap.Strict              (HashMap)
 import qualified Data.HashMap.Strict              as Map (empty, fromList, lookup)
 import           Data.List                        (drop, elem, filter, foldl', null, sort, (++))
 import           Data.Maybe                       (fromMaybe, isNothing)
 import           Data.Monoid                      (Monoid (mappend, mconcat))
-import qualified Data.Text                        as T (Text, pack)
+import qualified Data.Text                        as T (Text, pack, unpack)
 import qualified Data.Text.Encoding               as T (decodeUtf8, encodeUtf8)
 import           Data.Word                        (Word64)
 import           Prelude                          (Bool (..), Eq (..), FilePath, IO, Maybe (Just, Nothing), Num (..), Ord (..), String, const, either, flip, fromIntegral, id, maybe, not, ($), ($!), (.), (||))
@@ -82,7 +82,7 @@ getSafePath = do
     req <- getRequest
     let mp = urlDecode $ rqPathInfo req
 
-    p <- maybe pass (return . S.unpack) mp
+    p <- maybe pass (return . T.unpack . T.decodeUtf8) mp
 
     -- relative paths only!
     when (not $ isRelative p) pass
