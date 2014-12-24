@@ -386,6 +386,7 @@ urlEncodeClean = toTable f
     f c = any ($ c) [isAlphaNum, flip elem [ '$', '_', '-', '.', '!'
                                            , '*' , '\'', '(', ')', ',' ]]
 
+
 ------------------------------------------------------------------------------
 hexd :: Char -> Builder
 hexd c0 = fromWord8 (c2w '%') <> fromWord8 hi <> fromWord8 low
