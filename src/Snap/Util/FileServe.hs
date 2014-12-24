@@ -1,4 +1,3 @@
-{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -28,26 +27,26 @@ module Snap.Util.FileServe
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.Char8
 import           Control.Applicative
-import           Control.Exception (SomeException, evaluate)
+import           Control.Exception              (SomeException, evaluate)
 import           Control.Monad
 import           Control.Monad.CatchIO
 import           Control.Monad.Trans
 import           Data.Attoparsec.Char8
-import qualified Data.ByteString.Char8 as S
-import           Data.ByteString.Char8 (ByteString)
-import           Data.ByteString.Internal (c2w)
+import           Data.ByteString.Char8          (ByteString)
+import qualified Data.ByteString.Char8          as S
+import           Data.ByteString.Internal       (c2w)
+import           Data.HashMap.Strict            (HashMap)
+import qualified Data.HashMap.Strict            as Map
 import           Data.Int
 import           Data.List
-import           Data.HashMap.Strict (HashMap)
-import qualified Data.HashMap.Strict as Map
-import           Data.Maybe (fromMaybe, isNothing)
+import           Data.Maybe                     (fromMaybe, isNothing)
 import           Data.Monoid
-import qualified Data.Text as T
-import qualified Data.Text.Encoding as T
+import qualified Data.Text                      as T
+import qualified Data.Text.Encoding             as T
 #if MIN_VERSION_base(4,6,0)
-import           Prelude hiding (show, Show)
+import           Prelude                        hiding (Show, show)
 #else
-import           Prelude hiding (catch, show, Show)
+import           Prelude                        hiding (Show, catch, show)
 #endif
 import qualified Prelude
 import           System.Directory
@@ -57,7 +56,7 @@ import           System.PosixCompat.Files
 import           Snap.Core
 import           Snap.Internal.Debug
 import           Snap.Internal.Parsing
-import           Snap.Iteratee hiding (drop)
+import           Snap.Iteratee                  hiding (drop)
 
 
 ------------------------------------------------------------------------------
@@ -69,7 +68,7 @@ getSafePath = do
     req <- getRequest
     let mp = urlDecode $ rqPathInfo req
 
-    p <- maybe pass (return . S.unpack) mp
+    p <- maybe pass (return . T.unpack . T.decodeUtf8) mp
 
     -- relative paths only!
     when (not $ isRelative p) pass
