@@ -39,30 +39,30 @@ module Snap.Internal.Test.RequestBuilder
   ) where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder       (Builder, fromByteString, fromWord8, toByteString)
-import           Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
-import           Control.Applicative            (Applicative)
-import           Control.Monad                  (liftM, replicateM, void)
-import           Control.Monad.State.Strict     (MonadIO (..), MonadState, MonadTrans, StateT, execStateT, modify)
-import qualified Control.Monad.State.Strict     as State
-import           Data.Bits                      (Bits ((.&.), unsafeShiftR))
-import qualified Data.ByteString                as S8
-import           Data.ByteString.Char8          (ByteString)
-import qualified Data.ByteString.Char8          as S
-import           Data.CaseInsensitive           (CI, original)
-import qualified Data.Map                       as Map
-import           Data.Monoid                    (Monoid (mappend, mconcat, mempty))
-import qualified Data.Vector                    as V
-import           Data.Word                      (Word8)
-import           Snap.Core                      (Cookie (Cookie), Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
-import           Snap.Internal.Core             (evalSnap, fixupResponse)
-import           Snap.Internal.Http.Types       (Request (Request, rqBody), Response (rspBody, rspContentLength), rspBodyToEnum)
-import qualified Snap.Internal.Http.Types       as H
-import qualified Snap.Types.Headers             as H
-import qualified System.IO.Streams              as Streams
-import           System.PosixCompat.Time        (epochTime)
-import           System.Random                  (Random (randomIO))
-import           Text.Printf                    (printf)
+import           Control.Applicative        (Applicative)
+import           Control.Monad              (liftM, replicateM, void)
+import           Control.Monad.State.Strict (MonadIO (..), MonadState, MonadTrans, StateT, execStateT, modify)
+import qualified Control.Monad.State.Strict as State
+import           Data.Bits                  (Bits ((.&.), unsafeShiftR))
+import qualified Data.ByteString            as S8
+import           Data.ByteString.Builder    (Builder, byteString, char8, stringUtf8, toLazyByteString, word8)
+import           Data.ByteString.Char8      (ByteString)
+import qualified Data.ByteString.Char8      as S
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.CaseInsensitive       (CI, original)
+import qualified Data.Map                   as Map
+import           Data.Monoid                (Monoid (mappend, mconcat, mempty))
+import qualified Data.Vector                as V
+import           Data.Word                  (Word8)
+import           Snap.Core                  (Cookie (Cookie), Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
+import           Snap.Internal.Core         (evalSnap, fixupResponse)
+import           Snap.Internal.Http.Types   (Request (Request, rqBody), Response (rspBody, rspContentLength), rspBodyToEnum)
+import qualified Snap.Internal.Http.Types   as H
+import qualified Snap.Types.Headers         as H
+import qualified System.IO.Streams          as Streams
+import           System.PosixCompat.Time    (epochTime)
+import           System.Random              (Random (randomIO))
+import           Text.Printf                (printf)
 ------------------------------------------------------------------------------
 
 
@@ -309,7 +309,7 @@ makeBoundary = do
 
     f m c = let low = c .&. 0xf
                 hi  = (c .&. 0xf0) `shR` 4
-                k   = \i -> fromWord8 $! toEnum $! fromEnum $!
+                k   = \i -> word8 $! toEnum $! fromEnum $!
                             V.unsafeIndex table (fromEnum i)
             in m `mappend` k hi `mappend` k low
 
@@ -317,11 +317,11 @@ makeBoundary = do
 ------------------------------------------------------------------------------
 multipartHeader :: ByteString -> ByteString -> Builder
 multipartHeader boundary name =
-    mconcat [ fromByteString boundary
-            , fromByteString "\r\ncontent-disposition: form-data"
-            , fromByteString "; name=\""
-            , fromByteString name
-            , fromByteString "\"\r\n" ]
+    mconcat [ byteString boundary
+            , byteString "\r\ncontent-disposition: form-data"
+            , byteString "; name=\""
+            , byteString name
+            , byteString "\"\r\n" ]
 
 
 ------------------------------------------------------------------------------
@@ -332,37 +332,37 @@ encodeFormData boundary name vals =
       []  -> return mempty
       [v] -> return $ mconcat [ hdr
                               , cr
-                              , fromByteString v
-                              , fromByteString "\r\n--" ]
+                              , byteString v
+                              , byteString "\r\n--" ]
       _   -> multi
 
   where
     hdr = multipartHeader boundary name
-    cr = fromByteString "\r\n"
+    cr = byteString "\r\n"
 
-    oneVal b v = mconcat [ fromByteString b
+    oneVal b v = mconcat [ byteString b
                          , cr
                          , cr
-                         , fromByteString v
-                         , fromByteString "\r\n--" ]
+                         , byteString v
+                         , byteString "\r\n--" ]
 
     multi = do
         b <- makeBoundary
         return $ mconcat [ hdr
                          , multipartMixed b
                          , cr
-                         , fromByteString "--"
+                         , byteString "--"
                          , mconcat (map (oneVal b) vals)
-                         , fromByteString b
-                         , fromByteString "--\r\n--" ]
+                         , byteString b
+                         , byteString "--\r\n--" ]
 
 
 ------------------------------------------------------------------------------
 multipartMixed :: ByteString -> Builder
-multipartMixed b = mconcat [ fromByteString "Content-Type: multipart/mixed"
-                           , fromByteString "; boundary="
-                           , fromByteString b
-                           , fromByteString "\r\n" ]
+multipartMixed b = mconcat [ byteString "Content-Type: multipart/mixed"
+                           , byteString "; boundary="
+                           , byteString b
+                           , byteString "\r\n" ]
 
 
 ------------------------------------------------------------------------------
@@ -375,38 +375,38 @@ encodeFiles boundary name files =
           return $ mconcat [ hdr
                            , multipartMixed b
                            , cr
-                           , fromByteString "--"
+                           , byteString "--"
                            , mconcat (map (oneVal b) files)
-                           , fromByteString b
-                           , fromByteString "--\r\n--"
+                           , byteString b
+                           , byteString "--\r\n--"
                            ]
 
   where
     --------------------------------------------------------------------------
     contentDisposition fn = mconcat [
-                              fromByteString "Content-Disposition: attachment"
-                            , fromByteString "; filename=\""
-                            , fromByteString fn
-                            , fromByteString "\"\r\n"
+                              byteString "Content-Disposition: attachment"
+                            , byteString "; filename=\""
+                            , byteString fn
+                            , byteString "\"\r\n"
                             ]
 
     --------------------------------------------------------------------------
     contentType ct = mconcat [
-                       fromByteString "Content-Type: "
-                     , fromByteString ct
+                       byteString "Content-Type: "
+                     , byteString ct
                      , cr
                      ]
 
     --------------------------------------------------------------------------
     oneVal b fd =
-        mconcat [ fromByteString b
+        mconcat [ byteString b
                 , cr
                 , contentType ct
                 , contentDisposition fileName
-                , fromByteString "Content-Transfer-Encoding: binary\r\n"
+                , byteString "Content-Transfer-Encoding: binary\r\n"
                 , cr
-                , fromByteString contents
-                , fromByteString "\r\n--"
+                , byteString contents
+                , byteString "\r\n--"
                 ]
       where
         fileName = fdFileName fd
@@ -415,7 +415,7 @@ encodeFiles boundary name files =
 
     --------------------------------------------------------------------------
     hdr = multipartHeader boundary name
-    cr  = fromByteString "\r\n"
+    cr  = byteString "\r\n"
 
 
 ------------------------------------------------------------------------------
@@ -424,7 +424,7 @@ encodeMultipart kvps = do
     boundary <- liftIO $ makeBoundary
     builders <- liftIO $ mapM (handleOne boundary) kvps
 
-    let b = toByteString $ mconcat (fromByteString "--" : builders)
+    let b = toByteString $ mconcat (byteString "--" : builders)
                              `mappend` finalBoundary boundary
 
     rq0 <- rGet
@@ -442,7 +442,7 @@ encodeMultipart kvps = do
 
 
   where
-    finalBoundary b = mconcat [fromByteString b, fromByteString "--\r\n"]
+    finalBoundary b = mconcat [byteString b, byteString "--\r\n"]
 
     handleOne boundary (name, mp) =
         case mp of
@@ -958,7 +958,8 @@ responseToString resp = do
     void $ act listOut
     builder <- liftM mconcat grab
 
-    return $ toByteString $ fromShow resp `mappend` builder
+    return $! toByteString $ fromShow resp `mappend` builder
+
 
 ------------------------------------------------------------------------------
 -- | Converts the given 'Request' to a bytestring.
@@ -982,7 +983,7 @@ requestToString req0 = do
                                      , mconcat . map oneHeader . H.toList
                                                $ rqHeaders req
                                      , crlf
-                                     , fromByteString body
+                                     , byteString body
                                      ]
   where
     maybeChunk = do
@@ -1002,20 +1003,20 @@ requestToString req0 = do
         eof = Streams.fromList ["0\r\n\r\n"]
 
     (v1,v2) = rqVersion req0
-    crlf = fromChar '\r' `mappend` fromChar '\n'
+    crlf = char8 '\r' `mappend` char8 '\n'
     statusLine = mconcat [ fromShow $ rqMethod req0
-                         , fromChar ' '
-                         , fromByteString $ rqURI req0
-                         , fromByteString " HTTP/"
+                         , char8 ' '
+                         , byteString $ rqURI req0
+                         , byteString " HTTP/"
                          , fromShow v1
-                         , fromChar '.'
+                         , char8 '.'
                          , fromShow v2
                          , crlf
                          ]
 
-    oneHeader (k,v) = mconcat [ fromByteString $ original k
-                              , fromByteString ": "
-                              , fromByteString v
+    oneHeader (k,v) = mconcat [ byteString $ original k
+                              , byteString ": "
+                              , byteString v
                               , crlf
                               ]
 
@@ -1029,3 +1030,13 @@ rPut s = RequestBuilder $ State.put s
 
 rModify :: Monad m => (Request -> Request) -> RequestBuilder m ()
 rModify f = RequestBuilder $ modify f
+
+
+------------------------------------------------------------------------------
+toByteString :: Builder -> ByteString
+toByteString = L.toStrict . toLazyByteString
+
+
+------------------------------------------------------------------------------
+fromShow :: Show a => a -> Builder
+fromShow = stringUtf8 . show

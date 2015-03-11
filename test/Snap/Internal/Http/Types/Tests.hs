@@ -4,8 +4,8 @@
 ------------------------------------------------------------------------------
 module Snap.Internal.Http.Types.Tests ( tests ) where
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder       (fromByteString)
 import           Control.Parallel.Strategies    (rdeepseq, using)
+import           Data.ByteString.Builder        (byteString)
 import qualified Data.ByteString.Char8          as S (concat)
 import           Data.ByteString.Lazy.Char8     ()
 import           Data.List                      (sort)
@@ -129,7 +129,7 @@ testTypes = testCase "httpTypes/show" $ do
     assertEqual "999" "Unknown" (rspStatusReason resp3)
 
   where
-    enum os = Streams.write (Just $ fromByteString "PING") os >> return os
+    enum os = Streams.write (Just $ byteString "PING") os >> return os
 
     resp = addResponseCookie cook $
            setContentLength 4 $

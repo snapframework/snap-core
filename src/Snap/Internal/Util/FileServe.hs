@@ -27,16 +27,15 @@ module Snap.Internal.Util.FileServe
   ) where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder         (fromByteString, fromWord8, toByteString)
-import           Blaze.ByteString.Builder.Char8   (fromShow)
 import           Control.Applicative              (Alternative ((<|>)), Applicative ((*>), (<*)), (<$>))
 import           Control.Exception.Lifted         (SomeException, catch, evaluate)
 import           Control.Monad                    (Monad ((>>), (>>=), return), filterM, forM_, liftM, unless, void, when, (=<<))
 import           Control.Monad.IO.Class           (MonadIO (..))
 import           Data.Attoparsec.ByteString.Char8 (Parser, char, endOfInput, option, string)
+import           Data.ByteString.Builder          (Builder, byteString, char8, stringUtf8, toLazyByteString)
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S (append, concat, intercalate, isSuffixOf, null, pack, takeWhile)
-import           Data.ByteString.Internal         (c2w)
+import qualified Data.ByteString.Lazy.Char8       as L
 import           Data.HashMap.Strict              (HashMap)
 import qualified Data.HashMap.Strict              as Map (empty, fromList, lookup)
 import           Data.List                        (drop, elem, filter, foldl', null, sort, (++))
@@ -45,7 +44,7 @@ import           Data.Monoid                      (Monoid (mappend, mconcat))
 import qualified Data.Text                        as T (Text, pack, unpack)
 import qualified Data.Text.Encoding               as T (decodeUtf8, encodeUtf8)
 import           Data.Word                        (Word64)
-import           Prelude                          (Bool (..), Eq (..), FilePath, IO, Maybe (Just, Nothing), Num (..), Ord (..), String, const, either, flip, fromIntegral, id, maybe, not, ($), ($!), (.), (||))
+import           Prelude                          (Bool (..), Eq (..), FilePath, IO, Maybe (Just, Nothing), Num (..), Ord (..), Show (show), String, const, either, flip, fromIntegral, id, maybe, not, ($), ($!), (.), (||))
 import qualified Prelude
 import           Snap.Core                        (MonadSnap (..), Request (rqPathInfo, rqQueryString, rqURI), deleteHeader, emptyResponse, finishWith, formatHttpTime, getHeader, getRequest, modifyResponse, parseHttpTime, pass, redirect, sendFile, sendFilePartial, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, urlDecode, writeBS)
 import           Snap.Internal.Debug              (debug)
@@ -735,12 +734,13 @@ checkRangeReq req fp sz = do
     send206 start end = do
         dbg "inside send206"
         let !len = end-start+1
-        let crng = toByteString $
-                   mconcat [ fromByteString "bytes "
+        let crng = L.toStrict $
+                   toLazyByteString $
+                   mconcat [ byteString "bytes "
                            , fromShow start
-                           , fromWord8 (c2w '-')
+                           , char8 '-'
                            , fromShow end
-                           , fromWord8 (c2w '/')
+                           , char8 '/'
                            , fromShow sz ]
 
         modifyResponse $ setResponseCode 206
@@ -762,8 +762,9 @@ checkRangeReq req fp sz = do
         if getHeader "If-Range" req /= Nothing
            then return False
            else do
-               let crng = toByteString $
-                          mconcat [ fromByteString "bytes */"
+               let crng = L.toStrict $
+                          toLazyByteString $
+                          mconcat [ byteString "bytes */"
                                   , fromShow sz ]
 
                modifyResponse $ setResponseCode 416
@@ -795,3 +796,8 @@ queryStringSuffix rq = S.concat [ s, qs ]
   where
     qs = rqQueryString rq
     s  = if S.null qs then "" else "?"
+
+
+------------------------------------------------------------------------------
+fromShow :: Show a => a -> Builder
+fromShow = stringUtf8 . show

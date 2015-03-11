@@ -2,15 +2,16 @@
 module Snap.Internal.Test.Assertions where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder (toByteString)
-import           Control.Monad            (liftM)
-import           Data.ByteString.Char8    (ByteString)
-import           Data.Maybe               (fromJust)
-import           Data.Monoid              (mconcat)
-import           Snap.Internal.Http.Types (Response (rspBody, rspStatus), getHeader, rspBodyToEnum)
-import qualified System.IO.Streams        as Streams
-import           Test.HUnit               (Assertion, assertBool, assertEqual)
-import           Text.Regex.Posix         ((=~))
+import           Control.Monad              (liftM)
+import           Data.ByteString.Builder    (toLazyByteString)
+import           Data.ByteString.Char8      (ByteString)
+import qualified Data.ByteString.Lazy.Char8 as L (toStrict)
+import           Data.Maybe                 (fromJust)
+import           Data.Monoid                (mconcat)
+import           Snap.Internal.Http.Types   (Response (rspBody, rspStatus), getHeader, rspBodyToEnum)
+import qualified System.IO.Streams          as Streams
+import           Test.HUnit                 (Assertion, assertBool, assertEqual)
+import           Text.Regex.Posix           ((=~))
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -22,6 +23,7 @@ import           Text.Regex.Posix         ((=~))
 -- ghci> 'getResponseBody' 'emptyResponse'
 -- \"\"
 -- @
+--
 getResponseBody :: Response -> IO ByteString
 getResponseBody rsp = do
     (os, grab) <- Streams.listOutputStream
@@ -33,7 +35,7 @@ getResponseBody rsp = do
         os' <- rspBodyToEnum (rspBody rsp) os
         Streams.write Nothing os'
 
-    toBS = toByteString . mconcat
+    toBS = L.toStrict . toLazyByteString . mconcat
 
 
 ------------------------------------------------------------------------------
@@ -140,11 +142,11 @@ assertRedirect rsp = assertBool message (300 <= status && status <= 399)
 -- @
 -- ghci> :set -XOverloadedStrings
 -- ghci> import qualified "System.IO.Streams" as Streams
--- ghci> import qualified "Blaze.ByteString.Builder" as Builder
+-- ghci> import qualified "Data.ByteString.Builder" as Builder
 -- ghci> :{
 -- ghci| let r = 'Snap.Core.setResponseBody'
 -- ghci|         (\out -> do
--- ghci|             Streams.write (Just $ Builder.fromByteString \"Hello, world!\") out
+-- ghci|             Streams.write (Just $ Builder.byteString \"Hello, world!\") out
 -- ghci|             return out)
 -- ghci|         'Snap.Core.emptyResponse'
 -- ghci| :}

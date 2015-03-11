@@ -18,49 +18,48 @@
 module Snap.Internal.Http.Types where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder (Builder, fromByteString, toByteString)
-import           Control.Monad            (unless)
-import           Data.ByteString          (ByteString)
-import qualified Data.ByteString          as S
-import qualified Data.ByteString.Char8    as B
-import           Data.ByteString.Internal (w2c)
-import           Data.CaseInsensitive     (CI)
-import qualified Data.CaseInsensitive     as CI
-import qualified Data.IntMap              as IM
-import           Data.List                hiding (take)
-import           Data.Map                 (Map)
-import qualified Data.Map                 as Map
-import           Data.Maybe               (Maybe (..), fromMaybe, maybe)
-import           Data.Monoid              (mconcat)
-import           Data.Time.Clock          (UTCTime)
-import           Data.Time.Clock.POSIX    (utcTimeToPOSIXSeconds)
-import           Data.Word                (Word64)
-import           Foreign.C.Types          (CTime (..))
-import           Prelude                  (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromInteger, fromIntegral, id, not, otherwise, truncate, ($), (.))
+import           Control.Monad              (unless)
+import           Data.ByteString            (ByteString)
+import           Data.ByteString.Builder    (Builder, byteString, toLazyByteString)
+import qualified Data.ByteString.Char8      as S
+import qualified Data.ByteString.Lazy.Char8 as L
+import           Data.CaseInsensitive       (CI)
+import qualified Data.CaseInsensitive       as CI
+import qualified Data.IntMap                as IM
+import           Data.List                  hiding (take)
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
+import           Data.Maybe                 (Maybe (..), fromMaybe, maybe)
+import           Data.Monoid                (mconcat)
+import           Data.Time.Clock            (UTCTime)
+import           Data.Time.Clock.POSIX      (utcTimeToPOSIXSeconds)
+import           Data.Word                  (Word64)
+import           Foreign.C.Types            (CTime (..))
+import           Prelude                    (Bool (..), Eq (..), FilePath, IO, Int, Integral (..), Monad (..), Num ((-)), Ord (..), Ordering (..), Read (..), Show (..), String, fmap, fromInteger, fromIntegral, id, not, otherwise, truncate, ($), (.))
 #ifdef PORTABLE
-import           Prelude                  (realToFrac, ($!))
+import           Prelude                    (realToFrac, ($!))
 #endif
-import           System.IO                (IOMode (ReadMode), SeekMode (AbsoluteSeek), hSeek, withBinaryFile)
-import           System.IO.Streams        (InputStream, OutputStream)
-import qualified System.IO.Streams        as Streams
-import           System.IO.Unsafe         (unsafePerformIO)
+import           System.IO                  (IOMode (ReadMode), SeekMode (AbsoluteSeek), hSeek, withBinaryFile)
+import           System.IO.Streams          (InputStream, OutputStream)
+import qualified System.IO.Streams          as Streams
+import           System.IO.Unsafe           (unsafePerformIO)
 
 ------------------------------------------------------------------------------
 #ifdef PORTABLE
 import           Data.Time.Clock.POSIX
 import           Data.Time.Format
 import           Data.Time.LocalTime
-import           System.Locale            (defaultTimeLocale)
+import           System.Locale              (defaultTimeLocale)
 #else
-import qualified Data.ByteString.Unsafe   as S
-import           Data.Time.Format         ()
-import           Foreign.C.String         (CString)
-import           Foreign.Marshal.Alloc    (mallocBytes)
+import qualified Data.ByteString.Unsafe     as S
+import           Data.Time.Format           ()
+import           Foreign.C.String           (CString)
+import           Foreign.Marshal.Alloc      (mallocBytes)
 #endif
 
 ------------------------------------------------------------------------------
-import           Snap.Types.Headers       (Headers)
-import qualified Snap.Types.Headers       as H
+import           Snap.Types.Headers         (Headers)
+import qualified Snap.Types.Headers         as H
 
 
 #ifndef PORTABLE
@@ -592,19 +591,19 @@ instance Show Request where
                   ]
     where
       method        = show $ rqMethod r
-      uri           = toStr $ rqURI r
+      uri           = S.unpack $ rqURI r
       version       = let (mj, mn) = rqVersion r in show mj ++ "." ++ show mn
       hdrs          = intercalate "\n" $ map showHdr (H.toList $ rqHeaders r)
-      showHdr (a,b) = (B.unpack $ CI.original a) ++ ": " ++ B.unpack b
-      sname         = toStr $ rqLocalHostname r
-      clntAddr      = concat [toStr $ rqClientAddr r, ":", show $ rqClientPort r]
-      srvAddr       = concat [toStr $ rqServerAddr r, ":", show $ rqServerPort r]
-      contextpath   = toStr $ rqContextPath r
+      showHdr (a,b) = (S.unpack $ CI.original a) ++ ": " ++ S.unpack b
+      sname         = S.unpack $ rqLocalHostname r
+      clntAddr      = concat [S.unpack $ rqClientAddr r, ":", show $ rqClientPort r]
+      srvAddr       = concat [S.unpack $ rqServerAddr r, ":", show $ rqServerPort r]
+      contextpath   = S.unpack $ rqContextPath r
       contentlength = maybe "n/a" show (rqContentLength r)
       secure        = if rqIsSecure r then " secure" else ""
 
       params        = showFlds "\nparams: " ", " $
-                      map (\ (a,b) -> B.unpack a ++ ": " ++ show b)
+                      map (\ (a,b) -> S.unpack a ++ ": " ++ show b)
                       (Map.toAscList $ rqParams r)
       cookies       = showFlds "\ncookies: " "\n         " $
                       map show (rqCookies r)
@@ -649,7 +648,7 @@ rspBodyToEnum (Stream e) = e
 
 rspBodyToEnum (SendFile fp Nothing) = \out ->
     Streams.withFileAsInput fp $ \is -> do
-        is' <- Streams.mapM (return . fromByteString) is
+        is' <- Streams.mapM (return . byteString) is
         Streams.connect is' out
         return out
 
@@ -658,7 +657,7 @@ rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
         unless (start == 0) $ hSeek handle AbsoluteSeek $ toInteger start
         is  <- Streams.handleToInputStream handle
         is' <- Streams.takeBytes (fromIntegral $ end - start) is >>=
-               Streams.mapM (return . fromByteString)
+               Streams.mapM (return . byteString)
         Streams.connect is' out
         return out
 
@@ -713,7 +712,7 @@ instance Show Response where
       statusline = concat [ "HTTP/1.1 "
                           , show $ rspStatus r
                           , " "
-                          , toStr $ rspStatusReason r
+                          , S.unpack $ rspStatusReason r
                           , "\r\n" ]
 
       hdrs = concatMap showHdr $ H.toList $ renderCookies r
@@ -721,14 +720,14 @@ instance Show Response where
 
       contentLength = maybe "" (\l -> concat ["Content-Length: ", show l, "\r\n"] ) (rspContentLength r)
 
-      showHdr (k,v) = concat [ toStr (CI.original k), ": ", toStr v, "\r\n" ]
+      showHdr (k,v) = concat [ S.unpack (CI.original k), ": ", S.unpack v, "\r\n" ]
 
       -- io-streams are impure, so we're forced to use 'unsafePerformIO'.
       body = unsafePerformIO $ do
         (os, grab) <- Streams.listOutputStream
         let f = rspBodyToEnum $ rspBody r
         _ <- f os
-        fmap (B.unpack . toByteString . mconcat) grab
+        fmap (L.unpack . toLazyByteString . mconcat) grab
 
 
 
@@ -899,11 +898,11 @@ emptyResponse = Response H.empty Map.empty Nothing
 -- @
 -- ghci> :set -XOverloadedStrings
 -- ghci> import qualified "System.IO.Streams" as Streams
--- ghci> import qualified "Blaze.ByteString.Builder" as Builder
+-- ghci> import qualified "Data.ByteString.Builder" as Builder
 -- ghci> :{
 -- ghci| let r = 'setResponseBody'
 -- ghci|         (\out -> do
--- ghci|             Streams.write (Just $ Builder.'fromByteString' \"Hello, world!\") out
+-- ghci|             Streams.write (Just $ Builder.'byteString' \"Hello, world!\") out
 -- ghci|             return out)
 -- ghci|         'emptyResponse'
 -- ghci| :}
@@ -970,11 +969,11 @@ setResponseCode s r = setResponseStatus s reason r
 -- @
 -- ghci> :set -XOverloadedStrings
 -- ghci> import qualified "System.IO.Streams" as Streams
--- ghci> import qualified "Blaze.ByteString.Builder" as Builder
+-- ghci> import qualified "Data.ByteString.Builder" as Builder
 -- ghci> :{
 -- ghci| let r = 'setResponseBody'
 -- ghci|         (\out -> do
--- ghci|             Streams.write (Just $ Builder.'fromByteString' \"Hello, world!\") out
+-- ghci|             Streams.write (Just $ Builder.'byteString' \"Hello, world!\") out
 -- ghci|             return out)
 -- ghci|         'emptyResponse'
 -- ghci| :}
@@ -986,7 +985,7 @@ setResponseCode s r = setResponseStatus s reason r
 -- ghci| let r' = 'modifyResponseBody'
 -- ghci|          (\f out -> do
 -- ghci|              out' <- f out
--- ghci|              Streams.write (Just $ Builder.'fromByteString' \"\\nBye, world!\") out'
+-- ghci|              Streams.write (Just $ Builder.'byteString' \"\\nBye, world!\") out'
 -- ghci|              return out') r
 -- ghci| :}
 -- ghci> r'
@@ -1244,7 +1243,7 @@ parseHttpTime :: ByteString -> IO CTime
 ------------------------------------------------------------------------------
 -- local definitions
 fromStr :: String -> ByteString
-fromStr = B.pack
+fromStr = S.pack                -- only because we know there's no unicode
 {-# INLINE fromStr #-}
 
 
@@ -1272,7 +1271,7 @@ formatLogTime ctime = do
 
 
 ------------------------------------------------------------------------------
-parseHttpTime = return . toCTime . prs . toStr
+parseHttpTime = return . toCTime . prs . S.unpack
   where
     prs :: String -> Maybe UTCTime
     prs = parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT"
@@ -1302,12 +1301,6 @@ parseHttpTime s = S.unsafeUseAsCString s $ \ptr ->
     c_parse_http_time ptr
 
 #endif
-
-
-------------------------------------------------------------------------------
--- private helper functions
-toStr :: ByteString -> String
-toStr = map w2c . S.unpack
 
 
 ------------------------------------------------------------------------------

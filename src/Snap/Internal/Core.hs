@@ -88,8 +88,6 @@ module Snap.Internal.Core
   ) where
 
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder           (Builder, fromByteString, fromLazyByteString)
-import           Blaze.ByteString.Builder.Char.Utf8 (fromLazyText, fromText)
 import           Control.Applicative                (Alternative ((<|>), empty), Applicative ((<*>), pure), (<$>))
 import           Control.Exception.Lifted           (ErrorCall (..), Exception, Handler (..), SomeException (..), catch, catches, mask, onException, throwIO)
 import           Control.Monad                      (Functor (..), Monad (..), MonadPlus (..), ap, liftM, unless, (=<<))
@@ -97,6 +95,7 @@ import           Control.Monad.Base                 (MonadBase (..))
 import           Control.Monad.IO.Class             (MonadIO (..))
 import           Control.Monad.Trans.Control        (MonadBaseControl (..))
 import           Control.Monad.Trans.State          (StateT (..))
+import           Data.ByteString.Builder            (Builder, byteString, lazyByteString)
 import           Data.ByteString.Char8              (ByteString)
 import qualified Data.ByteString.Char8              as S (break, concat, drop, dropWhile, intercalate, length, take, takeWhile)
 import qualified Data.ByteString.Internal           as S (create, inlinePerformIO)
@@ -104,6 +103,8 @@ import qualified Data.ByteString.Lazy.Char8         as L (ByteString, fromChunks
 import           Data.CaseInsensitive               (CI)
 import           Data.Maybe                         (Maybe (..), listToMaybe, maybe)
 import qualified Data.Text                          as T (Text)
+import qualified Data.Text.Encoding as T (encodeUtf8)
+import qualified Data.Text.Lazy.Encoding as LT (encodeUtf8)
 import qualified Data.Text.Lazy                     as LT (Text)
 import           Data.Time                          (Day (ModifiedJulianDay), UTCTime (UTCTime))
 #if __GLASGOW_HASKELL__ < 708
@@ -121,7 +122,7 @@ import           System.Posix.Types                 (FileOffset)
 import           System.PosixCompat.Files           (fileSize, getFileStatus)
 ------------------------------------------------------------------------------
 import qualified Data.Readable                      as R
-import           Snap.Internal.Http.Types           (Cookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (..), Response (..), ResponseBody (..), StreamProc, addHeader, addResponseCookie, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, normalizeMethod, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqSetParam, rspBodyMap, rspBodyToEnum, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus, statusReasonMap, toStr)
+import           Snap.Internal.Http.Types           (Cookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (..), Response (..), ResponseBody (..), StreamProc, addHeader, addResponseCookie, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, normalizeMethod, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqSetParam, rspBodyMap, rspBodyToEnum, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus, statusReasonMap)
 import           Snap.Internal.Parsing              (urlDecode)
 import qualified Snap.Types.Headers                 as H
 ------------------------------------------------------------------------------
@@ -271,14 +272,14 @@ after @N@ seconds of inactivity (the default is 20 seconds):
 -- which, in essence, says \"you can get back to the 'Snap' monad from
 -- here\". Using 'MonadSnap' you can extend the 'Snap' monad with additional
 -- functionality and still have access to most of the 'Snap' functions without
--- writing 'ControlMonad.Trans.Class.lift' everywhere. Instances are already
+-- writing 'Control.Monad.Trans.Class.lift' everywhere. Instances are already
 -- provided for most of the common monad transformers
 -- ('Control.Monad.Trans.Reader.ReaderT', 'Control.Monad.Trans.Writer.WriterT',
 -- 'Control.Monad.Trans.State.StateT', etc.).
 newtype Snap a = Snap {
-      unSnap :: forall r . (a -> SnapState -> IO r)
-             -> (Zero -> SnapState -> IO r)
-             -> SnapState
+      unSnap :: forall r . (a -> SnapState -> IO r)   -- success continuation
+             -> (Zero -> SnapState -> IO r)           -- mzero continuation
+             -> SnapState                             -- state for the monad
              -> IO r
     }
 
@@ -291,6 +292,10 @@ data SnapState = SnapState
     , _snapModifyTimeout :: (Int -> Int) -> IO ()
     }
 
+-- TODO(greg): error log action and timeout modifier are never modified.
+-- Splitting them out into their own datatype would save 16 bytes of allocation
+-- every time you modify the request or response, but would gobble a register.
+-- Benchmark it both ways.
 
 ------------------------------------------------------------------------------
 instance Monad Snap where
@@ -327,7 +332,6 @@ instance (MonadBase IO) Snap where
 
 
 ------------------------------------------------------------------------------
-
 newtype StSnap a = StSnap {
       unStSnap :: StM (StateT SnapState IO) (SnapResult a)
     }
@@ -344,11 +348,11 @@ instance (MonadBaseControl IO) Snap where
     {-# INLINE restoreM #-}
 
 ------------------------------------------------------------------------------
-{-# INLINE snapToStateT #-}
 snapToStateT :: Snap a -> StateT SnapState IO (SnapResult a)
 snapToStateT m = StateT $ \st -> do
     unSnap m (\a st' -> return (SnapValue a, st'))
              (\z st' -> return (Zero z, st')) st
+{-# INLINE snapToStateT #-}
 
 
 ------------------------------------------------------------------------------
@@ -545,7 +549,7 @@ transformRequestBody :: (InputStream ByteString -> IO (InputStream ByteString))
 transformRequestBody trans = do
     req     <- getRequest
     is      <- liftIO ((trans $ rqBody req) >>=
-                         Streams.mapM (return . fromByteString))
+                         Streams.mapM (return . byteString))
     origRsp <- getResponse
     let rsp = setResponseBody (\out -> Streams.connect is out >> return out) $
               origRsp { rspTransformingRqBody = True }
@@ -1156,12 +1160,12 @@ logError s = liftSnap $ Snap $ \sk _ st -> do
 -- ghci> :set -XOverloadedStrings
 -- ghci> import qualified "Data.Map" as M
 -- ghci> import qualified "Snap.Test" as T
--- ghci> import qualified "Blaze.ByteString.Builder" as B
+-- ghci> import qualified "Data.ByteString.Builder" as B
 -- ghci> import qualified "System.IO.Streams" as Streams
 -- ghci> let r = T.get \"\/foo\/bar\" M.empty
 -- ghci> :{
 -- ghci| let f str = do {
--- ghci|   Streams.write (Just $ B.fromByteString \"Hello, streams world\") str;
+-- ghci|   Streams.write (Just $ B.byteString \"Hello, streams world\") str;
 -- ghci|   return str }
 -- ghci| :}
 -- ghci> T.runHandler r ('addToOutput' f)
@@ -1189,9 +1193,9 @@ addToOutput enum = modifyResponse $ modifyResponseBody (c enum)
 -- ghci> :set -XOverloadedStrings
 -- ghci> import qualified "Data.Map" as M
 -- ghci> import qualified "Snap.Test" as T
--- ghci> import qualified "Blaze.ByteString.Builder" as B
+-- ghci> import qualified "Data.ByteString.Builder" as B
 -- ghci> let r = T.get \"\/foo\/bar\" M.empty
--- ghci> T.runHandler r ('writeBuilder' $ B.fromByteString \"Hello, world\")
+-- ghci> T.runHandler r ('writeBuilder' $ B.byteString \"Hello, world\")
 -- HTTP\/1.1 200 OK
 -- server: Snap\/test
 -- date: Wed, 06 Aug 2014 17:33:33 GMT
@@ -1228,7 +1232,8 @@ writeBuilder b = addToOutput f
 -- Hello, bytestring world
 -- @
 writeBS :: MonadSnap m => ByteString -> m ()
-writeBS s = writeBuilder $ fromByteString s
+writeBS = writeBuilder . byteString
+{-# INLINE writeBS #-}
 
 
 ------------------------------------------------------------------------------
@@ -1254,7 +1259,8 @@ writeBS s = writeBuilder $ fromByteString s
 -- Hello, lazy bytestring world
 -- @
 writeLBS :: MonadSnap m => L.ByteString -> m ()
-writeLBS s = writeBuilder $ fromLazyByteString s
+writeLBS = writeBuilder . lazyByteString
+{-# INLINE writeLBS #-}
 
 
 ------------------------------------------------------------------------------
@@ -1280,7 +1286,10 @@ writeLBS s = writeBuilder $ fromLazyByteString s
 -- Hello, text world
 -- @
 writeText :: MonadSnap m => T.Text -> m ()
-writeText s = writeBuilder $ fromText s
+writeText = writeBS . T.encodeUtf8
+  -- it's inefficient, but we don't have bytestring builder text functions for
+  -- 0.9-era bytestring
+{-# INLINE writeText #-}
 
 
 ------------------------------------------------------------------------------
@@ -1306,7 +1315,8 @@ writeText s = writeBuilder $ fromText s
 -- Hello, lazy text world
 -- @
 writeLazyText :: MonadSnap m => LT.Text -> m ()
-writeLazyText s = writeBuilder $ fromLazyText s
+writeLazyText = writeLBS . LT.encodeUtf8
+{-# INLINE writeLazyText #-}
 
 
 ------------------------------------------------------------------------------
@@ -1632,16 +1642,16 @@ runSnap (Snap m) logerr timeoutAction req =
         return out
 
     --------------------------------------------------------------------------
-    html = map fromByteString [ "<!DOCTYPE html>\n"
-                              , "<html>\n"
-                              , "<head>\n"
-                              , "<title>Not found</title>\n"
-                              , "</head>\n"
-                              , "<body>\n"
-                              , "<code>No handler accepted \""
-                              , rqURI req
-                              , "\"</code>\n</body></html>"
-                              ]
+    html = map byteString [ "<!DOCTYPE html>\n"
+                          , "<html>\n"
+                          , "<head>\n"
+                          , "<title>Not found</title>\n"
+                          , "</head>\n"
+                          , "<body>\n"
+                          , "<code>No handler accepted \""
+                          , rqURI req
+                          , "\"</code>\n</body></html>"
+                          ]
 
     --------------------------------------------------------------------------
     dresp = emptyResponse

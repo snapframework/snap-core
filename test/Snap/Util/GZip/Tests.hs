@@ -6,13 +6,13 @@
 module Snap.Util.GZip.Tests
   ( tests ) where
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder             (fromByteString)
 import qualified Codec.Compression.GZip               as GZip
 import qualified Codec.Compression.Zlib               as Zlib
 import           Control.Applicative                  ((<$>))
 import           Control.Monad                        (replicateM)
 import           Data.Bits                            ((.&.))
 import qualified Data.ByteString                      as B
+import           Data.ByteString.Builder              (byteString)
 import           Data.ByteString.Char8                (ByteString)
 import qualified Data.ByteString.Char8                as S
 import qualified Data.ByteString.Lazy.Char8           as L
@@ -134,7 +134,7 @@ noContentType :: L.ByteString -> Snap ()
 noContentType body = modifyResponse $ setResponseBody e
   where
     e s = do
-        Streams.writeList (map fromByteString $ L.toChunks body) s
+        Streams.writeList (map byteString $ L.toChunks body) s
         return s
 
 ------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ withContentType ct body = modifyResponse $
                           setResponseBody e . setContentType ct
   where
     e s = do
-        Streams.writeList (map fromByteString $ L.toChunks body) s
+        Streams.writeList (map byteString $ L.toChunks body) s
         return s
 
 

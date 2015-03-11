@@ -6,17 +6,17 @@
 ------------------------------------------------------------------------------
 module Snap.Internal.Parsing where
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder         (Builder, fromByteString, fromWord8, toByteString)
-import           Blaze.ByteString.Builder.Char8   (fromChar)
 import           Control.Applicative              (Alternative ((<|>)), Applicative ((*>), (<*), pure), liftA2, (<$>))
 import           Control.Arrow                    (first, second)
 import           Control.Monad                    (Monad (return), MonadPlus (mzero), liftM, when)
 import           Data.Attoparsec.ByteString.Char8 (IResult (Done, Fail, Partial), Parser, Result, anyChar, char, choice, decimal, endOfInput, feed, inClass, isDigit, isSpace, letter_ascii, many', match, option, parse, satisfy, skipSpace, skipWhile, string, take, takeTill, takeWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as AP
 import           Data.Bits                        (Bits ((.&.), (.|.), unsafeShiftL))
+import           Data.ByteString.Builder          (Builder, byteString, char8, toLazyByteString, word8)
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S (all, append, break, concat, cons, drop, empty, foldl', isPrefixOf, length, null, singleton, span, spanEnd, splitWith, uncons)
 import           Data.ByteString.Internal         (c2w, w2c)
+import qualified Data.ByteString.Lazy.Char8       as L (toStrict)
 import           Data.CaseInsensitive             (CI)
 import qualified Data.CaseInsensitive             as CI (mk)
 import           Data.Char                        (Char, intToDigit, isAlpha, isAlphaNum, isAscii, isControl, isHexDigit, ord)
@@ -156,13 +156,13 @@ pWord = pQuotedString <|> (takeWhile (/= ';'))
 pQuotedString :: Parser ByteString
 pQuotedString = q *> quotedText <* q
   where
-    quotedText = toByteString <$> f mempty
+    quotedText = (L.toStrict . toLazyByteString) <$> f mempty
 
     f soFar = do
         t <- takeWhile qdtext
-        let soFar' = soFar <> fromByteString t
+        let soFar' = soFar <> byteString t
         -- RFC says that backslash only escapes for <">
-        choice [ string "\\\"" *> f (soFar' <> fromChar '"')
+        choice [ string "\\\"" *> f (soFar' <> char8 '"')
                , pure soFar' ]
 
     q      = char '"'
@@ -351,7 +351,7 @@ urlDecode = parseToCompletion pUrlEscaped
 -- "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
 -- @
 urlEncode :: ByteString -> ByteString
-urlEncode = toByteString . urlEncodeBuilder
+urlEncode = L.toStrict . toLazyByteString . urlEncodeBuilder
 {-# INLINE urlEncode #-}
 
 
@@ -362,8 +362,8 @@ urlEncode = toByteString . urlEncodeBuilder
 -- Example:
 --
 -- @
--- ghci> import "Blaze.ByteString.Builder"
--- ghci> 'toByteString' . 'urlEncodeBuilder' $ "1 attoparsec ~= 3 * 10^-2 meters"
+-- ghci> import "Data.ByteString.Builder"
+-- ghci> 'toLazyByteString' . 'urlEncodeBuilder' $ "1 attoparsec ~= 3 * 10^-2 meters"
 -- "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
 -- @
 urlEncodeBuilder :: ByteString -> Builder
@@ -372,9 +372,9 @@ urlEncodeBuilder = go mempty
     go !b !s = maybe b' esc (S.uncons y)
       where
         (x,y)     = S.span urlEncodeClean s
-        b'        = b <> fromByteString x
+        b'        = b <> byteString x
         esc (c,r) = let b'' = if c == ' '
-                                then b' <> fromWord8 (c2w '+')
+                                then b' <> char8 '+'
                                 else b' <> hexd c
                     in go b'' r
 
@@ -389,7 +389,7 @@ urlEncodeClean = toTable f
 
 ------------------------------------------------------------------------------
 hexd :: Char -> Builder
-hexd c0 = fromWord8 (c2w '%') <> fromWord8 hi <> fromWord8 low
+hexd c0 = char8 '%' <> word8 hi <> word8 low
   where
     !c        = c2w c0
     toDigit   = c2w . intToDigit
@@ -461,21 +461,21 @@ parseUrlEncoded s = foldr ins Map.empty decoded
 -- @
 -- ghci> import "Data.Map"
 -- ghci> import "Data.Monoid"
--- ghci> import "Blaze.ByteString.Builder"
+-- ghci> import "Data.ByteString.Builder"
 -- ghci> let bldr = 'buildUrlEncoded' ('Data.Map.fromList' [("Name", ["John Doe"]), ("Age", ["23"])])
--- ghci> 'toByteString' $ 'fromByteString' "http://example.com/script?" <> bldr
+-- ghci> 'toLazyByteString' $ 'byteString' "http://example.com/script?" <> bldr
 -- "http://example.com/script?Age=23&Name=John+Doe"
 -- @
 buildUrlEncoded :: Map ByteString [ByteString] -> Builder
 buildUrlEncoded m = mconcat builders
   where
-    builders        = intersperse (fromWord8 $ c2w '&') $
+    builders        = intersperse (char8 '&') $
                       concatMap encodeVS $ Map.toList m
 
     encodeVS (k,vs) = map (encodeOne k) vs
 
     encodeOne k v   = mconcat [ urlEncodeBuilder k
-                              , fromWord8 $ c2w '='
+                              , char8 '='
                               , urlEncodeBuilder v ]
 
 
@@ -491,7 +491,7 @@ buildUrlEncoded m = mconcat builders
 -- "Age=23&Name=John+Doe"
 -- @
 printUrlEncoded :: Map ByteString [ByteString] -> ByteString
-printUrlEncoded = toByteString . buildUrlEncoded
+printUrlEncoded = L.toStrict . toLazyByteString . buildUrlEncoded
 
 
                              --------------------

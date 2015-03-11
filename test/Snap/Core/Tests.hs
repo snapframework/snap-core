@@ -15,7 +15,6 @@
 ------------------------------------------------------------------------------
 module Snap.Core.Tests ( tests ) where
 ------------------------------------------------------------------------------
-import           Blaze.ByteString.Builder             (fromByteString)
 import           Control.Applicative                  (Alternative ((<|>)), Applicative ((<*>), pure), (<$>))
 import           Control.Concurrent.MVar              (newEmptyMVar, putMVar, takeMVar)
 import           Control.DeepSeq                      (deepseq)
@@ -24,6 +23,7 @@ import           Control.Monad                        (Functor (fmap), Monad ((>
 import           Control.Monad.Base                   (MonadBase (liftBase))
 import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.Trans.Error            (ErrorT (runErrorT))
+import           Data.ByteString.Builder              (byteString)
 #if MIN_VERSION_transformers(0,4,0)
 import           Control.Monad.Trans.Except           (runExceptT)
 #endif
@@ -715,7 +715,7 @@ testWrites = testCase "core/writes" $ do
         writeLBS "Foo3"
 
     f str = do
-        Streams.write (Just $ fromByteString "Foo1") str
+        Streams.write (Just $ byteString "Foo1") str
         return str
 
 
@@ -745,7 +745,7 @@ testDir2 = testCase "core/dir2" $ do
     f = dir "foo" $ dir "bar" $ do
             p <- liftM rqContextPath getRequest
             addToOutput $ \s -> do
-                Streams.write (Just $ fromByteString p) s
+                Streams.write (Just $ byteString p) s
                 return s
 
 

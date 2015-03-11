@@ -15,12 +15,12 @@ module Snap.Util.GZip
   , BadAcceptEncodingException
   ) where
 
-import           Blaze.ByteString.Builder         (Builder)
 import           Control.Applicative              (Alternative ((<|>), many), Applicative ((*>), (<*), pure), (<$>))
 import           Control.Exception                (Exception, throwIO)
 import           Control.Monad                    (Functor (fmap), Monad ((>>), (>>=), return), MonadPlus (mplus), void, when)
 import           Control.Monad.IO.Class           (MonadIO (liftIO))
 import           Data.Attoparsec.ByteString.Char8 (Parser, char, endOfInput, isAlpha_ascii, isDigit, skipSpace, string, takeWhile, takeWhile1)
+import           Data.ByteString.Builder          (Builder)
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S (takeWhile)
 import qualified Data.Char                        as Char (isSpace)
