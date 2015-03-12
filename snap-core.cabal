@@ -30,7 +30,7 @@ license-file:   LICENSE
 author:         Snap Framework Authors (see CONTRIBUTORS)
 maintainer:     snap@snapframework.com
 build-type:     Simple
-cabal-version:  >= 1.18
+cabal-version:  >= 1.10
 homepage:       http://snapframework.com/
 bug-reports:    https://github.com/snapframework/snap-core/issues
 category:       Web, Snap, IO-Streams
@@ -65,9 +65,6 @@ extra-source-files:
   test/Snap/Util/FileUploads/Tests.hs,
   test/Snap/Util/GZip/Tests.hs,
   test/Snap/Util/Proxy/Tests.hs
-
-extra-doc-files:
-  haddock-img/fancy-directory-config.png
 
 Flag portable
   Description: Compile in cross-platform mode. No platform-specific code or
