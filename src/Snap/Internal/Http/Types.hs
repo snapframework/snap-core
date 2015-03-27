@@ -47,7 +47,7 @@ import           System.IO.Unsafe           (unsafePerformIO)
 ------------------------------------------------------------------------------
 #ifdef PORTABLE
 import           Data.Time.Clock.POSIX
-import           Data.Time.Format
+import           Data.Time.Format           hiding (defaultTimeLocale)
 import           Data.Time.LocalTime
 import           System.Locale              (defaultTimeLocale)
 #else
