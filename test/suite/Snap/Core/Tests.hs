@@ -10,37 +10,39 @@ import           Blaze.ByteString.Builder
 import           Control.Applicative
 import           Control.Concurrent.MVar
 import           Control.DeepSeq
-import           Control.Exception (ErrorCall(..), SomeException, throwIO)
+import           Control.Exception                    (ErrorCall (..),
+                                                       SomeException, throwIO)
 import           Control.Monad
 import           Control.Monad.CatchIO
-import           Control.Monad.Trans (liftIO)
+import           Control.Monad.Trans                  (liftIO)
 import           Control.Parallel.Strategies
-import           Data.ByteString.Char8 (ByteString)
-import qualified Data.ByteString.Char8 as S
-import qualified Data.ByteString.Lazy.Char8 as L
-import qualified Data.IntMap as IM
+import           Data.ByteString.Char8                (ByteString)
+import qualified Data.ByteString.Char8                as S
+import qualified Data.ByteString.Lazy.Char8           as L
+import qualified Data.IntMap                          as IM
 import           Data.IORef
-import           Data.Maybe (isJust)
+import qualified Data.Map                             as Map
+import           Data.Maybe                           (isJust)
 import           Data.Monoid
-import           Data.Text (Text)
-import qualified Data.Text.Encoding as T
-import           Data.Text.Lazy ()
-import qualified Data.Map as Map
-import           Prelude hiding (catch)
+import           Data.Text                            (Text)
+import qualified Data.Text.Encoding                   as T
+import           Data.Text.Lazy                       ()
+import           Prelude                              hiding (catch)
 import           Test.Framework
 import           Test.Framework.Providers.HUnit
 import           Test.Framework.Providers.QuickCheck2
-import           Test.HUnit hiding (Test, path)
-import           Test.QuickCheck(oneof, variant, elements, Gen, arbitrary)
+import           Test.HUnit                           hiding (Test, path)
+import           Test.QuickCheck                      (Gen, arbitrary, elements,
+                                                       oneof, variant)
 
 import           Snap.Internal.Exceptions
 import           Snap.Internal.Http.Types
 import           Snap.Internal.Parsing
 import           Snap.Internal.Types
 import           Snap.Iteratee
-import qualified Snap.Iteratee as I
+import qualified Snap.Iteratee                        as I
 import           Snap.Test.Common
-import qualified Snap.Types.Headers as H
+import qualified Snap.Types.Headers                   as H
 
 
 tests :: [Test]
