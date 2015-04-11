@@ -735,7 +735,7 @@ checkRangeReq req fp sz = do
     send206 start end = do
         dbg "inside send206"
         let !len = end-start+1
-        let crng = L.toStrict $
+        let crng = S.concat . L.toChunks $
                    toLazyByteString $
                    mconcat [ byteString "bytes "
                            , fromShow start
@@ -763,7 +763,7 @@ checkRangeReq req fp sz = do
         if getHeader "If-Range" req /= Nothing
            then return False
            else do
-               let crng = L.toStrict $
+               let crng = S.concat . L.toChunks $
                           toLazyByteString $
                           mconcat [ byteString "bytes */"
                                   , fromShow sz ]

@@ -5,7 +5,8 @@ module Snap.Internal.Test.Assertions where
 import           Control.Monad              (liftM)
 import           Data.ByteString.Builder    (toLazyByteString)
 import           Data.ByteString.Char8      (ByteString)
-import qualified Data.ByteString.Lazy.Char8 as L (toStrict)
+import qualified Data.ByteString.Char8      as S
+import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Maybe                 (fromJust)
 import           Data.Monoid                (mconcat)
 import           Snap.Internal.Http.Types   (Response (rspBody, rspStatus), getHeader, rspBodyToEnum)
@@ -35,7 +36,7 @@ getResponseBody rsp = do
         os' <- rspBodyToEnum (rspBody rsp) os
         Streams.write Nothing os'
 
-    toBS = L.toStrict . toLazyByteString . mconcat
+    toBS = S.concat . L.toChunks . toLazyByteString . mconcat
 
 
 ------------------------------------------------------------------------------

@@ -1034,7 +1034,7 @@ rModify f = RequestBuilder $ modify f
 
 ------------------------------------------------------------------------------
 toByteString :: Builder -> ByteString
-toByteString = L.toStrict . toLazyByteString
+toByteString = S.concat . L.toChunks . toLazyByteString
 
 
 ------------------------------------------------------------------------------

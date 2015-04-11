@@ -14,9 +14,9 @@ import qualified Data.Attoparsec.ByteString.Char8 as AP
 import           Data.Bits                        (Bits ((.&.), (.|.), unsafeShiftL))
 import           Data.ByteString.Builder          (Builder, byteString, char8, toLazyByteString, word8)
 import           Data.ByteString.Char8            (ByteString)
-import qualified Data.ByteString.Char8            as S (all, append, break, concat, cons, drop, empty, foldl', isPrefixOf, length, null, singleton, span, spanEnd, splitWith, uncons)
+import qualified Data.ByteString.Char8            as S
 import           Data.ByteString.Internal         (c2w, w2c)
-import qualified Data.ByteString.Lazy.Char8       as L (toStrict)
+import qualified Data.ByteString.Lazy.Char8       as L
 import           Data.CaseInsensitive             (CI)
 import qualified Data.CaseInsensitive             as CI (mk)
 import           Data.Char                        (Char, intToDigit, isAlpha, isAlphaNum, isAscii, isControl, isHexDigit, ord)
@@ -156,7 +156,7 @@ pWord = pQuotedString <|> (takeWhile (/= ';'))
 pQuotedString :: Parser ByteString
 pQuotedString = q *> quotedText <* q
   where
-    quotedText = (L.toStrict . toLazyByteString) <$> f mempty
+    quotedText = (S.concat . L.toChunks . toLazyByteString) <$> f mempty
 
     f soFar = do
         t <- takeWhile qdtext
@@ -351,7 +351,7 @@ urlDecode = parseToCompletion pUrlEscaped
 -- "1+attoparsec+%7e%3d+3+*+10%5e-2+meters"
 -- @
 urlEncode :: ByteString -> ByteString
-urlEncode = L.toStrict . toLazyByteString . urlEncodeBuilder
+urlEncode = S.concat . L.toChunks . toLazyByteString . urlEncodeBuilder
 {-# INLINE urlEncode #-}
 
 
@@ -491,7 +491,7 @@ buildUrlEncoded m = mconcat builders
 -- "Age=23&Name=John+Doe"
 -- @
 printUrlEncoded :: Map ByteString [ByteString] -> ByteString
-printUrlEncoded = L.toStrict . toLazyByteString . buildUrlEncoded
+printUrlEncoded = S.concat . L.toChunks . toLazyByteString . buildUrlEncoded
 
 
                              --------------------
