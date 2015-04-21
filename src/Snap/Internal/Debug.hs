@@ -8,6 +8,7 @@
 
 {-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE CPP                 #-}
+{-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-cse         #-}
