@@ -1991,7 +1991,7 @@ readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 
 
 ------------------------------------------------------------------------------
--- | Expire the given 'Cookie' in client's browser.
+-- | Expire given 'Cookie' in client's browser.
 --
 -- Example:
 --
@@ -2000,25 +2000,28 @@ readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 -- ghci> import qualified "Data.Map" as M
 -- ghci> import qualified "Snap.Test" as T
 -- ghci> let r = T.get \"\/foo\/bar\" M.empty
--- ghci> T.runHandler r ('expireCookie' "name" Nothing)
+-- ghci> let cookie = Cookie "name" "" Nothing (Just "/subsite") Nothing True False
+-- ghci> T.runHandler r ('expireCookie' cookie)
+-- HTTP/1.1 200 OK
+-- set-cookie: name=; path=/subsite; expires=Sat, 24 Dec 1994 06:28:16 GMT; Secure
+-- server: Snap/test
+--
+-- date: Thu, 07 Aug 2014 12:21:27 GMT
+-- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
+-- ghci> let r2 = T.get \"\/foo\/bar\" M.empty >> T.addCookies [cookie]
+-- ghci> T.runHandler r ('getCookie' "name" >>= maybe (return ()) 'expireCookie')
 -- HTTP/1.1 200 OK
 -- set-cookie: name=; expires=Sat, 24 Dec 1994 06:28:16 GMT
 -- server: Snap/test
--- date: Thu, 07 Aug 2014 12:21:27 GMT
 --
 --
 -- @
-expireCookie :: (MonadSnap m)
-             => ByteString
-             -- ^ Cookie name
-             -> Maybe ByteString
-             -- ^ Cookie domain
-             -> m ()
-expireCookie nm dm = do
+expireCookie :: (MonadSnap m) => Cookie -> m ()
+expireCookie cookie = do
   let old = UTCTime (ModifiedJulianDay 0) 0
   modifyResponse $ addResponseCookie
-                 $ Cookie nm "" (Just old) dm Nothing False False
-
+                 $ cookie { cookieValue = ""
+                          , cookieExpires = (Just old) }
 
 ------------------------------------------------------------------------------
 -- | Causes the handler thread to be killed @n@ seconds from now.

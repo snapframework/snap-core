@@ -392,7 +392,7 @@ testCookies = testCase "test/requestBuilder/cookies" $ do
     c1 = Cookie "foo" "bar" Nothing Nothing Nothing False False
     c2 = Cookie "foo" "zzzzz" Nothing Nothing Nothing False False
 
-    expire = expireCookie "foo" Nothing
+    expire = expireCookie c1
 
 
 ------------------------------------------------------------------------------
