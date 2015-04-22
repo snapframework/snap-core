@@ -80,7 +80,6 @@ module Snap.Internal.Core
   , getCookie
   , readCookie
   , expireCookie
-  , addExpiredCookie
   , setTimeout
   , extendTimeout
   , modifyTimeout
@@ -1992,39 +1991,7 @@ readCookie name = maybe pass (R.fromBS . cookieValue) =<< getCookie name
 
 
 ------------------------------------------------------------------------------
--- | Expire the given 'Cookie' in client's browser.
---
--- Sets cookie path to `/`. Use 'expireCookieAt' if you need to expire cookie
--- at another path.
---
--- Example:
---
--- @
--- ghci> :set -XOverloadedStrings
--- ghci> import qualified "Data.Map" as M
--- ghci> import qualified "Snap.Test" as T
--- ghci> let r = T.get \"\/foo\/bar\" M.empty
--- ghci> T.runHandler r ('expireCookie' "name" Nothing)
--- HTTP/1.1 200 OK
--- set-cookie: name=; path=/; expires=Sat, 24 Dec 1994 06:28:16 GMT
--- server: Snap/test
--- date: Thu, 07 Aug 2014 12:21:27 GMT
---
---
--- @
-expireCookie :: MonadSnap m
-             => ByteString
-             -- ^ Cookie name
-             -> Maybe ByteString
-             -- ^ Cookie domain
-             -> m ()
-expireCookie nm dm = addExpiredCookie cookie
-  where
-    cookie = Cookie nm "" Nothing dm (Just "/") False False
-
-{-# DEPRECATED expireCookie "Use 'addExpiredCookie' instead." #-}
-
--- | Expires given 'Cookie' in client's browser.
+-- | Expire given 'Cookie' in client's browser.
 --
 -- Example:
 --
@@ -2034,23 +2001,23 @@ expireCookie nm dm = addExpiredCookie cookie
 -- ghci> import qualified "Snap.Test" as T
 -- ghci> let r = T.get \"\/foo\/bar\" M.empty
 -- ghci> let cookie = Cookie "name" "" Nothing (Just "/subsite") Nothing True False
--- ghci> T.runHandler r ('addExpiredCookie' cookie)
+-- ghci> T.runHandler r ('expireCookie' cookie)
 -- HTTP/1.1 200 OK
 -- set-cookie: name=; path=/subsite; expires=Sat, 24 Dec 1994 06:28:16 GMT; Secure
 -- server: Snap/test
 --
 -- date: Thu, 07 Aug 2014 12:21:27 GMT
 -- ghci> let cookie = Cookie "name" "value" Nothing Nothing Nothing False False
--- ghci> let r2 = T.get "/foo/bar" M.empty >> T.addCookies [cookie]
--- ghci> T.runHandler r ('getCookie' "name" >>= maybe (return ()) 'addExpiredCookie')
+-- ghci> let r2 = T.get \"\/foo\/bar\" M.empty >> T.addCookies [cookie]
+-- ghci> T.runHandler r ('getCookie' "name" >>= maybe (return ()) 'expireCookie')
 -- HTTP/1.1 200 OK
 -- set-cookie: name=; expires=Sat, 24 Dec 1994 06:28:16 GMT
 -- server: Snap/test
 --
 --
 -- @
-addExpiredCookie :: (MonadSnap m) => Cookie -> m ()
-addExpiredCookie cookie = do
+expireCookie :: (MonadSnap m) => Cookie -> m ()
+expireCookie cookie = do
   let old = UTCTime (ModifiedJulianDay 0) 0
   modifyResponse $ addResponseCookie
                  $ cookie { cookieValue = ""
