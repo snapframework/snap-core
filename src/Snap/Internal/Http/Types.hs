@@ -49,7 +49,7 @@ import           System.IO.Unsafe           (unsafePerformIO)
 import           Data.Time.Clock.POSIX
 import           Data.Time.Format
 import           Data.Time.LocalTime
-import           System.Locale              (defaultTimeLocale)
+import           Data.Time.Locale.Compat    (defaultTimeLocale)
 #else
 import qualified Data.ByteString.Unsafe     as S
 import           Data.Time.Format           ()

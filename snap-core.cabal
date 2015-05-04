@@ -91,9 +91,11 @@ Library
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
+    build-depends: time-locale-compat == 0.1.*
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
+    build-depends: old-locale >= 1 && <2
 
   exposed-modules:
     Snap.Core,
@@ -133,7 +135,6 @@ Library
     io-streams                >= 1.3     && < 1.4,
     monad-control             >= 1.0     && < 1.1,
     mtl                       >= 2.0     && < 2.3,
-    old-locale                >= 1       && < 2,
     random                    >= 1       && < 2,
     readable                  >= 0.1     && < 0.3,
     regex-posix               >= 0.95    && < 1,
@@ -179,9 +180,11 @@ Test-suite testsuite
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
+    build-depends: time-locale-compat == 0.1.*
   else
     c-sources: cbits/timefuncs.c
     include-dirs: cbits
+    build-depends: old-locale >= 1 && <2
 
   other-modules:
     Snap.Core,
@@ -231,7 +234,6 @@ Test-suite testsuite
     io-streams                >= 1.3     && < 1.4,
     monad-control             >= 1.0     && < 1.1,
     mtl                       >= 2.0     && < 2.3,
-    old-locale                >= 1       && < 2,
     random                    >= 1       && < 2,
     readable                  >= 0.1     && < 0.3,
     regex-posix               >= 0.95    && < 1,
