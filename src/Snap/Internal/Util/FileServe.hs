@@ -38,7 +38,7 @@ import qualified Data.ByteString.Char8            as S (append, concat, intercal
 import qualified Data.ByteString.Lazy.Char8       as L
 import           Data.HashMap.Strict              (HashMap)
 import qualified Data.HashMap.Strict              as Map (empty, fromList, lookup)
-import           Data.List                        (drop, elem, filter, foldl', null, sort, (++))
+import           Data.List                        (drop, dropWhile, elem, filter, foldl', null, sort, (++))
 import           Data.Maybe                       (fromMaybe, isNothing)
 import           Data.Monoid                      (Monoid (mappend, mconcat))
 import qualified Data.Text                        as T (Text, pack, unpack)
@@ -659,9 +659,10 @@ lookupExt :: a -> HashMap FilePath a -> FilePath -> a
 lookupExt def m f =
     if null ext
       then def
-      else fromMaybe (lookupExt def m (drop 1 ext)) mbe
+      else fromMaybe (lookupExt def m (next ext)) mbe
 
   where
+    next            = dropWhile (/= '.') . drop 1
     ext             = takeExtensions f
     mbe             = Map.lookup ext m
 
