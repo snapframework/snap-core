@@ -6,7 +6,9 @@ dist/
 *.imports
 *.tix
 .hpc
+result
 *.prof
+*.nix
 *.hi
 *.o
 *.swp
