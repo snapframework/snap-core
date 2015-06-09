@@ -120,7 +120,7 @@ Library
 
 
   build-depends:
-    attoparsec                >= 0.12    && < 0.13,
+    attoparsec                >= 0.12    && < 0.14,
     base                      >= 4       && < 5,
     bytestring                >= 0.9     && < 0.11,
     bytestring-builder        >= 0.10.4  && < 0.11,
@@ -136,7 +136,7 @@ Library
     monad-control             >= 1.0     && < 1.1,
     mtl                       >= 2.0     && < 2.3,
     random                    >= 1       && < 2,
-    readable                  >= 0.1     && < 0.3,
+    readable                  >= 0.1     && < 0.4,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 1.3,
     time                      >= 1.0     && < 1.6,
@@ -218,7 +218,7 @@ Test-suite testsuite
     Snap.Util.Proxy.Tests
 
   build-depends:
-    attoparsec                >= 0.12    && < 0.13,
+    attoparsec                >= 0.12    && < 0.14,
     base                      >= 4       && < 5,
     bytestring                >= 0.9     && < 0.11,
     bytestring-builder        >= 0.10.4  && < 0.11,
@@ -235,7 +235,7 @@ Test-suite testsuite
     monad-control             >= 1.0     && < 1.1,
     mtl                       >= 2.0     && < 2.3,
     random                    >= 1       && < 2,
-    readable                  >= 0.1     && < 0.3,
+    readable                  >= 0.1     && < 0.4,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 1.3,
     time                      >= 1.0     && < 1.6,
@@ -251,7 +251,7 @@ Test-suite testsuite
     test-framework             >= 0.8.0.3  && <0.9,
     test-framework-hunit       >= 0.2.7    && <0.4,
     test-framework-quickcheck2 >= 0.2.12.1 && <0.4,
-    zlib                       >= 0.5      && <0.6
+    zlib                       >= 0.5      && <0.7
 
   ghc-options: -O0 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
                -fno-warn-unused-do-bind
