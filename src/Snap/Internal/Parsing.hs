@@ -354,9 +354,9 @@ urlEncodeBuilder = go mempty
 urlEncodeTable :: FastSet
 urlEncodeTable = generateFS f
   where
-    f c = any ($ (w2c c)) [isAlphaNum, flip elem [ '$', '_', '-', '.', '!'
-                                                 , '*' , '\'', '(', ')'
-                                                 , ',' ] ]
+    f c = any ($ (w2c c)) [\x -> isAscii x && isAlphaNum x,
+                          flip elem [ '$', '_', '-', '.', '!'
+                                    , '*' , '\'', '(', ')', ',' ] ]
 
 ------------------------------------------------------------------------------
 hexd :: Char -> Builder
