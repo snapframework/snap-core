@@ -43,7 +43,7 @@ import           Prelude hiding (take)
 import           Data.Time.Format
 import           Data.Time.LocalTime
 import           Data.Time.Clock.POSIX
-import           System.Locale (defaultTimeLocale)
+import           Data.Time.Locale.Compat (defaultTimeLocale)
 #else
 import           Data.Time.Format ()
 import           Foreign
