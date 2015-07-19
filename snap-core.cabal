@@ -152,7 +152,7 @@ Library
     time                      >= 1.0     && < 1.6,
     unix-compat               >= 0.2     && < 0.5,
     unordered-containers      >= 0.1.4.3 && < 0.3,
-    vector                    >= 0.6     && < 0.11,
+    vector                    >= 0.6     && < 0.12,
     zlib-enum                 >= 0.2.1   && < 0.3
 
   extensions:
