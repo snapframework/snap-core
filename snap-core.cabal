@@ -144,7 +144,7 @@ Library
     transformers-base         >= 0.4     && < 0.5,
     unix-compat               >= 0.3     && < 0.5,
     unordered-containers      >= 0.1.4.3 && < 0.3,
-    vector                    >= 0.6     && < 0.11
+    vector                    >= 0.6     && < 0.12
 
   other-extensions:
     BangPatterns,
@@ -243,7 +243,7 @@ Test-suite testsuite
     transformers-base         >= 0.4     && < 0.5,
     unix-compat               >= 0.3     && < 0.5,
     unordered-containers      >= 0.1.4.3 && < 0.3,
-    vector                    >= 0.6     && < 0.11,
+    vector                    >= 0.6     && < 0.12,
     --------------------------------------------------------------------------
     HUnit                      >= 1.2      && <2,
     QuickCheck                 >= 2.3.0.2  && <3,
