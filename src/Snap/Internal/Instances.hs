@@ -22,8 +22,10 @@ import qualified Control.Monad.Trans.State.Lazy    as LState (StateT)
 import           Control.Monad.Trans.State.Strict  (StateT)
 import qualified Control.Monad.Trans.Writer.Lazy   as LWriter (WriterT)
 import           Control.Monad.Trans.Writer.Strict (WriterT)
-import           Data.Monoid                       (Monoid)
 import           Snap.Internal.Core                (MonadSnap (..))
+#if !MIN_VERSION_base(4,8,0)
+import           Data.Monoid                       (Monoid)
+#endif
 ------------------------------------------------------------------------------
 
 

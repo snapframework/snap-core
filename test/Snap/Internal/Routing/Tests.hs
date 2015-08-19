@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -5,7 +6,7 @@ module Snap.Internal.Routing.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative            ((<$>), (<|>))
+import           Control.Applicative            ((<|>))
 import           Control.Exception              (ErrorCall (..), throwIO)
 import           Control.Monad                  (liftM, unless)
 import           Control.Monad.Trans            (liftIO)
@@ -21,6 +22,9 @@ import           Snap.Test.Common               (expectExceptionH)
 import           Test.Framework                 (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (assertEqual)
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative            ((<$>))
+#endif
 ------------------------------------------------------------------------------
 
 

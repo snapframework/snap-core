@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
@@ -6,7 +7,7 @@ module Snap.Util.FileServe.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative            ((<$>), (<|>))
+import           Control.Applicative            ((<|>))
 import           Control.Monad                  (forM_, liftM)
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S (break, breakEnd, drop, isInfixOf, pack)
@@ -22,6 +23,9 @@ import           Snap.Test.Common               (expectExceptionH)
 import           Test.Framework                 (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (assertBool, assertEqual)
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative                  ((<$>))
+#endif
 ------------------------------------------------------------------------------
 
 

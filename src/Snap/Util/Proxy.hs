@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 -- | This module provides facilities for patching incoming 'Requests' to
@@ -20,12 +21,15 @@ module Snap.Util.Proxy
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative   (Alternative ((<|>)), (<$>))
+import           Control.Applicative   (Alternative ((<|>)))
 import           Control.Arrow         (second)
 import qualified Data.ByteString.Char8 as S (break, breakEnd, drop, dropWhile, readInt, spanEnd)
 import           Data.Char             (isSpace)
 import           Data.Maybe            (fromJust)
 import           Snap.Core             (MonadSnap, Request (rqClientAddr, rqClientPort), getHeader, modifyRequest)
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative   ((<$>))
+#endif
 ------------------------------------------------------------------------------
 
 

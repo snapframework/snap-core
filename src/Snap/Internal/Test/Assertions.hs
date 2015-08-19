@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP, OverloadedStrings #-}
 module Snap.Internal.Test.Assertions where
 
 ------------------------------------------------------------------------------
@@ -8,11 +8,13 @@ import           Data.ByteString.Char8      (ByteString)
 import qualified Data.ByteString.Char8      as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.Maybe                 (fromJust)
-import           Data.Monoid                (mconcat)
 import           Snap.Internal.Http.Types   (Response (rspBody, rspStatus), getHeader, rspBodyToEnum)
 import qualified System.IO.Streams          as Streams
 import           Test.HUnit                 (Assertion, assertBool, assertEqual)
 import           Text.Regex.Posix           ((=~))
+#if !MIN_VERSION_base(4,8,0)
+import           Data.Monoid                (mconcat)
+#endif
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------

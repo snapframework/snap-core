@@ -1,4 +1,5 @@
 {-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE Rank2Types          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -8,7 +9,6 @@ module Snap.Util.GZip.Tests
 ------------------------------------------------------------------------------
 import qualified Codec.Compression.GZip               as GZip
 import qualified Codec.Compression.Zlib               as Zlib
-import           Control.Applicative                  ((<$>))
 import           Control.Monad                        (replicateM)
 import           Data.Bits                            ((.&.))
 import qualified Data.ByteString                      as B
@@ -31,6 +31,9 @@ import           Test.HUnit                           (assertEqual)
 import qualified Test.HUnit                           as H
 import           Test.QuickCheck                      (Arbitrary (arbitrary))
 import           Test.QuickCheck.Monadic              (PropertyM, assert, forAllM, monadicIO)
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative                  ((<$>))
+#endif
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
