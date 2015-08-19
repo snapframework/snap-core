@@ -98,7 +98,7 @@ import           Control.Monad.Trans.State          (StateT (..))
 import           Data.ByteString.Builder            (Builder, byteString, lazyByteString)
 import           Data.ByteString.Char8              (ByteString)
 import qualified Data.ByteString.Char8              as S (break, concat, drop, dropWhile, intercalate, length, take, takeWhile)
-import qualified Data.ByteString.Internal           as S (create, inlinePerformIO)
+import qualified Data.ByteString.Internal           as S (create)
 import qualified Data.ByteString.Lazy.Char8         as L (ByteString, fromChunks)
 import           Data.CaseInsensitive               (CI)
 import           Data.Maybe                         (Maybe (..), listToMaybe, maybe)
@@ -120,6 +120,11 @@ import           System.IO.Streams                  (InputStream, OutputStream)
 import qualified System.IO.Streams                  as Streams
 import           System.Posix.Types                 (FileOffset)
 import           System.PosixCompat.Files           (fileSize, getFileStatus)
+#if !MIN_VERSION_bytestring(0,10,6)
+import qualified Data.ByteString.Internal           as S (create)
+#else
+import qualified Data.ByteString.Internal           as S (accursedUnutterablePerformIO)
+#endif
 ------------------------------------------------------------------------------
 import qualified Data.Readable                      as R
 import           Snap.Internal.Http.Types           (Cookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (..), Response (..), ResponseBody (..), StreamProc, addHeader, addResponseCookie, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, normalizeMethod, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqSetParam, rspBodyMap, rspBodyToEnum, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus, statusReasonMap)
@@ -1734,7 +1739,11 @@ countDigits v0 = go 1 v0
 {-# INLINE word64ToByteString #-}
 word64ToByteString :: Word64 -> ByteString
 word64ToByteString d =
+#if !MIN_VERSION_bytestring(0,10,6)
     S.inlinePerformIO $
+#else
+    S.accursedUnutterablePerformIO $
+#endif
     if d < 10
        then S.create 1 $ \p -> poke p (i2w d)
        else let !n = countDigits d
