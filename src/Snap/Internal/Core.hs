@@ -121,7 +121,7 @@ import qualified System.IO.Streams                  as Streams
 import           System.Posix.Types                 (FileOffset)
 import           System.PosixCompat.Files           (fileSize, getFileStatus)
 #if !MIN_VERSION_bytestring(0,10,6)
-import qualified Data.ByteString.Internal           as S (create)
+import qualified Data.ByteString.Internal           as S (inlinePerformIO)
 #else
 import qualified Data.ByteString.Internal           as S (accursedUnutterablePerformIO)
 #endif
