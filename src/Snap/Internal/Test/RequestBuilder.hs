@@ -39,7 +39,6 @@ module Snap.Internal.Test.RequestBuilder
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative        (Applicative)
 import           Control.Monad              (liftM, replicateM, void)
 import           Control.Monad.State.Strict (MonadIO (..), MonadState, MonadTrans, StateT, execStateT, modify)
 import qualified Control.Monad.State.Strict as State
@@ -51,7 +50,6 @@ import qualified Data.ByteString.Char8      as S
 import qualified Data.ByteString.Lazy.Char8 as L
 import           Data.CaseInsensitive       (CI, original)
 import qualified Data.Map                   as Map
-import           Data.Monoid                (Monoid (mappend, mconcat, mempty))
 import qualified Data.Vector                as V
 import           Data.Word                  (Word8)
 import           Snap.Core                  (Cookie (Cookie), Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
@@ -63,6 +61,10 @@ import qualified System.IO.Streams          as Streams
 import           System.PosixCompat.Time    (epochTime)
 import           System.Random              (Random (randomIO))
 import           Text.Printf                (printf)
+#if !MIN_VERSION_base(4,8,0)
+import           Control.Applicative        (Applicative)
+import           Data.Monoid                (Monoid (mappend, mconcat, mempty))
+#endif
 ------------------------------------------------------------------------------
 
 

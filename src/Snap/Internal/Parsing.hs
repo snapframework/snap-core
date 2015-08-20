@@ -383,7 +383,7 @@ urlEncodeBuilder = go mempty
 urlEncodeClean :: Char -> Bool
 urlEncodeClean = toTable f
   where
-    f c = any ($ c) [\c -> isAscii c && isAlphaNum c
+    f c = any ($ c) [\c' -> isAscii c' && isAlphaNum c'
                     , flip elem [ '$', '_', '-', '.', '!'
                                 , '*' , '\'', '(', ')', ',' ]]
 

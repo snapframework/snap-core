@@ -24,7 +24,7 @@ import qualified Snap.Internal.Http.Types          as T
 import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestBuilder, RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
 import           Snap.Test                         (assert404, assertBodyContains, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
 import           Snap.Test.Common                  (coverShowInstance, expectExceptionH)
-import           Snap.Util.FileUploads             (PartInfo, defaultUploadPolicy, handleMultipart, partContentType, partFieldName, partFileName)
+import           Snap.Util.FileUploads             (defaultUploadPolicy, handleMultipart, partContentType, partFieldName, partFileName)
 import qualified System.IO.Streams                 as Streams
 import           Test.Framework                    (Test)
 import           Test.Framework.Providers.HUnit    (testCase)
