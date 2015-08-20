@@ -47,9 +47,10 @@ import           System.IO.Unsafe           (unsafePerformIO)
 ------------------------------------------------------------------------------
 #ifdef PORTABLE
 import           Data.Time.Clock.POSIX
+import           Data.Time.Clock.POSIX
 import           Data.Time.Format
-import           Data.Time.LocalTime
 import           Data.Time.Locale.Compat    (defaultTimeLocale)
+import           Data.Time.LocalTime
 #else
 import qualified Data.ByteString.Unsafe     as S
 import           Data.Time.Format           ()
