@@ -186,8 +186,12 @@ buildRequest mm = do
 
     fixupHost = do
         rq <- rGet
-        let !hn      = rqHostName rq
-        rPut $ H.setHeader "Host" hn rq
+        case H.getHeader "Host" rq of
+          Nothing -> do
+            let !hn = rqHostName rq
+            rPut $ H.setHeader "Host" hn rq
+          Just hn ->
+            rPut $ rq { rqHostName = hn }
 
 
 ------------------------------------------------------------------------------
