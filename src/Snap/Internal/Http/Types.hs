@@ -294,8 +294,13 @@ data Request = Request
       -- ghci> :set -XOverloadedStrings
       -- ghci> import qualified "Snap.Test" as T
       -- ghci> import qualified "Data.Map" as M
-      -- ghci> rqHostName \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
-      -- "localhost"
+      -- ghci> :{
+      -- ghci| rq <- T.buildRequest $ do
+      -- ghci|         T.get "\/foo\/bar" M.empty
+      -- ghci|         T.setHeader "host" "example.com"
+      -- ghci| :}
+      -- ghci> rqHostName rq
+      -- "example.com"
       -- @
       rqHostName      :: ByteString
 

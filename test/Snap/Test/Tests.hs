@@ -51,6 +51,7 @@ tests = [ testDefaultBuild
         , testCookies
         , testTerminate
         , testTrivials
+        , testHostName
         ]
 
 
@@ -420,6 +421,16 @@ testTrivials = testCase "test/requestBuilder/trivials" $ do
   where
     rb = (return ()) :: (Functor m, Monad m, Applicative m) => RequestBuilder m ()
     rb2 = (pure ()) :: (Functor m, Monad m, Applicative m) => RequestBuilder m ()
+
+
+------------------------------------------------------------------------------
+testHostName :: Test
+testHostName = testCase "test/requestBuilder/hostName" $ do
+    request <- buildRequest $ do
+        get "/" Map.empty
+        setHeader "Host" "just.an.example.com"
+    assertEqual "HostName" "just.an.example.com" $ rqHostName request
+    assertEqual "Host header" (Just "just.an.example.com") $ getHeader "host" request
 
 
 ------------------------------------------------------------------------------
