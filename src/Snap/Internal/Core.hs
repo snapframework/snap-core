@@ -1077,7 +1077,7 @@ modifyResponse f = liftSnap $
 -- | Performs a redirect by setting the @Location@ header to the given target
 -- URL/path and the status code to 302 in the 'Response' object stored in a
 -- 'Snap' monad. Note that the target URL is not validated in any way.
--- Consider using 'redirect\'' instead, which allows you to choose the correct
+-- Consider using 'redirect'' instead, which allows you to choose the correct
 -- status code.
 --
 -- Example:
@@ -1115,7 +1115,7 @@ redirect target = redirect' target 302
 -- ghci> import qualified "Data.Map" as M
 -- ghci> import qualified "Snap.Test" as T
 -- ghci> let r = T.get \"\/foo\/bar\" M.empty
--- ghci> T.runHandler r ('redirect\'' \"http:\/\/snapframework.com\" 301)
+-- ghci> T.runHandler r ('redirect'' \"http:\/\/snapframework.com\" 301)
 -- HTTP\/1.1 307 Temporary Redirect
 -- content-length: 0
 -- location: http:\/\/snapframework.com
