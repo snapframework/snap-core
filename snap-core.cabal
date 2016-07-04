@@ -34,6 +34,8 @@ cabal-version:  >= 1.10
 homepage:       http://snapframework.com/
 bug-reports:    https://github.com/snapframework/snap-core/issues
 category:       Web, Snap, IO-Streams
+Tested-With:    GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.3,
+                GHC == 8.0.1
 
 extra-source-files:
   test/TestSuite.hs,
