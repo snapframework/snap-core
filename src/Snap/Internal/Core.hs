@@ -565,6 +565,10 @@ transformRequestBody trans = do
 -- | Short-circuits a 'Snap' monad action early, storing the given
 -- 'Response' value in its state.
 --
+-- IMPORTANT: Be vary careful when using this with things like a DB library's
+-- `withTransaction` function or any other kind of setup/teardown block, as it
+-- can prevent the cleanup from being called and result in resource leaks.
+--
 -- Example:
 --
 -- @
