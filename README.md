@@ -1,6 +1,8 @@
 Snap Framework Core
 ===================
 
+[![Build Status](https://travis-ci.org/snapframework/snap-core.svg?branch=master)](https://travis-ci.org/snapframework/snap-core)
+
 Snap is a web framework for Haskell. For more information about Snap, read the
 `README.SNAP.md` or visit the Snap project website at
 http://www.snapframework.com/.
