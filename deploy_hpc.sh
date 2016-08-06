@@ -66,7 +66,7 @@ git pull -s ours origin $TARGET_BRANCH
 rm -fr snap-core/hpc-ghc-$GHCVER
 mv hpc snap-core/hpc-ghc-$GHCVER
 git add -A
-git commit -m "Deploy to GitHub Pages: ${SHA}" || true
+git commit -m "snap-core code coverage: ${SHA}" || true
 
 # Get the deploy key by using Travis's stored variables to decrypt deploy_key_snap_code_coverage.enc
 ENCRYPTED_KEY_VAR="encrypted_${ENCRYPTION_LABEL}_key"
