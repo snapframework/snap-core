@@ -59,6 +59,9 @@ hpc markup $EXCL --destdir=$DIR testsuite >/dev/null 2>&1
 
 rm -f testsuite.tix
 
+#TODO only copy hpc results if this script is called from deploy_hpc.sh
+cp -r $DIR out/
+
 cat <<EOF
 
 Test coverage report written to $DIR.

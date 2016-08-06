@@ -11,6 +11,12 @@ cache:
 before_cache:
   - rm -fv $HOME/.cabal/packages/hackage.haskell.org/build-reports.log
   - rm -fv $HOME/.cabal/packages/hackage.haskell.org/00-index.tar
+  - openssl aes-256-cbc -K $encrypted_35ff3ba0f5e8_key -iv $encrypted_35ff3ba0f5e8_iv -in deploy_key_snap_code_coverage.enc -out deploy_key_snap_code_coverage -d
+
+env:
+  global:
+    - ENCRYPTION_LABEL: "35ff3ba0f5e8"
+    - COMMIT_AUTHOR_EMAIL: "mightybyte@gmail.com"
 
 matrix:
   include:
@@ -61,14 +67,16 @@ script:
    if dist-newstyle/build/*/build/$T/$T; then echo "= $T OK =";
    else echo "= $T FAILED ="; RC=false; fi; done; $RC
  - cabal sdist # test that a source-distribution can be generated
+ - ./deploy_hpc.sh $GHCVER
 
- # Check that the resulting source distribution can be built w/o and w tests
- - SRC_BASENAME=$(cabal info . | awk '{print $2;exit}')
- - tar -C dist/ -xf dist/$SRC_BASENAME.tar.gz
- - "echo 'packages: *.cabal' > dist/$SRC_BASENAME/cabal.project"
- - cd dist/$SRC_BASENAME/
- - cabal new-build --disable-tests --disable-benchmarks
- - rm -rf ./dist-newstyle
- - cabal new-build ${TEST} ${BENCH}
+ # Ignore the following section until dependencies are on hackage
+ # # Check that the resulting source distribution can be built w/o and w tests
+ # - SRC_BASENAME=$(cabal info . | awk '{print $2;exit}')
+ # - tar -C dist/ -xf dist/$SRC_BASENAME.tar.gz
+ # - "echo 'packages: *.cabal' > dist/$SRC_BASENAME/cabal.project"
+ # - cd dist/$SRC_BASENAME/
+ # - cabal new-build --disable-tests --disable-benchmarks
+ # - rm -rf ./dist-newstyle
+ # - cabal new-build ${TEST} ${BENCH}
 
 # EOF
