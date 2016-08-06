@@ -24,6 +24,9 @@ Snap.Internal.Http.Server.Tests
 Snap.Internal.Http.Types.Tests
 Snap.Internal.Parsing.Tests
 Snap.Internal.Routing.Tests
+Snap.Internal.Test.Assertions
+Snap.Internal.Test.RequestBuilder
+Snap.Test
 Snap.Test.Common
 Snap.Test.Tests
 Snap.Types.Tests
