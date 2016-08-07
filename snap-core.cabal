@@ -249,7 +249,7 @@ Test-suite testsuite
     test-framework-quickcheck2 >= 0.2.12.1 && <0.4,
     zlib                       >= 0.5      && <0.7
 
-  ghc-options: -O0 -Wall -fhpc -fwarn-tabs -funbox-strict-fields -threaded
+  ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -threaded
                -fno-warn-unused-do-bind
 
   other-extensions:
