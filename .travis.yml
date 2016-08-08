@@ -67,7 +67,7 @@ script:
    if dist-newstyle/build/*/build/$T/$T; then echo "= $T OK =";
    else echo "= $T FAILED ="; RC=false; fi; done; $RC
  - cabal sdist # test that a source-distribution can be generated
- - ./deploy_hpc.sh $GHCVER
+ # - ./deploy_hpc.sh $GHCVER # TODO Reinstate hpc calls when we get that working
 
  # Ignore the following section until dependencies are on hackage
  # # Check that the resulting source distribution can be built w/o and w tests
