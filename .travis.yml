@@ -52,7 +52,7 @@ install:
    fi
  - travis_retry cabal update -v
  - sed -i 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
- - cabal new-build ${TEST} ${BENCH} --enable-coverage --dep
+ - cabal new-build ${TEST} ${BENCH} --dep
 
 # Here starts the actual work to be performed for the package under test;
 # any command which exits with a non-zero exit code causes the build to fail.
@@ -67,7 +67,6 @@ script:
    if dist-newstyle/build/*/build/$T/$T; then echo "= $T OK =";
    else echo "= $T FAILED ="; RC=false; fi; done; $RC
  - cabal sdist # test that a source-distribution can be generated
- # - ./deploy_hpc.sh $GHCVER # TODO Reinstate hpc calls when we get that working
 
  # Ignore the following section until dependencies are on hackage
  # # Check that the resulting source distribution can be built w/o and w tests
@@ -78,5 +77,8 @@ script:
  # - cabal new-build --disable-tests --disable-benchmarks
  # - rm -rf ./dist-newstyle
  # - cabal new-build ${TEST} ${BENCH}
+
+after_success:
+ - ./deploy_hpc.sh $GHCVER
 
 # EOF

@@ -2,23 +2,15 @@
 
 set -e
 
-export LC_ALL=C
-export LANG=C
+PKGVERSION=$(cabal info . | awk '{print $2;exit}')
 
-rm -f testsuite.tix
+echo $PKGVERSION
 
-# TODO How do we find the executable without knowing the version number in dist-newstyle?
-./dist-newstyle/build/snap-core-1.0.0.0/build/testsuite/testsuite -j4 -a1000 $*
+ROOT=dist-newstyle/build/$PKGVERSION
+DIR=$ROOT/hpc/vanilla
+HPCDIR=$DIR/mix/testsuite
 
-DIR="./dist-newstyle/hpc"
-
-rm -Rf $DIR
-mkdir -p $DIR
-mkdir -p out
-
-# NOTE
-# Snap.Internal.Util.FileUploads shouldn't be in the excludes list. This is a
-# temporary workaround so we can release.
+DESTDIR=hpc
 
 EXCLUDES='Main
 Snap.Core.Tests
@@ -49,14 +41,11 @@ for m in $EXCLUDES; do
     EXCL="$EXCL --exclude=$m"
 done
 
-hpc markup $EXCL --destdir=$DIR testsuite
-
-rm -f testsuite.tix
-
-#TODO only copy hpc results if this script is called from deploy_hpc.sh
-cp -r $DIR out/
+rm -Rf $DESTDIR
+mkdir -p $DESTDIR
+hpc markup $EXCL --hpcdir=$HPCDIR --destdir=$DESTDIR testsuite # >/dev/null 2>&1
 
 cat <<EOF
 
-Test coverage report written to $DIR.
+Test coverage report written to $DESTDIR.
 EOF

@@ -3,6 +3,7 @@ TAGS
 test/TAGS
 cabal-dev
 dist/
+dist-newstyle/
 *.imports
 *.tix
 .hpc
@@ -19,3 +20,4 @@ result
 docs/templates/out
 .cabal-sandbox
 cabal.sandbox.config
+hpc
