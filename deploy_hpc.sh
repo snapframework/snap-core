@@ -62,7 +62,7 @@ git config user.email "$COMMIT_AUTHOR_EMAIL"
 git pull -s ours origin $TARGET_BRANCH
 
 rm -fr snap-core/hpc-ghc-$GHCVER
-mv hpc snap-core/hpc-ghc-$GHCVER
+mv ../hpc snap-core/hpc-ghc-$GHCVER
 git add -A
 git commit -m "snap-core code coverage: ${SHA}" || true
 
