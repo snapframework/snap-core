@@ -1,7 +1,6 @@
 #!/bin/sh
 
 set -e
-set -x
 
 PKGVERSION=$(cabal info . | awk '{print $2;exit}')
 
@@ -44,6 +43,8 @@ done
 
 rm -Rf $DESTDIR
 mkdir -p $DESTDIR
+ls -al
+echo hpc markup --hpcdir=$HPCDIR --destdir=$DESTDIR testsuite
 hpc markup $EXCL --hpcdir=$HPCDIR --destdir=$DESTDIR testsuite # >/dev/null 2>&1
 
 cat <<EOF
