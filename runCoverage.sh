@@ -1,6 +1,7 @@
 #!/bin/sh
 
 set -e
+set -x
 
 PKGVERSION=$(cabal info . | awk '{print $2;exit}')
 
