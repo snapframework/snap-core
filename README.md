@@ -60,7 +60,11 @@ To build the test suite, configure with --enable-tests:
 
 From here you can invoke the testsuite by running:
 
-    $ ./runTestsAndCoverage.sh
+    $ cabal test
+
+And then generate a code coverage report with:
+
+    $ ./runCoverage.sh
 
 
 The testsuite generates an `hpc` test coverage report in `dist/hpc`.

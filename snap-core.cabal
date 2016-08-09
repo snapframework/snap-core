@@ -49,7 +49,7 @@ extra-source-files:
   README.md,
   README.SNAP.md,
   Setup.hs,
-  runTestsAndCoverage.sh,
+  runCoverage.sh,
   test/data/fileServe/foo.bin,
   test/data/fileServe/foo.bin.bin.bin,
   test/data/fileServe/foo.html,
