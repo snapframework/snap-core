@@ -22,7 +22,6 @@ Snap.Internal.Parsing.Tests
 Snap.Internal.Routing.Tests
 Snap.Internal.Test.Assertions
 Snap.Internal.Test.RequestBuilder
-Snap.Internal.Util.FileUploads
 Snap.Test
 Snap.Test.Common
 Snap.Test.Tests
@@ -44,6 +43,7 @@ done
 rm -Rf $DESTDIR
 mkdir -p $DESTDIR
 ls -al
+find . -name "*.tix"
 echo hpc markup --hpcdir=$HPCDIR --destdir=$DESTDIR testsuite
 hpc markup $EXCL --hpcdir=$HPCDIR --destdir=$DESTDIR testsuite # >/dev/null 2>&1
 

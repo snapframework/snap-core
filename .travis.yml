@@ -67,6 +67,7 @@ script:
    if dist-newstyle/build/*/build/$T/$T; then echo "= $T OK =";
    else echo "= $T FAILED ="; RC=false; fi; done; $RC
  - ls -al
+ - find . -name "*.tix"
 
  # sdist generates a warning without a cabal configure, but the configure
  # fails due to missing dependencies, so we'll deal with it for now.
