@@ -55,6 +55,7 @@ extra-source-files:
   test/data/fileServe/foo.html,
   test/data/fileServe/foo.txt,
   test/data/fileServe/mydir1/index.txt,
+  test/data/fileServe/mydir2/dir/foo.txt,
   test/data/fileServe/mydir2/foo.txt,
   test/data/fileServe/mydir3/altindex.html,
   test/Snap/Core/Tests.hs,
