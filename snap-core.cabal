@@ -149,7 +149,7 @@ Library
     random                    >= 1       && < 2,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 1.3,
-    time                      >= 1.0     && < 1.6,
+    time                      >= 1.0     && < 1.7,
     unix-compat               >= 0.2     && < 0.5,
     unordered-containers      >= 0.1.4.3 && < 0.3,
     vector                    >= 0.6     && < 0.12,
