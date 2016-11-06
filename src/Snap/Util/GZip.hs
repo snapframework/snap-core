@@ -13,6 +13,7 @@ module Snap.Util.GZip
   , withCompression'
   , noCompression
   , BadAcceptEncodingException
+  , compressibleMimeTypes
   ) where
 
 import           Control.Applicative              (Alternative ((<|>), many), Applicative ((*>), (<*), pure), (<$>))
