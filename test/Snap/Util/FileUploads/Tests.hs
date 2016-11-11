@@ -10,8 +10,8 @@ module Snap.Util.FileUploads.Tests
 import           Control.Applicative            (Alternative ((<|>)))
 import           Control.DeepSeq                (deepseq)
 import           Control.Exception              (ErrorCall (..), evaluate, throwIO)
-import           Control.Exception.Lifted       (Exception (fromException, toException), Handler (Handler), catch, catches, finally, throw)
-import           Control.Monad                  (Monad ((>>=), (>>), return), liftM, void)
+import           Control.Exception.Lifted       (Exception (fromException, toException), catch, finally, throw)
+import           Control.Monad                  (Monad (return, (>>), (>>=)), liftM, void)
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S
@@ -35,7 +35,7 @@ import           System.Mem                     (performGC)
 import           System.Timeout                 (timeout)
 import           Test.Framework                 (Test)
 import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit                     (assertBool, assertEqual)
+import           Test.HUnit                     (assertBool, assertEqual, assertFailure)
 ------------------------------------------------------------------------------
 
 
@@ -273,13 +273,13 @@ testNoFileName = testCase "fileUploads/noFileName" $
 ------------------------------------------------------------------------------
 testNoFileNameTooBig :: Test
 testNoFileNameTooBig = testCase "fileUploads/noFileNameTooBig" $
-                       (harness tmpdir hndl noFileNameTestBody `catch` h)
+                       assertThrows (harness tmpdir hndl noFileNameTestBody) h
   where
     h !(e :: FileUploadException) = do
         let r = fileUploadExceptionReason e
         assertBool "correct exception"
-                   (T.isInfixOf "form input" r &&
-                    T.isInfixOf "exceeded maximum permissible" r)
+                   (T.isInfixOf "File" r &&
+                    T.isInfixOf "exceeded maximum allowable size" r)
 
     tmpdir = "tempdir_noname_toobig"
 
@@ -292,12 +292,14 @@ testNoFileNameTooBig = testCase "fileUploads/noFileNameTooBig" $
         coverShowInstance x
         assertEqual "filename" Nothing $ partFileName pinfo
         assertEqual "disposition" DispositionFile $ partDisposition pinfo
+        throwIO x
 
 
 ------------------------------------------------------------------------------
 testFormSizePolicyViolation :: Test
-testFormSizePolicyViolation = testCase "fileUploads/formSizePolicy" $
-                              (harness tmpdir hndl mixedTestBody `catch` h)
+testFormSizePolicyViolation =
+    testCase "fileUploads/formSizePolicy" $
+    assertThrows (harness tmpdir hndl mixedTestBody) h
   where
     h !(e :: FileUploadException) = do
         let r = fileUploadExceptionReason e
@@ -318,8 +320,9 @@ testFormSizePolicyViolation = testCase "fileUploads/formSizePolicy" $
 
 ------------------------------------------------------------------------------
 testFormInputsPolicyViolation :: Test
-testFormInputsPolicyViolation = testCase "fileUploads/formInputsPolicy" $
-                                (harness tmpdir hndl mixedTestBody `catch` h)
+testFormInputsPolicyViolation =
+    testCase "fileUploads/formInputsPolicy" $
+    assertThrows (harness tmpdir hndl mixedTestBody) h
   where
     h !(e :: FileUploadException) = do
         let r = fileUploadExceptionReason e
@@ -390,7 +393,7 @@ testWrongContentType = testCase "fileUploads/wrongContentType" $
 ------------------------------------------------------------------------------
 testTooManyHeaders :: Test
 testTooManyHeaders = testCase "fileUploads/tooManyHeaders" $
-                     (harness tmpdir hndl bigHeadersBody `catch` h)
+                     assertThrows (harness tmpdir hndl bigHeadersBody) h
   where
     h (e :: BadPartException) = show e `deepseq` return ()
 
@@ -421,10 +424,9 @@ testAbortedBody = testCase "fileUploads/abortedBody" $
 
 ------------------------------------------------------------------------------
 testSlowEnumerator :: Test
-testSlowEnumerator = testCase "fileUploads/tooSlow" $
-                     ((harness' goSlowEnumerator tmpdir hndl mixedTestBody
-                        >> error "shouldn't get here")
-                               `catches` [Handler h0])
+testSlowEnumerator =
+    testCase "fileUploads/tooSlow" $
+    assertThrows (harness' goSlowEnumerator tmpdir hndl mixedTestBody) h0
   where
     h0 (e :: EscapeSnap) = do
         let (TerminateConnection se) = e
@@ -448,9 +450,9 @@ testSlowEnumerator = testCase "fileUploads/tooSlow" $
 
 ------------------------------------------------------------------------------
 testSlowEnumerator2 :: Test
-testSlowEnumerator2 = testCase "fileUploads/tooSlow2" $
-                      (harness' goSlowEnumerator tmpdir hndl mixedTestBody
-                                    `catches` [Handler h0])
+testSlowEnumerator2 =
+    testCase "fileUploads/tooSlow2" $
+    assertThrows (harness' goSlowEnumerator tmpdir hndl mixedTestBody) h0
   where
     h0 (e :: EscapeSnap) = do
         let (TerminateConnection se) = e
@@ -551,6 +553,13 @@ harness' g tmpdir hndl body = (do
     createDirectoryIfMissing True tmpdir
     !_ <- g hndl body
     return ()) `finally` removeDirectoryRecursive tmpdir
+
+
+------------------------------------------------------------------------------
+assertThrows :: Exception e => IO a -> (e -> IO ()) -> IO ()
+assertThrows act handle = catch action handle
+  where
+    action = act >> assertFailure "Expected exception to be thrown"
 
 
 ------------------------------------------------------------------------------
