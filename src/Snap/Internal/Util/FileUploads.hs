@@ -47,11 +47,11 @@ module Snap.Internal.Util.FileUploads
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative              (Alternative ((<|>)), Applicative ((*>), (<*), pure))
+import           Control.Applicative              (Alternative ((<|>)), Applicative (pure, (*>), (<*)))
 import           Control.Arrow                    (Arrow (first))
 import           Control.Exception.Lifted         (Exception, SomeException (..), bracket, catch, fromException, mask, throwIO, toException)
 import qualified Control.Exception.Lifted         as E (try)
-import           Control.Monad                    (Functor (fmap), Monad ((>>=), return), MonadPlus (mzero), guard, liftM, sequence, void, when, (>=>))
+import           Control.Monad                    (Functor (fmap), Monad (return, (>>=)), MonadPlus (mzero), guard, liftM, sequence, void, when, (>=>))
 import           Data.Attoparsec.ByteString.Char8 (Parser, isEndOfLine, string, takeWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (try)
 import           Data.ByteString.Char8            (ByteString)
@@ -59,14 +59,14 @@ import qualified Data.ByteString.Char8            as S
 import           Data.ByteString.Internal         (c2w)
 import qualified Data.CaseInsensitive             as CI (mk)
 import           Data.Int                         (Int, Int64)
-import           Data.List                        (concat, find, map, (++))
-import qualified Data.Map                         as Map (insertWith', size)
+import           Data.List                        (find, map, (++))
+import qualified Data.Map                         as Map (insertWith')
 import           Data.Maybe                       (Maybe (..), fromMaybe, isJust, maybe)
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T (concat, pack, unpack)
 import qualified Data.Text.Encoding               as TE (decodeUtf8)
 import           Data.Typeable                    (Typeable, cast)
-import           Prelude                          (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, otherwise, snd, ($), ($!), (.), (^), (||))
+import           Prelude                          (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, foldr, fst, id, max, not, otherwise, snd, succ, ($), ($!), (.), (^), (||))
 import           Snap.Core                        (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody)
 import           Snap.Internal.Parsing            (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters)
 import qualified Snap.Types.Headers               as H (fromList)
@@ -173,8 +173,8 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
 
 ------------------------------------------------------------------------------
 -- | A type alias for a function that will process one of the parts of a
--- @multipart/form-data@ HTTP request body.
-type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
+-- @multipart/form-data@ HTTP request body with accumulator.
+type PartFold a = PartInfo -> InputStream ByteString -> a -> IO a
 
 
 ------------------------------------------------------------------------------
@@ -205,12 +205,13 @@ type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
 -- If an uploaded part contains MIME headers longer than a fixed internal
 -- threshold (currently 32KB), this function will throw a 'BadPartException'.
 --
-handleMultipart ::
+foldMultipart ::
        (MonadSnap m) =>
        UploadPolicy        -- ^ global upload policy
-    -> PartProcessor a     -- ^ part processor
-    -> m [a]
-handleMultipart uploadPolicy origPartHandler = do
+    -> PartFold a          -- ^ part processor
+    -> a                   -- ^ seed accumulator
+    -> m a
+foldMultipart uploadPolicy origPartHandler zero = do
     hdrs <- liftM headers getRequest
     let (ct, mbBoundary) = getContentType hdrs
 
@@ -221,7 +222,7 @@ handleMultipart uploadPolicy origPartHandler = do
                         then captureVariableOrReadFile
                                  (getMaximumFormInputSize uploadPolicy)
                                  origPartHandler
-                        else \x y -> liftM File $ origPartHandler x y
+                        else \x y acc -> liftM File $ origPartHandler x y acc
 
     -- not well-formed multipart? bomb out.
     guard (ct == "multipart/form-data")
@@ -233,8 +234,9 @@ handleMultipart uploadPolicy origPartHandler = do
 
     -- RateTooSlowException will be caught and properly dealt with by
     -- runRequestBody
-    captures <- runRequestBody (proc bumpTimeout boundary partHandler)
-    procCaptures captures id
+    (captures, acc) <- runRequestBody (proc bumpTimeout boundary partHandler)
+    procCaptures captures
+    return acc
 
   where
     --------------------------------------------------------------------------
@@ -245,28 +247,43 @@ handleMultipart uploadPolicy origPartHandler = do
     --------------------------------------------------------------------------
     proc bumpTimeout boundary partHandler =
         Streams.throwIfTooSlow bumpTimeout uploadRate uploadSecs >=>
-        internalHandleMultipart boundary partHandler
+        internalFoldMultipart maxFormVars boundary partHandler zero
 
     --------------------------------------------------------------------------
-    procCaptures []                 dl = return $! dl []
-    procCaptures ((File x):xs)      dl = procCaptures xs (dl . (x:))
-    procCaptures ((Capture k v):xs) dl = do
+    procCaptures []          = pure ()
+    procCaptures params = do
         rq <- getRequest
-        when (Map.size (rqPostParams rq) >= maxFormVars)
-          $ throwIO . PolicyViolationException
-          $ T.concat [ "number of form inputs exceeded maximum of "
-                     , T.pack $ show maxFormVars ]
-        putRequest $ modifyParams (ins k v) rq
-        procCaptures xs dl
+        putRequest $ modifyParams (\m -> foldr ins m params) rq
 
     --------------------------------------------------------------------------
-    ins k v = Map.insertWith' (flip (++)) k [v]
+    ins (FormParam k v) = Map.insertWith' (\_ ex -> (v:ex)) k [v]
+         -- prepend value if key exists, since we are folding from right
 
     --------------------------------------------------------------------------
     modifyParams f r = r { rqPostParams = f $ rqPostParams r
                          , rqParams     = f $ rqParams r
                          }
 
+------------------------------------------------------------------------------
+-- | A type alias for a function that will process one of the parts of a
+-- @multipart/form-data@ HTTP request body without usinc accumulator.
+type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
+
+
+------------------------------------------------------------------------------
+-- | A variant of 'foldMultipart' accumulating results into a list.
+--
+handleMultipart ::
+       (MonadSnap m) =>
+       UploadPolicy        -- ^ global upload policy
+    -> PartProcessor a     -- ^ part processor
+    -> m [a]
+handleMultipart uploadPolicy origPartHandler =
+   liftM ($[]) $ foldMultipart uploadPolicy partFold id
+  where
+    partFold info input acc = do
+      x <- origPartHandler info input
+      return $ acc . ([x]++)
 
 ------------------------------------------------------------------------------
 -- | Represents the disposition type specified via the @Content-Disposition@
@@ -557,11 +574,13 @@ allowWithMaximumSize = PartUploadPolicy . Just
 ------------------------------------------------------------------------------
 captureVariableOrReadFile ::
        Int64                                   -- ^ maximum size of form input
-    -> PartProcessor a                         -- ^ file reading code
-    -> PartProcessor (Capture a)
-captureVariableOrReadFile maxSize fileHandler partInfo stream =
+    -> PartFold a                              -- ^ file reading code
+    -> PartInfo -> InputStream ByteString
+    -> a
+    -> IO (Capture a)
+captureVariableOrReadFile maxSize fileHandler partInfo stream acc =
     if isFile
-      then liftM File $ fileHandler partInfo stream
+      then liftM File $ fileHandler partInfo stream acc
       else variable `catch` handler
 
   where
@@ -569,7 +588,7 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
              partDisposition partInfo == DispositionFile
 
     variable = do
-        x <- liftM S.concat $
+        !x <- liftM S.concat $
              Streams.throwIfProducesMoreThan maxSize stream >>= Streams.toList
         return $! Capture fieldName x
 
@@ -585,7 +604,7 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
 
 
 ------------------------------------------------------------------------------
-data Capture a = Capture ByteString ByteString
+data Capture a = Capture !ByteString !ByteString
                | File a
 
 
@@ -603,19 +622,45 @@ fileReader tmpdir partProc partInfo input =
 
 
 ------------------------------------------------------------------------------
-internalHandleMultipart ::
-       ByteString                                    -- ^ boundary value
-    -> (PartInfo -> InputStream ByteString -> IO a)  -- ^ part processor
+data MultipartState a = MultipartState
+  { numFormVars       :: {-# UNPACK #-} !Int
+  , numFormFiles      :: {-# UNPACK #-} !Int
+  , capturedFields    :: !([FormParam] -> [FormParam])
+  , accumulator       :: !a
+  }
+
+------------------------------------------------------------------------------
+data FormParam = FormParam !ByteString !ByteString
+
+------------------------------------------------------------------------------
+addCapture :: ByteString -> ByteString -> MultipartState a -> MultipartState a
+addCapture !k !v !ms =
+  let f = capturedFields ms . ([FormParam k v]++)
+      !ms' = ms { capturedFields = f
+                , numFormVars = succ (numFormVars ms) }
+  in ms'
+
+
+------------------------------------------------------------------------------
+internalFoldMultipart ::
+       Int           -- ^ max num fields
+    -> ByteString                                     -- ^ boundary value
+    -> (PartInfo -> InputStream ByteString -> a -> IO (Capture a))  -- ^ part processor
+    -> a
     -> InputStream ByteString
-    -> IO [a]
-internalHandleMultipart !boundary clientHandler !stream = go
+    -> IO ([FormParam], a)
+internalFoldMultipart !maxFormVars !boundary clientHandler !zeroAcc !stream = go
   where
+    --------------------------------------------------------------------------
+    initialState = MultipartState 0 0 id zeroAcc
+
     --------------------------------------------------------------------------
     go = do
         -- swallow the first boundary
         _        <- parseFromStream (parseFirstBoundary boundary) stream
         bmstream <- search (fullBoundary boundary) stream
-        liftM concat $ processParts goPart bmstream
+        ms <- foldParts goPart bmstream initialState
+        return $ (capturedFields ms [], accumulator ms)
 
     --------------------------------------------------------------------------
     pBoundary !b = Atto.try $ do
@@ -639,7 +684,7 @@ internalHandleMultipart !boundary clientHandler !stream = go
             throwIO $ BadPartException "headers exceeded maximum size"
 
     --------------------------------------------------------------------------
-    goPart !str = do
+    goPart !str !acc = do
         hdrs <- takeHeaders str
 
         -- are we using mixed?
@@ -649,30 +694,45 @@ internalHandleMultipart !boundary clientHandler !stream = go
         if contentType == "multipart/mixed"
           then maybe (throwIO $ BadPartException $
                       "got multipart/mixed without boundary")
-                     (processMixed fieldName str)
+                     (processMixed fieldName str acc)
                      mboundary
           else do
               let info = PartInfo fieldName fileName contentType disposition hdrs
-              liftM (:[]) $ clientHandler info str
-
+              handlePart info str acc
 
     --------------------------------------------------------------------------
-    processMixed !fieldName !str !mixedBoundary = do
+    handlePart !info !str !ms = do
+      r <- clientHandler info str (accumulator ms)
+      case r of
+        Capture !k !v -> do
+           when (maxFormVars <= numFormVars ms) throwTooMuchVars
+           return $! addCapture k v ms
+        File !newAcc -> return $! ms { accumulator = newAcc
+                                     , numFormFiles = succ (numFormFiles ms)
+                                     }
+
+    throwTooMuchVars =
+        throwIO . PolicyViolationException
+        $ T.concat [ "number of form inputs exceeded maximum of "
+                   , T.pack $ show maxFormVars ]
+
+    --------------------------------------------------------------------------
+    processMixed !fieldName !str !acc !mixedBoundary= do
         -- swallow the first boundary
         _  <- parseFromStream (parseFirstBoundary mixedBoundary) str
         bm <- search (fullBoundary mixedBoundary) str
-        processParts (mixedStream fieldName) bm
+        foldParts (mixedStream fieldName) bm acc
 
 
     --------------------------------------------------------------------------
-    mixedStream !fieldName !str = do
+    mixedStream !fieldName !str !acc = do
         hdrs <- takeHeaders str
 
         let (contentType, _)           = getContentType hdrs
         let (_, fileName, disposition) = getFieldHeaderInfo hdrs
 
         let info = PartInfo fieldName fileName contentType disposition hdrs
-        clientHandler info str
+        handlePart info str acc
 
 
 ------------------------------------------------------------------------------
@@ -734,24 +794,25 @@ partStream st = Streams.makeInputStream go
 -- InputStream over each part and grab a list of the resulting values.
 --
 -- TODO/FIXME: fix description
-processParts :: (InputStream ByteString -> IO a)
+foldParts :: (InputStream ByteString -> MultipartState a -> IO (MultipartState a))
              -> InputStream MatchInfo
-             -> IO [a]
-processParts partFunc stream = go id
+             -> (MultipartState a)
+             -> IO (MultipartState a)
+foldParts partFunc stream = go
   where
-    part pStream = do
+    part acc pStream = do
         isLast <- parseFromStream pBoundaryEnd pStream
 
         if isLast
           then return Nothing
           else do
-              !x <- partFunc pStream
+              !x <- partFunc pStream acc
               Streams.skipToEof pStream
               return $! Just x
 
-    go !soFar = partStream stream >>=
-                part >>=
-                maybe (return $ soFar []) (\x -> go (soFar . (x:)))
+    go !acc = do
+      cap <- partStream stream >>= part acc
+      maybe (return acc) go cap
 
     pBoundaryEnd = (eol *> pure False) <|> (string "--" *> pure True)
 
