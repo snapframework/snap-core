@@ -85,7 +85,7 @@ import           Data.Text                        (Text)
 import qualified Data.Text                        as T (concat, pack, unpack)
 import qualified Data.Text.Encoding               as TE (decodeUtf8)
 import           Data.Typeable                    (Typeable, cast)
-import           Prelude                          (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, foldr, fst, id, max, not, otherwise, snd, succ, ($), ($!), (.), (^), (||))
+import           Prelude                          (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, foldr, fst, id, max, not, otherwise, seq, snd, succ, ($), ($!), (.), (^), (||))
 import           Snap.Core                        (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody)
 import           Snap.Internal.Parsing            (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters)
 import qualified Snap.Types.Headers               as H (fromList)
@@ -756,22 +756,29 @@ withTemporaryStore ::
       -- ^ Action taking store function
     -> m a
 withTemporaryStore tempdir pat act = do
-  ref <- liftIO $ IORef.newIORef []
-  let
-   go _ input = do
-     (fn, h) <- openBinaryTempFile tempdir pat
-     IORef.modifyIORef' ref (fn:)
-     hSetBuffering h NoBuffering
-     output <- Streams.handleToOutputStream h
-     Streams.connect input output
-     hClose h
-     pure fn
-   cleanup = liftIO $ do
-     files <- IORef.readIORef ref
-     forM_ files $ \fn -> do
-        removeFile fn `catch` handleExists
-   handleExists e = unless (isDoesNotExistError e) $ throwIO e
-  act go `finally` cleanup
+    ioref <- liftIO $ IORef.newIORef []
+    let
+      modifyIORef' ref f = do -- ghc 7.4 does not have modifyIORef'
+          x <- IORef.readIORef ref
+          let x' = f x
+          x' `seq` IORef.writeIORef ref x'
+
+      go _ input = do
+          (fn, h) <- openBinaryTempFile tempdir pat
+          modifyIORef' ioref (fn:)
+          hSetBuffering h NoBuffering
+          output <- Streams.handleToOutputStream h
+          Streams.connect input output
+          hClose h
+          pure fn
+
+      cleanup = liftIO $ do
+          files <- IORef.readIORef ioref
+          forM_ files $ \fn -> do
+             removeFile fn `catch` handleExists
+      handleExists e = unless (isDoesNotExistError e) $ throwIO e
+
+    act go `finally` cleanup
 
 
 ------------------------------------------------------------------------------
