@@ -7,7 +7,7 @@ module Snap.Util.FileUploads.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative            (Alternative ((<|>)))
+import           Control.Applicative            (Alternative ((<|>)), (<$>))
 import           Control.DeepSeq                (deepseq)
 import           Control.Exception              (ErrorCall (..), evaluate, throwIO)
 import           Control.Exception.Lifted       (Exception (fromException, toException), catch, finally, throw)
@@ -16,7 +16,7 @@ import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S
 import           Data.IORef                     (atomicModifyIORef, newIORef, readIORef, writeIORef)
-import           Data.List                      (foldl')
+import           Data.List                      (foldl', length)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (Maybe (..), fromJust, maybe)
 import qualified Data.Text                      as T
@@ -24,7 +24,7 @@ import           Data.Typeable                  (Typeable)
 import           Prelude                        (Bool (..), Either (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
 import           Snap.Internal.Core             (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
 import           Snap.Internal.Http.Types       (Request (rqBody), Response, setHeader)
-import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout, toPartDisposition)
+import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, foldMultipart, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout, toPartDisposition)
 import qualified Snap.Test                      as Test
 import           Snap.Test.Common               (coverEqInstance, coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)
 import qualified Snap.Types.Headers             as H
@@ -47,7 +47,9 @@ instance Exception TestException
 
 ------------------------------------------------------------------------------
 tests :: [Test]
-tests = [ testSuccess1
+tests = [ testFoldMultipart1
+        , testFoldMultipart2
+        , testSuccess1
         , testSuccess2
         , testBadParses
         , testPerPartPolicyViolation1
@@ -66,6 +68,80 @@ tests = [ testSuccess1
         , testTrivials
         , testDisconnectionCleanup
         ]
+
+------------------------------------------------------------------------------
+testFoldMultipart1 :: Test
+testFoldMultipart1 = testCase "fileUploads/fold1" $
+     void $ go hndl mixedTestBody
+
+  where
+    hndl :: Snap ()
+    hndl = do
+        (params, files) <- foldMultipart defaultUploadPolicy  hndl' []
+
+        let fileMap = foldl' f Map.empty files
+        liftIO $ assertEqual "2 params returned" 2 (length params)
+        let [p1, p2] = params
+
+        liftIO $ do
+            let Just (a1, a2, a3) = Map.lookup "file1.txt" fileMap
+            let Just (b1, b2, b3) = Map.lookup "file2.gif" fileMap
+            assertEqual "file1 contents"
+                        ("text/plain", file1Contents)
+                        (a1, a2)
+            assertEqual "file1 header 1"
+                        (Just "text/plain")
+                        (H.lookup "content-type" a3)
+            assertEqual "file1 header 2"
+                        (Just "attachment; filename=\"file1.txt\"")
+                        (H.lookup "content-disposition" a3)
+
+            assertEqual "file2 contents"
+                        ("image/gif", file2Contents)
+                        (b1, b2)
+            assertEqual "file2 header 1"
+                        (Just "image/gif")
+                        (H.lookup "content-type" b3)
+            assertEqual "file2 header 2"
+                        (Just "attachment; filename=\"file2.gif\"")
+                        (H.lookup "content-disposition" b3)
+
+            assertEqual "field1 contents"
+                        ("field1", formContents1)
+                        p1
+
+            assertEqual "field2 contents"
+                        ("field2", formContents2)
+                        p2
+
+    f mp (fn, ct, x, hdrs) = Map.insert fn (ct,x,hdrs) mp
+
+    hndl' partInfo istream acc = do
+       let
+         fn = fromJust $ partFileName partInfo
+         ct = partContentType partInfo
+         hdrs = partHeaders partInfo
+       body <- S.concat <$> Streams.toList istream
+       return (acc ++ [(fn, ct, body, hdrs)])
+
+
+
+------------------------------------------------------------------------------
+testFoldMultipart2 :: Test
+testFoldMultipart2 = testCase "fileUploads/fold2" $
+    void $ go hndl mixedTestBody
+  where
+    policy = setProcessFormInputs False defaultUploadPolicy
+
+    hndl = do
+        (fields, fileCount) <- foldMultipart policy hndl' (0::Int)
+
+        liftIO $ do
+             assertEqual "num params" 4 fileCount
+             assertEqual "num processed" 0 (length fields)
+
+    hndl' !_ !_ !acc = return $ acc + 1
+
 
 
 ------------------------------------------------------------------------------

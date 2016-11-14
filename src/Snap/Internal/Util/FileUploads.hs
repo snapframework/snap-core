@@ -8,7 +8,11 @@
 
 module Snap.Internal.Util.FileUploads
   ( -- * Functions
-    handleFileUploads
+    foldMultipart
+  , PartFold
+  , FormParam
+    -- ** Backwards compatible API
+  , handleFileUploads
   , handleMultipart
   , PartProcessor
 
@@ -181,6 +185,16 @@ type PartFold a = PartInfo -> InputStream ByteString -> a -> IO a
 -- | Given an upload policy and a function to consume uploaded \"parts\",
 -- consume a request body uploaded with @Content-type: multipart/form-data@.
 --
+-- If 'setProcessFormInputs' is 'True', then parts with disposition @form-data@
+-- (a form parameter) will be processed and returned as first element of
+-- resulting pair. Parts with other disposition will be fed to 'PartFold'
+-- handler.
+--
+-- If 'setProcessFormInputs' is 'False', then parts with any disposition will
+-- be fed to 'PartFold' handler and first element of returned pair will be
+-- empty. In this case it is important that you limit number of form inputs
+-- and sizes of inputs in your 'PartFold' handler to avoid common DOS attacks.
+--
 -- Note: /THE REQUEST MUST BE CORRECTLY ENCODED/. If the request's
 -- @Content-type@ is not \"@multipart/formdata@\", this function skips
 -- processing using 'pass'.
@@ -198,9 +212,9 @@ type PartFold a = PartInfo -> InputStream ByteString -> a -> IO a
 -- /Exceptions/
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
--- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and
--- a form input exceeds the maximum allowable size, this function will throw a
--- 'PolicyViolationException'.
+-- processed (using 'setProcessFormInputs'), and form a form input exceeds
+-- the maximum allowable size or form exceeds maximum number of inputs, this
+-- function will throw a 'PolicyViolationException'.
 --
 -- If an uploaded part contains MIME headers longer than a fixed internal
 -- threshold (currently 32KB), this function will throw a 'BadPartException'.
@@ -210,7 +224,7 @@ foldMultipart ::
        UploadPolicy        -- ^ global upload policy
     -> PartFold a          -- ^ part processor
     -> a                   -- ^ seed accumulator
-    -> m a
+    -> m ([FormParam], a)
 foldMultipart uploadPolicy origPartHandler zero = do
     hdrs <- liftM headers getRequest
     let (ct, mbBoundary) = getContentType hdrs
@@ -234,9 +248,7 @@ foldMultipart uploadPolicy origPartHandler zero = do
 
     -- RateTooSlowException will be caught and properly dealt with by
     -- runRequestBody
-    (captures, acc) <- runRequestBody (proc bumpTimeout boundary partHandler)
-    procCaptures captures
-    return acc
+    runRequestBody (proc bumpTimeout boundary partHandler)
 
   where
     --------------------------------------------------------------------------
@@ -249,21 +261,6 @@ foldMultipart uploadPolicy origPartHandler zero = do
         Streams.throwIfTooSlow bumpTimeout uploadRate uploadSecs >=>
         internalFoldMultipart maxFormVars boundary partHandler zero
 
-    --------------------------------------------------------------------------
-    procCaptures []          = pure ()
-    procCaptures params = do
-        rq <- getRequest
-        putRequest $ modifyParams (\m -> foldr ins m params) rq
-
-    --------------------------------------------------------------------------
-    ins (FormParam k v) = Map.insertWith' (\_ ex -> (v:ex)) k [v]
-         -- prepend value if key exists, since we are folding from right
-
-    --------------------------------------------------------------------------
-    modifyParams f r = r { rqPostParams = f $ rqPostParams r
-                         , rqParams     = f $ rqParams r
-                         }
-
 ------------------------------------------------------------------------------
 -- | A type alias for a function that will process one of the parts of a
 -- @multipart/form-data@ HTTP request body without usinc accumulator.
@@ -272,18 +269,36 @@ type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
 
 ------------------------------------------------------------------------------
 -- | A variant of 'foldMultipart' accumulating results into a list.
+-- Also puts captured 'FormParam's into rqPostParams and rqParams maps.
 --
 handleMultipart ::
        (MonadSnap m) =>
        UploadPolicy        -- ^ global upload policy
     -> PartProcessor a     -- ^ part processor
     -> m [a]
-handleMultipart uploadPolicy origPartHandler =
-   liftM ($[]) $ foldMultipart uploadPolicy partFold id
+handleMultipart uploadPolicy origPartHandler = do
+    (captures, files) <- foldMultipart uploadPolicy partFold id
+    procCaptures captures
+    return $! files []
+
   where
     partFold info input acc = do
       x <- origPartHandler info input
       return $ acc . ([x]++)
+    --------------------------------------------------------------------------
+    procCaptures []          = pure ()
+    procCaptures params = do
+        rq <- getRequest
+        putRequest $ modifyParams (\m -> foldr ins m params) rq
+
+    --------------------------------------------------------------------------
+    ins (!k, !v) = Map.insertWith' (\_ ex -> (v:ex)) k [v]
+         -- prepend value if key exists, since we are folding from right
+
+    --------------------------------------------------------------------------
+    modifyParams f r = r { rqPostParams = f $ rqPostParams r
+                         , rqParams     = f $ rqParams r
+                         }
 
 ------------------------------------------------------------------------------
 -- | Represents the disposition type specified via the @Content-Disposition@
@@ -630,12 +645,14 @@ data MultipartState a = MultipartState
   }
 
 ------------------------------------------------------------------------------
-data FormParam = FormParam !ByteString !ByteString
+-- | A form parameter name-value pair
+type FormParam = (ByteString, ByteString)
 
 ------------------------------------------------------------------------------
 addCapture :: ByteString -> ByteString -> MultipartState a -> MultipartState a
 addCapture !k !v !ms =
-  let f = capturedFields ms . ([FormParam k v]++)
+  let !kv = (k,v)
+      f = capturedFields ms . ([kv]++)
       !ms' = ms { capturedFields = f
                 , numFormVars = succ (numFormVars ms) }
   in ms'
