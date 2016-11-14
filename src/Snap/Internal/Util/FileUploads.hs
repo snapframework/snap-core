@@ -8,9 +8,13 @@
 
 module Snap.Internal.Util.FileUploads
   ( -- * Functions
-    foldMultipart
+    handleFormUploads
+  , foldMultipart
   , PartFold
   , FormParam
+  , FormFile
+  , storeAsLazyByteString
+  , withTemporaryStore
     -- ** Backwards compatible API
   , handleFileUploads
   , handleMultipart
@@ -38,6 +42,14 @@ module Snap.Internal.Util.FileUploads
   , getUploadTimeout
   , setUploadTimeout
 
+    -- *** File upload policy
+  , FileUploadPolicy(..)
+  , defaultFileUploadPolicy
+  , setMaximumFileSize
+  , setMaximumNumberOfFiles
+  , setSkipFilesWithoutNames
+  , setStoreFilesWithoutNames
+
     -- *** Per-file upload policy
   , PartUploadPolicy(..)
   , disallow
@@ -53,16 +65,19 @@ module Snap.Internal.Util.FileUploads
 ------------------------------------------------------------------------------
 import           Control.Applicative              (Alternative ((<|>)), Applicative (pure, (*>), (<*)))
 import           Control.Arrow                    (Arrow (first))
-import           Control.Exception.Lifted         (Exception, SomeException (..), bracket, catch, fromException, mask, throwIO, toException)
+import           Control.Exception.Lifted         (Exception, SomeException (..), bracket, catch, finally, fromException, mask, throwIO, toException)
 import qualified Control.Exception.Lifted         as E (try)
-import           Control.Monad                    (Functor (fmap), Monad (return, (>>=)), MonadPlus (mzero), guard, liftM, sequence, void, when, (>=>))
+import           Control.Monad                    (Functor (fmap), Monad (return, (>>=)), MonadPlus (mzero), forM_, guard, liftM, sequence, unless, void, when, (>=>))
+import           Control.Monad.IO.Class           (liftIO)
 import           Data.Attoparsec.ByteString.Char8 (Parser, isEndOfLine, string, takeWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (try)
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S
 import           Data.ByteString.Internal         (c2w)
+import qualified Data.ByteString.Lazy.Internal    as LB (ByteString (Empty), chunk)
 import qualified Data.CaseInsensitive             as CI (mk)
 import           Data.Int                         (Int, Int64)
+import qualified Data.IORef                       as IORef
 import           Data.List                        (find, map, (++))
 import qualified Data.Map                         as Map (insertWith')
 import           Data.Maybe                       (Maybe (..), fromMaybe, isJust, maybe)
@@ -76,7 +91,8 @@ import           Snap.Internal.Parsing            (crlf, fullyParse, pContentTyp
 import qualified Snap.Types.Headers               as H (fromList)
 import           System.Directory                 (removeFile)
 import           System.FilePath                  ((</>))
-import           System.IO                        (BufferMode (NoBuffering), Handle, hClose, hSetBuffering)
+import           System.IO                        (BufferMode (NoBuffering), Handle, hClose, hSetBuffering, openBinaryTempFile)
+import           System.IO.Error                  (isDoesNotExistError)
 import           System.IO.Streams                (InputStream, MatchInfo (..), TooManyBytesReadException, search)
 import qualified System.IO.Streams                as Streams
 import           System.IO.Streams.Attoparsec     (parseFromStream)
@@ -173,6 +189,68 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
                                   , "\" with content-type \""
                                   , ct
                                   , "\"" ] )
+
+
+------------------------------------------------------------------------------
+type FormFile a = (Maybe ByteString, a)
+data UploadState a = UploadState
+     { numUploadedFiles :: !Int
+     , uploadedFiles :: !([FormFile a] -> [FormFile a])
+     }
+
+handleFormUploads ::
+       (MonadSnap m) =>
+       UploadPolicy                   -- ^ general upload policy
+    -> FileUploadPolicy               -- ^ Upload policy for files
+    -> (PartInfo -> InputStream ByteString -> IO a)
+                                      -- ^ A file storage function
+    -> m ([FormParam], [FormFile a])
+handleFormUploads uploadPolicy filePolicy partHandler = do
+    (params, !st) <- foldMultipart uploadPolicy go (UploadState 0 id)
+    return (params, uploadedFiles st [])
+  where
+    go partInfo stream st = do
+        when (numUploads >= maxFiles) throwTooManyFiles
+
+        case partFileName partInfo of
+          Nothing -> onEmptyName
+          Just _ -> takeIt maxFileSize
+
+      where
+        numUploads = numUploadedFiles st
+        files = uploadedFiles st
+        maxFiles = maxNumberOfFiles filePolicy
+        maxFileSize = maxFileUploadSize filePolicy
+        fnText = fromMaybe "" $ partFileName partInfo
+
+        fn = TE.decodeUtf8 fnText
+
+        takeIt maxSize = do
+            str' <- Streams.throwIfProducesMoreThan maxSize stream
+            r <- partHandler partInfo str' `catch` tooMany maxSize
+            let f = files . ([(partFileName partInfo, r)]++)
+            return $! UploadState (succ numUploads) f
+
+        skipIt maxSize = do
+            str' <- Streams.throwIfProducesMoreThan maxSize stream
+            !_ <- Streams.skipToEof str' `catch` tooMany maxSize
+            return $! UploadState (succ numUploads) files
+
+        onEmptyName = case emptyFileNamePolicy filePolicy of
+                        EmptyFileNameSkip sz -> skipIt sz
+                        EmptyFileNameStore sz -> takeIt sz
+
+
+        throwTooManyFiles = throwIO . PolicyViolationException $ T.concat
+                            ["number of files exceeded the maximum of "
+                            ,T.pack (show maxFiles) ]
+
+        tooMany maxSize (_ :: TooManyBytesReadException) =
+            throwIO . PolicyViolationException $
+                    T.concat [ "File \""
+                             , fn
+                             , "\" exceeded maximum allowable size "
+                             , T.pack $ show maxSize ]
 
 
 ------------------------------------------------------------------------------
@@ -560,6 +638,69 @@ setUploadTimeout s u = u { uploadTimeout = s }
 
 
 ------------------------------------------------------------------------------
+
+data EmptyFileNamePolicy = EmptyFileNameStore Int64
+                         | EmptyFileNameSkip Int64
+
+-- | File upload policy, if any policy is violated then
+-- 'PolicyViolationException' is thrown
+data FileUploadPolicy = FileUploadPolicy {
+      maxFileUploadSize   :: Int64
+    , maxNumberOfFiles    :: Int
+    , emptyFileNamePolicy :: EmptyFileNamePolicy
+    }
+
+-- | A default 'FileUploadPolicy'
+--
+-- @
+-- setMaximumFileSize 1048576 -- 1Mb
+-- . setMaximumNumberOfFiles 10
+-- . setSkipFilesWithoutNames 0
+-- @
+--
+defaultFileUploadPolicy :: FileUploadPolicy
+defaultFileUploadPolicy = FileUploadPolicy maxFileSize maxFiles onEmptyName
+  where
+    maxFileSize = 1048576 -- 1MB
+    maxFiles    = 10
+    onEmptyName = EmptyFileNameSkip 0
+
+-- | Maximum size of single uploaded file.
+setMaximumFileSize :: Int64 -> FileUploadPolicy -> FileUploadPolicy
+setMaximumFileSize maxSize s =
+    s { maxFileUploadSize = maxSize }
+
+-- | Maximum number of uploaded files.
+setMaximumNumberOfFiles :: Int -> FileUploadPolicy -> FileUploadPolicy
+setMaximumNumberOfFiles maxFiles s =
+    s { maxNumberOfFiles = maxFiles }
+
+-- | Skip files with empty file names and allow up to this body size.
+--
+-- If set, parts without filenames will not be fed to storage function.
+--
+-- HTML5 form data encoding standard states that input fields of type
+-- file without file chosen for upload are encoded as file with empty body,
+-- empty file name, and type @application/octet-stream@
+--
+-- You want to use this with zero bytes allowed to avoid storing empty files,
+-- If empty file is larger than this setting then 'FileUploadException'
+-- is thrown.
+--
+-- By default files without names are skipped and maximum skipped size is 0
+-- bytes.
+setSkipFilesWithoutNames:: Int64 -> FileUploadPolicy -> FileUploadPolicy
+setSkipFilesWithoutNames maxSize s =
+    s { emptyFileNamePolicy = EmptyFileNameSkip maxSize }
+
+-- | Do store files without file names. See 'setSkipFilesWithoutNames' for
+-- when this may not be desirable.
+setStoreFilesWithoutNames :: Int64 -> FileUploadPolicy -> FileUploadPolicy
+setStoreFilesWithoutNames maxSize s =
+    s { emptyFileNamePolicy = EmptyFileNameStore maxSize }
+
+
+------------------------------------------------------------------------------
 -- | Upload policy can be set on an \"general\" basis (using 'UploadPolicy'),
 --   but handlers can also make policy decisions on individual files\/parts
 --   uploaded. For each part uploaded, handlers can decide:
@@ -580,6 +721,57 @@ disallow = PartUploadPolicy Nothing
 -- | Allows the file to be uploaded, with maximum size /n/.
 allowWithMaximumSize :: Int64 -> PartUploadPolicy
 allowWithMaximumSize = PartUploadPolicy . Just
+
+
+------------------------------------------------------------------------------
+-- | Stores file body in memory as Lazy ByteString.
+storeAsLazyByteString :: PartInfo -> InputStream ByteString -> IO LB.ByteString
+storeAsLazyByteString _ !str = do
+   f <- Streams.fold (\f c -> f . LB.chunk c) id str
+   return $! f LB.Empty
+
+
+------------------------------------------------------------------------------
+-- | Store files in a temporary directory, and clean up on function exit.
+--
+-- Files are safe to move until function exists.
+--
+-- If asynchronous exception is thrown during cleanup, temporary files may
+-- remain.
+--
+-- @
+-- uploadsHandler = withTemporarystore "/var/tmp" "upload-" $ \store -> do
+--     (inputs, files) <- handleFormUploads defaultUploadpolicy
+--                                          defaultFileUploadPolicy
+--                                           store
+--     saveFiles files
+--
+-- @
+--
+withTemporaryStore ::
+    MonadSnap m
+    => FilePath -- ^ temporary directory
+    -> String   -- ^ file name pattern
+    -> ((PartInfo -> InputStream ByteString -> IO FilePath) -> m a)
+      -- ^ Action taking store function
+    -> m a
+withTemporaryStore tempdir pat act = do
+  ref <- liftIO $ IORef.newIORef []
+  let
+   go _ input = do
+     (fn, h) <- openBinaryTempFile tempdir pat
+     IORef.modifyIORef' ref (fn:)
+     hSetBuffering h NoBuffering
+     output <- Streams.handleToOutputStream h
+     Streams.connect input output
+     hClose h
+     pure fn
+   cleanup = liftIO $ do
+     files <- IORef.readIORef ref
+     forM_ files $ \fn -> do
+        removeFile fn `catch` handleExists
+   handleExists e = unless (isDoesNotExistError e) $ throwIO e
+  act go `finally` cleanup
 
 
 ------------------------------------------------------------------------------
