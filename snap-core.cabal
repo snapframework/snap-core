@@ -264,6 +264,13 @@ Test-suite testsuite
     test-framework-quickcheck2 >= 0.2.12.1 && <0.4,
     zlib                       >= 0.5      && <0.7
 
+  if flag(network-uri)
+    build-depends: network-uri >= 2.6 && < 2.7,
+                   network     >= 2.6 && < 2.7
+  else
+    build-depends: network-uri >= 2.5 && < 2.6,
+                   network     >= 2.3 && < 2.6
+
   ghc-options: -Wall -fwarn-tabs -funbox-strict-fields -threaded
                -fno-warn-unused-do-bind
 

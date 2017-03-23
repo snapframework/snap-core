@@ -13,6 +13,7 @@ import qualified Snap.Util.FileServe.Tests
 import qualified Snap.Util.FileUploads.Tests
 import qualified Snap.Util.GZip.Tests
 import qualified Snap.Util.Proxy.Tests
+import qualified Snap.Util.CORS.Tests
 
 
 ------------------------------------------------------------------------------
@@ -37,6 +38,8 @@ main = defaultMain tests
                         Snap.Util.GZip.Tests.tests
             , testGroup "Snap.Util.Proxy.Tests"
                         Snap.Util.Proxy.Tests.tests
+            , testGroup "Snap.Util.CORS.Tests"
+                        Snap.Util.CORS.Tests.tests
             , testGroup "Snap.Test.Tests"
                         Snap.Test.Tests.tests
             ]

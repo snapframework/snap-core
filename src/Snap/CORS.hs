@@ -35,7 +35,7 @@ import Network.URI (URI (..), URIAuth (..),  parseURI)
 
 import qualified Data.Attoparsec.Combinator as Attoparsec
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
-import qualified Data.ByteString.Char8 as Char8
+import qualified Data.ByteString.Char8 as S
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
@@ -67,7 +67,7 @@ data CORSOptions m = CORSOptions
   -- ^ Whether or not to allow exposing the response when the omit credentials
   -- flag is unset.
 
-  , corsExposeHeaders :: m (HashSet.HashSet (CI Char8.ByteString))
+  , corsExposeHeaders :: m (HashSet.HashSet (CI S.ByteString))
   -- ^ A list of headers that are exposed to clients. This allows clients to
   -- read the values of these headers, if the response includes them.
 
@@ -94,11 +94,13 @@ defaultOptions = CORSOptions
   { corsAllowOrigin = return Everywhere
   , corsAllowCredentials = return True
   , corsExposeHeaders = return HashSet.empty
-  , corsAllowedMethods =
-      return $ HashSet.fromList $ map HashableMethod
-        [ Snap.GET, Snap.POST, Snap.PUT, Snap.DELETE, Snap.HEAD ]
+  , corsAllowedMethods = return $! defaultAllowedMethods
   , corsAllowedHeaders = return
   }
+
+defaultAllowedMethods :: HashSet.HashSet HashableMethod
+defaultAllowedMethods = HashSet.fromList $ map HashableMethod
+        [ Snap.GET, Snap.POST, Snap.PUT, Snap.DELETE, Snap.HEAD ]
 
 
 -- | Apply CORS headers to a specific request. This is useful if you only have
@@ -119,7 +121,6 @@ applyCORS options m =
   (join . fmap decodeOrigin <$> getHeader "Origin") >>= maybe m corsRequestFrom
 
  where
-
   corsRequestFrom origin = do
     originList <- corsAllowOrigin options
     if origin `inOriginList` originList
@@ -128,7 +129,7 @@ applyCORS options m =
        else m
 
   preflightRequestFrom origin = do
-    maybeMethod <- fmap (parseMethod . Char8.unpack) <$>
+    maybeMethod <- fmap (parseMethod . S.unpack) <$>
                      getHeader "Access-Control-Request-Method"
 
     case maybeMethod of
@@ -148,7 +149,8 @@ applyCORS options m =
               Just headers -> do
                 allowedHeaders <- corsAllowedHeaders options headers
 
-                if not $ HashSet.null $ headers `HashSet.difference` allowedHeaders
+                if not $ HashSet.null $
+                     headers `HashSet.difference` allowedHeaders
                    then m
                    else do
                      addAccessControlAllowOrigin origin
@@ -156,11 +158,11 @@ applyCORS options m =
 
                      commaSepHeader
                        "Access-Control-Allow-Headers"
-                       Char8.pack (HashSet.toList allowedHeaders)
+                       S.pack (HashSet.toList allowedHeaders)
 
                      commaSepHeader
                        "Access-Control-Allow-Methods"
-                       (Char8.pack . show) (HashSet.toList allowedMethods)
+                       (S.pack . show) (HashSet.toList allowedMethods)
 
           else m
 
@@ -185,6 +187,7 @@ applyCORS options m =
     when (allowCredentials) $
       addHeader "Access-Control-Allow-Credentials" "true"
 
+  decodeOrigin :: S.ByteString -> Maybe URI
   decodeOrigin = fmap simplifyURI . parseURI . Text.unpack . decodeUtf8
 
   addHeader k v = Snap.modifyResponse (Snap.addHeader k v)
@@ -192,7 +195,7 @@ applyCORS options m =
   commaSepHeader k f vs =
     case vs of
       [] -> return ()
-      _  -> addHeader k $ Char8.intercalate ", " (map f vs)
+      _  -> addHeader k $ S.intercalate ", " (map f vs)
 
   getHeader = Snap.getsRequest . Snap.getHeader
 
@@ -201,14 +204,17 @@ applyCORS options m =
         headerC = Attoparsec.satisfy (not . (`elem`( " ," :: String)))
         headerName = Attoparsec.many' headerC
         header = spaces *> headerName <* spaces
-        parser = HashSet.fromList <$> header `Attoparsec.sepBy` (Attoparsec.char ',')
+        parser = HashSet.fromList <$>
+                 header `Attoparsec.sepBy` (Attoparsec.char ',')
     in either (const Nothing) Just . Attoparsec.parseOnly parser
 
 mkOriginSet :: [URI] -> OriginSet
-mkOriginSet = OriginSet . HashSet.fromList . map (HashableURI . simplifyURI)
+mkOriginSet = OriginSet . HashSet.fromList .
+              map (HashableURI . simplifyURI)
 
 simplifyURI :: URI -> URI
-simplifyURI uri = uri { uriAuthority = fmap simplifyURIAuth (uriAuthority uri)
+simplifyURI uri = uri { uriAuthority =
+                          fmap simplifyURIAuth (uriAuthority uri)
                        , uriPath = ""
                        , uriQuery = ""
                        , uriFragment = ""
@@ -226,7 +232,7 @@ parseMethod "TRACE"   = HashableMethod Snap.TRACE
 parseMethod "OPTIONS" = HashableMethod Snap.OPTIONS
 parseMethod "CONNECT" = HashableMethod Snap.CONNECT
 parseMethod "PATCH"   = HashableMethod Snap.PATCH
-parseMethod s         = HashableMethod $ Snap.Method (Char8.pack s)
+parseMethod s         = HashableMethod $ Snap.Method (S.pack s)
 
 --------------------------------------------------------------------------------
 -- | A @newtype@ over 'URI' with a 'Hashable' instance.
