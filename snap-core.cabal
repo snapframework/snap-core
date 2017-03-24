@@ -1,5 +1,5 @@
 name:           snap-core
-version:        1.0.1.1
+version:        1.0.1.2
 synopsis:       Snap: A Haskell Web Framework (core interfaces and types)
 
 description:
@@ -140,7 +140,7 @@ Library
     readable                  >= 0.1     && < 0.4,
     regex-posix               >= 0.95    && < 1,
     text                      >= 0.11    && < 1.3,
-    time                      >= 1.0     && < 1.7,
+    time                      >= 1.0     && < 1.9,
     transformers              >= 0.3     && < 0.6,
     transformers-base         >= 0.4     && < 0.5,
     unix-compat               >= 0.3     && < 0.5,
