@@ -6,12 +6,12 @@
 ------------------------------------------------------------------------------
 module Snap.Internal.Parsing where
 ------------------------------------------------------------------------------
-import           Control.Applicative              (Alternative ((<|>)), Applicative ((*>), (<*), pure), liftA2, (<$>))
+import           Control.Applicative              (Alternative ((<|>)), Applicative (pure, (*>), (<*)), liftA2, (<$>))
 import           Control.Arrow                    (first, second)
 import           Control.Monad                    (Monad (return), MonadPlus (mzero), liftM, when)
 import           Data.Attoparsec.ByteString.Char8 (IResult (Done, Fail, Partial), Parser, Result, anyChar, char, choice, decimal, endOfInput, feed, inClass, isDigit, isSpace, letter_ascii, many', match, option, parse, satisfy, skipSpace, skipWhile, string, take, takeTill, takeWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as AP
-import           Data.Bits                        (Bits ((.&.), (.|.), unsafeShiftL))
+import           Data.Bits                        (Bits (unsafeShiftL, (.&.), (.|.)))
 import           Data.ByteString.Builder          (Builder, byteString, char8, toLazyByteString, word8)
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S
@@ -86,8 +86,19 @@ crlf = string "\r\n" <?> "crlf"
 
 
 ------------------------------------------------------------------------------
+toTableList :: (Char -> Bool) -> [Char]
+toTableList f = l
+  where
+    g c = c /= '-' && f c
+    !l1 = filter g $ map w2c [0..255]
+    !l0 = if f '-' then ['-'] else []
+    !l  = l0 ++ l1
+{-# INLINE toTableList #-}
+
+
+------------------------------------------------------------------------------
 toTable :: (Char -> Bool) -> (Char -> Bool)
-toTable f = inClass $ filter f $ map w2c [0..255]
+toTable = inClass . toTableList
 {-# INLINE toTable #-}
 
 
