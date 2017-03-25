@@ -1,6 +1,9 @@
-## 1.0.1.3
+## 1.0.1.2
 ### Added
 - Merged CORS functionality from snap-cors project into Snap.Util.CORS
+
+### Dependencies
+- Bumped `time` dependency.
 
 ## 1.0.1.1
 ### Fixes
