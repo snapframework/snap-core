@@ -10,7 +10,7 @@ import qualified Data.ByteString.Char8            as S (concat)
 import qualified Data.Map                         as Map (fromList)
 import           Data.Word                        (Word8)
 import           Snap.Internal.Http.Types         (Cookie (Cookie, cookieDomain, cookieExpires, cookieHttpOnly, cookieName, cookiePath, cookieSecure, cookieValue))
-import           Snap.Internal.Parsing            (crlf, finish, fullyParse, fullyParse', pAvPairs, pHeaders, pQuotedString, parseCookie, parseToCompletion, parseUrlEncoded, unsafeFromHex, unsafeFromNat)
+import           Snap.Internal.Parsing            (crlf, finish, fullyParse, fullyParse', pAvPairs, pHeaders, pQuotedString, parseCookie, parseToCompletion, parseUrlEncoded, unsafeFromHex, unsafeFromNat, pTokens)
 import           Snap.Test.Common                 (expectExceptionH)
 import           System.Random                    (Random (random, randomR))
 import           Test.Framework                   (Test)
@@ -28,6 +28,7 @@ tests = [ testAvPairs
         , testUnsafeFromInt
         , testUrlEncoded
         , testFailParse
+        , testTokens
         ]
 
 
@@ -154,3 +155,12 @@ testFailParse = testCase "parsing/failParse" $ do
 
     return $! length a `seq` length b `seq` length c `seq` length d `seq` e
                        `seq` length g `seq` z `seq` ()
+
+
+------------------------------------------------------------------------------
+testTokens :: Test
+testTokens = testCase "parsing/tokens" $ do
+  assertEqual "without whitespace" (Right ["Foo","Bar"]) $
+    fullyParse "Foo,Bar" pTokens
+  assertEqual "with whitespace" (Right ["Foo","Bar"]) $
+    fullyParse " Foo  ,Bar " pTokens

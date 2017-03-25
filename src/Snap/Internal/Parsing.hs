@@ -9,7 +9,7 @@ module Snap.Internal.Parsing where
 import           Control.Applicative              (Alternative ((<|>)), Applicative (pure, (*>), (<*)), liftA2, (<$>))
 import           Control.Arrow                    (first, second)
 import           Control.Monad                    (Monad (return), MonadPlus (mzero), liftM, when)
-import           Data.Attoparsec.ByteString.Char8 (IResult (Done, Fail, Partial), Parser, Result, anyChar, char, choice, decimal, endOfInput, feed, inClass, isDigit, isSpace, letter_ascii, many', match, option, parse, satisfy, skipSpace, skipWhile, string, take, takeTill, takeWhile)
+import           Data.Attoparsec.ByteString.Char8 (IResult (Done, Fail, Partial), Parser, Result, anyChar, char, choice, decimal, endOfInput, feed, inClass, isDigit, isSpace, letter_ascii, many', match, option, parse, satisfy, skipSpace, skipWhile, string, take, takeTill, takeWhile, sepBy')
 import qualified Data.Attoparsec.ByteString.Char8 as AP
 import           Data.Bits                        (Bits (unsafeShiftL, (.&.), (.|.)))
 import           Data.ByteString.Builder          (Builder, byteString, char8, toLazyByteString, word8)
@@ -269,6 +269,14 @@ isToken = toTable f
                                    , ':', '\\', '\"', '/', '[', ']'
                                    , '?', '=', '{', '}' ]
                  ]
+
+
+------------------------------------------------------------------------------
+{-# INLINE pTokens #-}
+-- | Used for "#field-name", and field-name = token, so "#token":
+-- comma-separated tokens/field-names, like a header field list.
+pTokens :: Parser [ByteString]
+pTokens = (skipSpace *> pToken <* skipSpace) `sepBy'` char ','
 
 
                               ------------------
