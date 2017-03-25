@@ -1,3 +1,7 @@
+## 1.0.1.3
+### Added
+- Merged CORS functionality from snap-cors project into Snap.Util.CORS
+
 ## 1.0.1.1
 ### Fixes
 - Fixed a bug in token parsing in Snap.Util.Parsing

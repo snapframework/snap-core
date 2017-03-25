@@ -9,7 +9,7 @@
 -- @
 -- wrapSite $ applyCORS defaultOptions
 -- @
-module Snap.CORS
+module Snap.Util.CORS
   ( -- * Applying CORS to a specific response
     applyCORS
 
@@ -33,7 +33,6 @@ import Data.Maybe (fromMaybe)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Network.URI (URI (..), URIAuth (..),  parseURI)
 
-import qualified Data.Attoparsec.Combinator as Attoparsec
 import qualified Data.Attoparsec.ByteString.Char8 as Attoparsec
 import qualified Data.ByteString.Char8 as S
 import qualified Data.CaseInsensitive as CI

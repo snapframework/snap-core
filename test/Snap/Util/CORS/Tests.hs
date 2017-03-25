@@ -10,7 +10,7 @@ import           Data.CaseInsensitive           (CI (..))
 import qualified Data.HashSet                   as HashSet
 import           Snap.Core                      (Method (..), getHeader, Response(..))
 import           Snap.Test                      (RequestBuilder, runHandler, setHeader, setRequestType, RequestType(..), setRequestPath)
-import           Snap.CORS                      (applyCORS,CORSOptions(..),defaultOptions,HashableMethod(..))
+import           Snap.Util.CORS                 (applyCORS,CORSOptions(..),defaultOptions,HashableMethod(..))
 import           Test.Framework                 (Test)
 import           Test.Framework.Providers.HUnit (testCase)
 import           Test.HUnit                     (assertEqual,Assertion)
