@@ -19,3 +19,5 @@ result
 docs/templates/out
 .cabal-sandbox
 cabal.sandbox.config
+cabal.project.local
+dist-newstyle
