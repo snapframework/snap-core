@@ -39,7 +39,9 @@ import qualified Data.ByteString.Char8 as S
 import qualified Data.CaseInsensitive as CI
 import qualified Data.HashSet as HashSet
 import qualified Data.Text as Text
+
 import qualified Snap.Core as Snap
+import Snap.Internal.Parsing (pTokens)
 
 -- | A set of origins. RFC 6454 specifies that origins are a scheme, host and
 -- port, so the 'OriginSet' wrapper around a 'HashSet.HashSet' ensures that each
@@ -74,7 +76,7 @@ data CORSOptions m = CORSOptions
   , corsAllowedMethods :: m (HashSet.HashSet HashableMethod)
   -- ^ A list of request methods that are allowed.
 
-  , corsAllowedHeaders :: HashSet.HashSet String -> m (HashSet.HashSet String)
+  , corsAllowedHeaders :: HashSet.HashSet S.ByteString -> m (HashSet.HashSet S.ByteString)
   -- ^ An action to determine which of the request headers are allowed.
   -- This action is supplied the parsed contents of
   -- @Access-Control-Request-Headers@.
@@ -158,7 +160,7 @@ applyCORS options m =
 
                      commaSepHeader
                        "Access-Control-Allow-Headers"
-                       S.pack (HashSet.toList allowedHeaders)
+                       id (HashSet.toList allowedHeaders)
 
                      commaSepHeader
                        "Access-Control-Allow-Methods"
@@ -199,14 +201,8 @@ applyCORS options m =
 
   getHeader = Snap.getsRequest . Snap.getHeader
 
-  splitHeaders =
-    let spaces = Attoparsec.many' Attoparsec.space
-        headerC = Attoparsec.satisfy (not . (`elem`( " ," :: String)))
-        headerName = Attoparsec.many' headerC
-        header = spaces *> headerName <* spaces
-        parser = HashSet.fromList <$>
-                 header `Attoparsec.sepBy` (Attoparsec.char ',')
-    in either (const Nothing) Just . Attoparsec.parseOnly parser
+  splitHeaders = either (const Nothing) (Just . HashSet.fromList) .
+    Attoparsec.parseOnly pTokens
 
 mkOriginSet :: [URI] -> OriginSet
 mkOriginSet = OriginSet . HashSet.fromList .
