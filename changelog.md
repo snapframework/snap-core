@@ -1,3 +1,8 @@
+## 1.0.3.0
+### Fixes
+- Fixed parsing of field values in multipart/form-data headers with encodings
+  other than US-ASCII
+
 ## 1.0.2.0
 ### Added
 - Merged CORS functionality from snap-cors project into Snap.Util.CORS
