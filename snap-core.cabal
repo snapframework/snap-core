@@ -206,6 +206,7 @@ Test-suite testsuite
     Snap.Internal.Parsing,
     Snap.Test,
     Snap.Types.Headers,
+    Snap.Util.CORS.Tests,
     Snap.Util.FileServe,
     Snap.Util.FileUploads,
     Snap.Util.GZip,
