@@ -49,6 +49,7 @@ instance Exception TestException
 tests :: [Test]
 tests = [ testSuccess1
         , testSuccess2
+        , testSuccessUtf8Filename
         , testBadParses
         , testPerPartPolicyViolation1
         , testPerPartPolicyViolation2
@@ -80,7 +81,7 @@ testSuccess1 = testCase "fileUploads/success1" $
         xs <- handleFileUploads tmpdir
                                 defaultUploadPolicy
                                 (const $ allowWithMaximumSize 300000)
-                               hndl'
+                                hndl'
 
         let fileMap = foldl' f Map.empty xs
         p1  <- getParam "field1"
@@ -152,6 +153,24 @@ testSuccess2 = testCase "fileUploads/success2" $
         liftIO $ assertEqual "num params" 4 n
 
     hndl' !ref !_ !_ = atomicModifyIORef ref (\x -> (x+1, ()))
+
+ ------------------------------------------------------------------------------
+testSuccessUtf8Filename :: Test
+testSuccessUtf8Filename = testCase "fileUploads/utf8-filename" $
+                          harness tmpdir hndl utf8FilenameBody
+
+  where
+    tmpdir = "tempdir3"
+
+    hndl = do
+        xs <- handleFileUploads tmpdir
+                                defaultUploadPolicy
+                                (const $ allowWithMaximumSize 300000)
+                                hndl'
+
+        liftIO $ assertEqual "filename" [filenameUtf8] xs
+
+    hndl' pinfo _ = return $ fromJust $ partFileName pinfo
 
 
 ------------------------------------------------------------------------------
@@ -673,6 +692,9 @@ file1Contents = "foo"
 file2Contents :: ByteString
 file2Contents = "... contents of file2.gif ..."
 
+filenameUtf8 :: ByteString
+filenameUtf8 =  "\xd1\x82\xd0\xb5\xd1\x81\xd1\x82.png" -- "тест.png" as UTF-8
+
 boundaryValue :: ByteString
 boundaryValue = "fkjldsakjfdlsafldksjf"
 
@@ -934,3 +956,23 @@ abortedTestBody =
           , "content-disposition: form-data; name=\"field2\"\r\n"
           , "fdjkljflsdkjfsd"
           ]
+
+
+------------------------------------------------------------------------------
+utf8FilenameBody :: ByteString
+utf8FilenameBody =
+    S.concat
+         [ "--"
+         , boundaryValue
+         , crlf
+         , "Content-Disposition: form-data; name=\"file\"; filename=\""
+         , filenameUtf8
+         , "\"\r\n"
+         , "Content-Type: image/png\r\n"
+         , crlf
+         , file2Contents
+         , crlf
+         , "--"
+         , boundaryValue
+         , "--\r\n"
+         ]

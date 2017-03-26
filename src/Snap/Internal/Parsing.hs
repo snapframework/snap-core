@@ -160,12 +160,22 @@ pHeaders = many' header <?> "headers"
 -- unhelpfully, the spec mentions "old-style" cookies that don't have quotes
 -- around the value. wonderful.
 pWord :: Parser ByteString
-pWord = pQuotedString <|> (takeWhile (/= ';'))
+pWord = pWord' isRFCText
+
+
+------------------------------------------------------------------------------
+pWord' :: (Char -> Bool) -> Parser ByteString
+pWord' charPred = pQuotedString' charPred <|> (takeWhile (/= ';'))
 
 
 ------------------------------------------------------------------------------
 pQuotedString :: Parser ByteString
-pQuotedString = q *> quotedText <* q
+pQuotedString = pQuotedString' isRFCText
+
+
+------------------------------------------------------------------------------
+pQuotedString' :: (Char -> Bool) -> Parser ByteString
+pQuotedString' charPred = q *> quotedText <* q
   where
     quotedText = (S.concat . L.toChunks . toLazyByteString) <$> f mempty
 
@@ -177,7 +187,7 @@ pQuotedString = q *> quotedText <* q
                , pure soFar' ]
 
     q      = char '"'
-    qdtext = matchAll [ isRFCText, (/= '"'), (/= '\\') ]
+    qdtext = matchAll [ charPred, (/= '"'), (/= '\\') ]
 
 
 ------------------------------------------------------------------------------
@@ -211,11 +221,16 @@ pAvPair = do
 
 ------------------------------------------------------------------------------
 pParameter :: Parser (ByteString, ByteString)
-pParameter = parser <?> "pParameter"
+pParameter = pParameter' isRFCText
+
+
+------------------------------------------------------------------------------
+pParameter' :: (Char -> Bool) -> Parser (ByteString, ByteString)
+pParameter' valueCharPred = parser <?> "pParameter'"
   where
     parser = do
         key <- pToken <* skipSpace
-        val <- liftM trim (char '=' *> skipSpace *> pWord)
+        val <- liftM trim (char '=' *> skipSpace *> pWord' valueCharPred)
         return $! (trim key, val)
 
 
@@ -227,14 +242,19 @@ trim = snd . S.span isSpace . fst . S.spanEnd isSpace
 
 ------------------------------------------------------------------------------
 pValueWithParameters :: Parser (ByteString, [(CI ByteString, ByteString)])
-pValueWithParameters = parser <?> "pValueWithParameters"
+pValueWithParameters =  pValueWithParameters' isRFCText
+
+
+------------------------------------------------------------------------------
+pValueWithParameters' :: (Char -> Bool) -> Parser (ByteString, [(CI ByteString, ByteString)])
+pValueWithParameters' valueCharPred = parser <?> "pValueWithParameters'"
   where
     parser = do
         value  <- liftM trim (skipSpace *> takeWhile (/= ';'))
         params <- many' pParam
         endOfInput
         return (value, map (first CI.mk) params)
-    pParam = skipSpace *> char ';' *> skipSpace *> pParameter
+    pParam = skipSpace *> char ';' *> skipSpace *> pParameter' valueCharPred
 
 
 ------------------------------------------------------------------------------

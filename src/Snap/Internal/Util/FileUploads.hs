@@ -68,7 +68,7 @@ import qualified Data.Text.Encoding               as TE (decodeUtf8)
 import           Data.Typeable                    (Typeable, cast)
 import           Prelude                          (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, otherwise, snd, ($), ($!), (.), (^), (||))
 import           Snap.Core                        (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody)
-import           Snap.Internal.Parsing            (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters)
+import           Snap.Internal.Parsing            (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters')
 import qualified Snap.Types.Headers               as H (fromList)
 import           System.Directory                 (removeFile)
 import           System.FilePath                  ((</>))
@@ -696,7 +696,7 @@ getFieldHeaderInfo hdrs = (fieldName, fileName, disposition)
     contentDispositionValue = fromMaybe "unknown" $
                               getHeader "content-disposition" hdrs
 
-    eDisposition = fullyParse contentDispositionValue pValueWithParameters
+    eDisposition = fullyParse contentDispositionValue $ pValueWithParameters' (const True)
 
     (!dispositionType, dispositionParameters) =
         either (const ("unknown", [])) id eDisposition
