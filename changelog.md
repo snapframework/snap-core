@@ -1,3 +1,7 @@
+## 1.0.2.1
+### Dependencies
+- Allow `io-streams` 1.4.
+
 ## 1.0.2.0
 ### Added
 - Merged CORS functionality from snap-cors project into Snap.Util.CORS
