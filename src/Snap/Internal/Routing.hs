@@ -25,6 +25,8 @@ import           Snap.Internal.Parsing    (urlDecode)
 #if !MIN_VERSION_base(4,8,0)
 import           Data.Monoid              (Monoid (..))
 #endif
+import           Data.Semigroup           (Semigroup (..))
+
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
@@ -52,15 +54,14 @@ data Route a m = Action ((MonadSnap m) => m a)   -- wraps a 'Snap' action
 
 
 ------------------------------------------------------------------------------
-instance Monoid (Route a m) where
-    mempty = NoRoute
 
-    mappend NoRoute r = r
+instance Semigroup (Route a m) where
+    NoRoute <> r = r
 
-    mappend l@(Action a) r = case r of
+    l@(Action a) <> r = case r of
       (Action a')       -> Action (a <|> a')
-      (Capture p r' fb) -> Capture p r' (mappend fb l)
-      (Dir _ _)         -> mappend (Dir H.empty l) r
+      (Capture p r' fb) -> Capture p r' (fb <> l)
+      (Dir _ _)         -> Dir H.empty l <> r
       NoRoute           -> l
 
     -- Whenever we're unioning two Captures and their capture variables
@@ -68,28 +69,31 @@ instance Monoid (Route a m) where
     --   1. Prefer whichever route is longer
     --   2. Else, prefer whichever has the earliest non-capture
     --   3. Else, prefer the right-hand side
-    mappend l@(Capture p r' fb) r = case r of
-      (Action _)           -> Capture p r' (mappend fb r)
+    l@(Capture p r' fb) <> r = case r of
+      (Action _)           -> Capture p r' (fb <> r)
       (Capture p' r'' fb')
-              | p == p'    -> Capture p (mappend r' r'') (mappend fb fb')
-              | rh' > rh'' -> Capture p r' (mappend fb r)
-              | rh' < rh'' -> Capture p' r'' (mappend fb' l)
-              | en' < en'' -> Capture p r' (mappend fb r)
-              | otherwise  -> Capture p' r'' (mappend fb' l)
+              | p == p'    -> Capture p (r' <> r'') (fb <> fb')
+              | rh' > rh'' -> Capture p r' (fb <> r)
+              | rh' < rh'' -> Capture p' r'' (fb' <> l)
+              | en' < en'' -> Capture p r' (fb <> r)
+              | otherwise  -> Capture p' r'' (fb' <> l)
         where
           rh'  = routeHeight r'
           rh'' = routeHeight r''
           en'  = routeEarliestNC r' 1
           en'' = routeEarliestNC r'' 1
-      (Dir rm fb')         -> Dir rm (mappend fb' l)
+      (Dir rm fb')         -> Dir rm (fb' <> l)
       NoRoute              -> l
 
-    mappend l@(Dir rm fb) r = case r of
-      (Action _)      -> Dir rm (mappend fb r)
-      (Capture _ _ _) -> Dir rm (mappend fb r)
-      (Dir rm' fb')   -> Dir (H.unionWith mappend rm rm') (mappend fb fb')
+    (<>) l@(Dir rm fb) r = case r of
+      (Action _)      -> Dir rm (fb <> r)
+      (Capture _ _ _) -> Dir rm (fb <> r)
+      (Dir rm' fb')   -> Dir (H.unionWith (<>) rm rm') (fb <> fb')
       NoRoute         -> l
 
+instance Monoid (Route a m) where
+    mempty = NoRoute
+    mappend = (<>)
 
 ------------------------------------------------------------------------------
 routeHeight :: Route a m -> Int
