@@ -781,7 +781,7 @@ dir :: MonadSnap m
     -> m a
 dir = pathWith f
   where
-    f dr pinfo = dr == x
+    f dr pinfo = dr == x || (dr == "" || dr == "/" || dr == ".")
       where
         (x,_) = S.break (=='/') pinfo
 {-# INLINE dir #-}
