@@ -25,7 +25,7 @@ import           Data.Typeable                  (Typeable)
 import           Prelude                        (Bool (..), Either (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
 import           Snap.Internal.Core             (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
 import           Snap.Internal.Http.Types       (Request (rqBody), Response, setHeader)
-import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultFileUploadPolicy, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, foldMultipart, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleFileUploads, handleFormUploads, setMaximumFileSize, setMaximumFormInputSize, setMaximumNumberOfFiles, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setSkipFilesWithoutNames, setStoreFilesWithoutNames, setUploadTimeout, storeAsLazyByteString, toPartDisposition, withTemporaryStore)
+import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), FormFile (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultFileUploadPolicy, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, foldMultipart, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleFileUploads, handleFormUploads, setMaximumFileSize, setMaximumFormInputSize, setMaximumNumberOfFiles, setMaximumNumberOfFormInputs, setMaximumSkippedFileSize, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setSkipFilesWithoutNames, setUploadTimeout, storeAsLazyByteString, toPartDisposition, withTemporaryStore)
 import qualified Snap.Test                      as Test
 import           Snap.Test.Common               (coverEqInstance, coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)
 import qualified Snap.Types.Headers             as H
@@ -52,8 +52,7 @@ tests = [ testFoldMultipart1
         , testFoldMultipart2
         , testFilePolicyViolation1
         , testFilePolicyViolation2
-        , testEmptyNamePolicyViolation1
-        , testEmptyNamePolicyViolation2
+        , testEmptyNamePolicyViolation
         , testEmptyNameStore
         , testEmptyNameSkip
         , testTemporaryStore
@@ -181,29 +180,18 @@ testFilePolicyViolation2 = testCase "fileUploads/filePolicyViolation2" $
 
 
 ------------------------------------------------------------------------------
-testEmptyNamePolicyViolation1 :: Test
-testEmptyNamePolicyViolation1 = testCase "fileUploads/emptyNamePolicyViolation1" $
+testEmptyNamePolicyViolation :: Test
+testEmptyNamePolicyViolation = testCase "fileUploads/emptyNamePolicyViolation" $
      assertThrows (go hndl noFileNameTestBody) h
   where
     h e = assertIsFileSizeException e
 
     hndl = handleFormUploads defaultUploadPolicy
-             (setSkipFilesWithoutNames 0 defaultFileUploadPolicy)
+             (setSkipFilesWithoutNames True defaultFileUploadPolicy)
              storeAsLazyByteString
 
 
 ------------------------------------------------------------------------------
-testEmptyNamePolicyViolation2 :: Test
-testEmptyNamePolicyViolation2 = testCase "fileUploads/emptyNamePolicyViolation2" $
-     assertThrows (go hndl noFileNameTestBody) h
-  where
-    h e = assertIsFileSizeException e
-
-    hndl = handleFormUploads defaultUploadPolicy
-             (setStoreFilesWithoutNames 0 defaultFileUploadPolicy)
-             storeAsLazyByteString
-
-
 assertIsFileSizeException :: PolicyViolationException -> Assertion
 assertIsFileSizeException (PolicyViolationException r) =
     assertBool "file size exception"
@@ -218,16 +206,16 @@ testEmptyNameStore = testCase "fileUploads/emptyNameStore" $
   where
     hndl = do
       (inputs, files) <- handleFormUploads defaultUploadPolicy
-                         (setStoreFilesWithoutNames 4000 defaultFileUploadPolicy)
+                         (setSkipFilesWithoutNames False defaultFileUploadPolicy)
                          storeAsLazyByteString
       liftIO $ do
          assertEqual "got both files" 2 (length files)
          let [f1, f2] = files
          assertEqual "file1 contents"
-                     (Nothing, L.fromChunks [file1Contents])
+                     (FormFile "files" $ L.fromChunks [file1Contents])
                      f1
          assertEqual "file2 contents"
-                     (Nothing, L.fromChunks [file2Contents])
+                     (FormFile "files" $ L.fromChunks [file2Contents])
                      f2
          assertEqual "inputs present" 2 (length inputs)
       return ()
@@ -240,7 +228,9 @@ testEmptyNameSkip = testCase "fileUploads/emptyNameSkip" $
   where
     hndl = do
       (inputs, files) <- handleFormUploads defaultUploadPolicy
-                         (setSkipFilesWithoutNames 4000 defaultFileUploadPolicy)
+                         (  setMaximumSkippedFileSize 4000
+                          . setSkipFilesWithoutNames True
+                          $ defaultFileUploadPolicy )
                          storeAsLazyByteString
       liftIO $ do
          assertEqual "files skipped" 0 (length files)
@@ -261,16 +251,16 @@ testTemporaryStore = testCase "fileUploads/temporaryStore" $
           liftIO $ do
              assertEqual "num files" 2 (length files)
              assertEqual "inputs present" 2 (length inputs)
-             let [(name1, fn1), (name2, fn2)] = files
+             let [FormFile name1 fn1, FormFile name2 fn2] = files
              fc1 <- liftIO $ S.readFile fn1
              fc2 <- liftIO $ S.readFile fn2
 
              assertEqual "file1 content"
-                         (Just "file1.txt", file1Contents)
+                         ("files", file1Contents)
                          (name1, fc1)
 
              assertEqual "file2 content"
-                         (Just "file2.gif", file2Contents)
+                         ("files", file2Contents)
                          (name2, fc2)
              return (fn1, fn2)
       liftIO $ do
@@ -293,7 +283,7 @@ testTemporaryStoreSafeMove = testCase "fileUploads/temporaryStoreSafeMove" $
                                                store
           liftIO $ do
              assertEqual "num files" 2 (length files)
-             let [(_, fn1), (_, fn2)] = files
+             let [FormFile _ fn1, FormFile _ fn2] = files
              removeFile fn1
              removeFile fn2
 

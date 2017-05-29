@@ -12,7 +12,7 @@ module Snap.Internal.Util.FileUploads
   , foldMultipart
   , PartFold
   , FormParam
-  , FormFile
+  , FormFile (..)
   , storeAsLazyByteString
   , withTemporaryStore
     -- ** Backwards compatible API
@@ -48,7 +48,7 @@ module Snap.Internal.Util.FileUploads
   , setMaximumFileSize
   , setMaximumNumberOfFiles
   , setSkipFilesWithoutNames
-  , setStoreFilesWithoutNames
+  , setMaximumSkippedFileSize
 
     -- *** Per-file upload policy
   , PartUploadPolicy(..)
@@ -171,7 +171,7 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
             str' <- Streams.throwIfProducesMoreThan maxSize stream
             fileReader tmpdir partHandler partInfo str' `catch` tooMany maxSize
 
-        tooMany maxSize (_ :: TooManyBytesReadException) = do
+        tooMany maxSize (_ :: TooManyBytesReadException) =
             partHandler partInfo
                         (Left $
                          PolicyViolationException $
@@ -192,12 +192,52 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
 
 
 ------------------------------------------------------------------------------
-type FormFile a = (Maybe ByteString, a)
+-- | Contents of form field of type @file@
+data FormFile a = FormFile
+    { formFileName  :: !ByteString
+         -- ^ Name of a field
+    , formFileValue :: a
+         -- ^ Result of storing file
+    } deriving (Eq, Ord, Show)
+
 data UploadState a = UploadState
      { numUploadedFiles :: !Int
      , uploadedFiles :: !([FormFile a] -> [FormFile a])
      }
 
+-- | Processes form data and calls provided storage function on
+-- file parts.
+--
+-- You can use this together with 'withTemporaryStore', 'storeAsLazyByteString'
+-- or provide your own callback to store uploaded files.
+--
+-- If you need to process uploaded file mime type or file name, do it in the
+-- store callback function.
+--
+-- See also 'foldMultipart'.
+--
+-- Example using with small files which can safely be stored in memory.
+--
+-- @
+--
+-- import qualified Data.ByteString.Lazy as Lazy
+--
+-- handleSmallFiles :: MonadSnap m => [(ByteString, ByteString, Lazy.ByteString)]
+-- handleSmallFiles = handleFormUploads uploadPolicy filePolicy store
+--
+--   where
+--     uploadPolicy = defaultUploadPolicy
+--     filePolicy = setMaximumFileSize (64*1024)
+--                  $ setMaximumNumberOfFiles 5
+--                    defaultUploadPolicy
+--     store partInfo stream = do
+--        content <- storeAsLazyByteString partInfo stream
+--        let
+--          fileName = partFileName partInfo
+--          fileMime = partContentType partInfo
+--        in (fileName, fileMime, content)
+-- @
+--
 handleFormUploads ::
        (MonadSnap m) =>
        UploadPolicy                   -- ^ general upload policy
@@ -214,7 +254,7 @@ handleFormUploads uploadPolicy filePolicy partHandler = do
 
         case partFileName partInfo of
           Nothing -> onEmptyName
-          Just _ -> takeIt maxFileSize
+          Just _ -> takeIt
 
       where
         numUploads = numUploadedFiles st
@@ -225,20 +265,20 @@ handleFormUploads uploadPolicy filePolicy partHandler = do
 
         fn = TE.decodeUtf8 fnText
 
-        takeIt maxSize = do
-            str' <- Streams.throwIfProducesMoreThan maxSize stream
-            r <- partHandler partInfo str' `catch` tooMany maxSize
-            let f = files . ([(partFileName partInfo, r)]++)
-            return $! UploadState (succ numUploads) f
+        takeIt = do
+            str' <- Streams.throwIfProducesMoreThan maxFileSize stream
+            r <- partHandler partInfo str' `catch` tooMany maxFileSize
+            let f = FormFile (partFieldName partInfo) r
+            return $! UploadState (succ numUploads) (files . ([f] ++) )
 
         skipIt maxSize = do
             str' <- Streams.throwIfProducesMoreThan maxSize stream
             !_ <- Streams.skipToEof str' `catch` tooMany maxSize
             return $! UploadState (succ numUploads) files
 
-        onEmptyName = case emptyFileNamePolicy filePolicy of
-                        EmptyFileNameSkip sz -> skipIt sz
-                        EmptyFileNameStore sz -> takeIt sz
+        onEmptyName = if skipEmptyFileName filePolicy
+                      then skipIt (maxEmptyFileNameSize filePolicy)
+                      else takeIt
 
 
         throwTooManyFiles = throwIO . PolicyViolationException $ T.concat
@@ -290,13 +330,14 @@ type PartFold a = PartInfo -> InputStream ByteString -> a -> IO a
 -- /Exceptions/
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
--- processed (using 'setProcessFormInputs'), and form a form input exceeds
--- the maximum allowable size or form exceeds maximum number of inputs, this
+-- processed (using 'setProcessFormInputs'), and a form input exceeds the
+-- maximum allowable size or the form exceeds maximum number of inputs, this
 -- function will throw a 'PolicyViolationException'.
 --
 -- If an uploaded part contains MIME headers longer than a fixed internal
 -- threshold (currently 32KB), this function will throw a 'BadPartException'.
 --
+-- /Since: 1.0.3.0/
 foldMultipart ::
        (MonadSnap m) =>
        UploadPolicy        -- ^ global upload policy
@@ -403,7 +444,7 @@ data PartInfo =
     -- ^ Content type of this part.
   , partDisposition :: !PartDisposition
     -- ^ Disposition type of this part. See 'PartDisposition'.
-  , partHeaders     :: !(Headers)
+  , partHeaders     :: !Headers
     -- ^ Remaining headers associated with this part.
   }
   deriving (Show)
@@ -639,31 +680,34 @@ setUploadTimeout s u = u { uploadTimeout = s }
 
 ------------------------------------------------------------------------------
 
-data EmptyFileNamePolicy = EmptyFileNameStore Int64
-                         | EmptyFileNameSkip Int64
-
 -- | File upload policy, if any policy is violated then
 -- 'PolicyViolationException' is thrown
-data FileUploadPolicy = FileUploadPolicy {
-      maxFileUploadSize   :: Int64
-    , maxNumberOfFiles    :: Int
-    , emptyFileNamePolicy :: EmptyFileNamePolicy
+data FileUploadPolicy = FileUploadPolicy
+    { maxFileUploadSize    :: !Int64
+    , maxNumberOfFiles     :: !Int
+    , skipEmptyFileName    :: !Bool
+    , maxEmptyFileNameSize :: !Int64
     }
 
 -- | A default 'FileUploadPolicy'
 --
--- @
--- setMaximumFileSize 1048576 -- 1Mb
--- . setMaximumNumberOfFiles 10
--- . setSkipFilesWithoutNames 0
--- @
+--   [@maximum file size@]             1MB
+--
+--   [@maximum number of files@]       10
+--
+--   [@skip files without name@]       yes
+--
+--   [@maximum size of skipped file@]  0
+--
 --
 defaultFileUploadPolicy :: FileUploadPolicy
-defaultFileUploadPolicy = FileUploadPolicy maxFileSize maxFiles onEmptyName
+defaultFileUploadPolicy = FileUploadPolicy maxFileSize maxFiles
+                                           skipEmptyName maxEmptySize
   where
     maxFileSize = 1048576 -- 1MB
     maxFiles    = 10
-    onEmptyName = EmptyFileNameSkip 0
+    skipEmptyName = True
+    maxEmptySize = 0
 
 -- | Maximum size of single uploaded file.
 setMaximumFileSize :: Int64 -> FileUploadPolicy -> FileUploadPolicy
@@ -675,29 +719,37 @@ setMaximumNumberOfFiles :: Int -> FileUploadPolicy -> FileUploadPolicy
 setMaximumNumberOfFiles maxFiles s =
     s { maxNumberOfFiles = maxFiles }
 
--- | Skip files with empty file names and allow up to this body size.
+-- | Skip files with empty file names.
 --
 -- If set, parts without filenames will not be fed to storage function.
 --
--- HTML5 form data encoding standard states that input fields of type
--- file without file chosen for upload are encoded as file with empty body,
--- empty file name, and type @application/octet-stream@
+-- HTML5 form data encoding standard states that form input fields of type
+-- file, without value set, are encoded same way as if file with empty body,
+-- empty file name, and type @application/octet-stream@ was set as value.
 --
--- You want to use this with zero bytes allowed to avoid storing empty files,
--- If empty file is larger than this setting then 'FileUploadException'
+-- You most likely want to use this with zero bytes allowed to avoid storing
+-- such fields (see 'setMaximumSkippedFileSize').
+--
+-- By default files without names are skipped.
+--
+-- /Since: 1.0.3.0/
+setSkipFilesWithoutNames :: Bool -> FileUploadPolicy -> FileUploadPolicy
+setSkipFilesWithoutNames shouldSkip s =
+    s { skipEmptyFileName = shouldSkip }
+
+-- | Maximum size of file without name which can be skipped.
+--
+-- Ignored if 'setSkipFilesWithoutNames' is @False@.
+--
+-- If skipped file is larger than this setting then 'FileUploadException'
 -- is thrown.
 --
--- By default files without names are skipped and maximum skipped size is 0
--- bytes.
-setSkipFilesWithoutNames:: Int64 -> FileUploadPolicy -> FileUploadPolicy
-setSkipFilesWithoutNames maxSize s =
-    s { emptyFileNamePolicy = EmptyFileNameSkip maxSize }
-
--- | Do store files without file names. See 'setSkipFilesWithoutNames' for
--- when this may not be desirable.
-setStoreFilesWithoutNames :: Int64 -> FileUploadPolicy -> FileUploadPolicy
-setStoreFilesWithoutNames maxSize s =
-    s { emptyFileNamePolicy = EmptyFileNameStore maxSize }
+-- By default maximum file size is 0.
+--
+-- /Since: 1.0.3.0/
+setMaximumSkippedFileSize :: Int64 -> FileUploadPolicy -> FileUploadPolicy
+setMaximumSkippedFileSize maxSize s =
+    s { maxEmptyFileNameSize = maxSize }
 
 
 ------------------------------------------------------------------------------
@@ -740,10 +792,10 @@ storeAsLazyByteString _ !str = do
 -- remain.
 --
 -- @
--- uploadsHandler = withTemporarystore "/var/tmp" "upload-" $ \store -> do
+-- uploadsHandler = withTemporaryStore "/var/tmp" "upload-" $ \store -> do
 --     (inputs, files) <- handleFormUploads defaultUploadpolicy
 --                                          defaultFileUploadPolicy
---                                           store
+--                                          store
 --     saveFiles files
 --
 -- @
@@ -774,7 +826,7 @@ withTemporaryStore tempdir pat act = do
 
       cleanup = liftIO $ do
           files <- IORef.readIORef ioref
-          forM_ files $ \fn -> do
+          forM_ files $ \fn ->
              removeFile fn `catch` handleExists
       handleExists e = unless (isDoesNotExistError e) $ throwIO e
 
@@ -900,7 +952,7 @@ internalFoldMultipart !maxFormVars !boundary clientHandler !zeroAcc !stream = go
             throwIO $ BadPartException "headers exceeded maximum size"
 
     --------------------------------------------------------------------------
-    goPart !str !acc = do
+    goPart !str !state = do
         hdrs <- takeHeaders str
 
         -- are we using mixed?
@@ -910,11 +962,11 @@ internalFoldMultipart !maxFormVars !boundary clientHandler !zeroAcc !stream = go
         if contentType == "multipart/mixed"
           then maybe (throwIO $ BadPartException $
                       "got multipart/mixed without boundary")
-                     (processMixed fieldName str acc)
+                     (processMixed fieldName str state)
                      mboundary
           else do
               let info = PartInfo fieldName fileName contentType disposition hdrs
-              handlePart info str acc
+              handlePart info str state
 
     --------------------------------------------------------------------------
     handlePart !info !str !ms = do
@@ -933,11 +985,11 @@ internalFoldMultipart !maxFormVars !boundary clientHandler !zeroAcc !stream = go
                    , T.pack $ show maxFormVars ]
 
     --------------------------------------------------------------------------
-    processMixed !fieldName !str !acc !mixedBoundary= do
+    processMixed !fieldName !str !state !mixedBoundary = do
         -- swallow the first boundary
         _  <- parseFromStream (parseFirstBoundary mixedBoundary) str
         bm <- search (fullBoundary mixedBoundary) str
-        foldParts (mixedStream fieldName) bm acc
+        foldParts (mixedStream fieldName) bm state
 
 
     --------------------------------------------------------------------------
