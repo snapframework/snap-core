@@ -1,3 +1,7 @@
+## 1.0.3.0
+### Added
+- Alternative file upload handling into Snap.Util.FileUploads
+
 ## 1.0.2.1
 ### Dependencies
 - Allow `io-streams` 1.4.
