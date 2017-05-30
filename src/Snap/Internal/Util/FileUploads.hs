@@ -777,8 +777,8 @@ allowWithMaximumSize = PartUploadPolicy . Just
 
 ------------------------------------------------------------------------------
 -- | Stores file body in memory as Lazy ByteString.
-storeAsLazyByteString :: PartInfo -> InputStream ByteString -> IO LB.ByteString
-storeAsLazyByteString _ !str = do
+storeAsLazyByteString :: InputStream ByteString -> IO LB.ByteString
+storeAsLazyByteString !str = do
    f <- Streams.fold (\f c -> f . LB.chunk c) id str
    return $! f LB.Empty
 
@@ -795,7 +795,7 @@ storeAsLazyByteString _ !str = do
 -- uploadsHandler = withTemporaryStore "/var/tmp" "upload-" $ \store -> do
 --     (inputs, files) <- handleFormUploads defaultUploadpolicy
 --                                          defaultFileUploadPolicy
---                                          store
+--                                          (const store)
 --     saveFiles files
 --
 -- @
@@ -804,7 +804,7 @@ withTemporaryStore ::
     MonadSnap m
     => FilePath -- ^ temporary directory
     -> String   -- ^ file name pattern
-    -> ((PartInfo -> InputStream ByteString -> IO FilePath) -> m a)
+    -> ((InputStream ByteString -> IO FilePath) -> m a)
       -- ^ Action taking store function
     -> m a
 withTemporaryStore tempdir pat act = do
@@ -815,7 +815,7 @@ withTemporaryStore tempdir pat act = do
           let x' = f x
           x' `seq` IORef.writeIORef ref x'
 
-      go _ input = do
+      go input = do
           (fn, h) <- openBinaryTempFile tempdir pat
           modifyIORef' ioref (fn:)
           hSetBuffering h NoBuffering

@@ -161,7 +161,7 @@ testFilePolicyViolation1 = testCase "fileUploads/filePolicyViolation1" $
 
     hndl = handleFormUploads defaultUploadPolicy
              (setMaximumFileSize 0 defaultFileUploadPolicy)
-             storeAsLazyByteString
+             (const storeAsLazyByteString)
 
 
 
@@ -176,7 +176,7 @@ testFilePolicyViolation2 = testCase "fileUploads/filePolicyViolation2" $
 
     hndl = handleFormUploads defaultUploadPolicy
              (setMaximumNumberOfFiles 0 defaultFileUploadPolicy)
-             storeAsLazyByteString
+             (const storeAsLazyByteString)
 
 
 ------------------------------------------------------------------------------
@@ -188,7 +188,7 @@ testEmptyNamePolicyViolation = testCase "fileUploads/emptyNamePolicyViolation" $
 
     hndl = handleFormUploads defaultUploadPolicy
              (setSkipFilesWithoutNames True defaultFileUploadPolicy)
-             storeAsLazyByteString
+             (const storeAsLazyByteString)
 
 
 ------------------------------------------------------------------------------
@@ -207,7 +207,7 @@ testEmptyNameStore = testCase "fileUploads/emptyNameStore" $
     hndl = do
       (inputs, files) <- handleFormUploads defaultUploadPolicy
                          (setSkipFilesWithoutNames False defaultFileUploadPolicy)
-                         storeAsLazyByteString
+                         (const storeAsLazyByteString)
       liftIO $ do
          assertEqual "got both files" 2 (length files)
          let [f1, f2] = files
@@ -231,7 +231,7 @@ testEmptyNameSkip = testCase "fileUploads/emptyNameSkip" $
                          (  setMaximumSkippedFileSize 4000
                           . setSkipFilesWithoutNames True
                           $ defaultFileUploadPolicy )
-                         storeAsLazyByteString
+                         (const storeAsLazyByteString)
       liftIO $ do
          assertEqual "files skipped" 0 (length files)
          assertEqual "inputs present" 2 (length inputs)
@@ -247,7 +247,7 @@ testTemporaryStore = testCase "fileUploads/temporaryStore" $
       (fn1, fn2) <- withTemporaryStore "tempdir1" "upload" $ \store -> do
           (inputs, files) <- handleFormUploads defaultUploadPolicy
                                                defaultFileUploadPolicy
-                                               store
+                                               (const store)
           liftIO $ do
              assertEqual "num files" 2 (length files)
              assertEqual "inputs present" 2 (length inputs)
@@ -280,7 +280,7 @@ testTemporaryStoreSafeMove = testCase "fileUploads/temporaryStoreSafeMove" $
       withTemporaryStore "tempdir1" "upload" $ \store -> do
           (_, files) <- handleFormUploads defaultUploadPolicy
                                                defaultFileUploadPolicy
-                                               store
+                                               (const store)
           liftIO $ do
              assertEqual "num files" 2 (length files)
              let [FormFile _ fn1, FormFile _ fn2] = files
