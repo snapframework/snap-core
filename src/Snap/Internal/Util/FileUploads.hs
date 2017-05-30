@@ -249,7 +249,7 @@ handleFormUploads uploadPolicy filePolicy partHandler = do
     (params, !st) <- foldMultipart uploadPolicy go (UploadState 0 id)
     return (params, uploadedFiles st [])
   where
-    go partInfo stream st = do
+    go !partInfo stream !st = do
         when (numUploads >= maxFiles) throwTooManyFiles
 
         case partFileName partInfo of
