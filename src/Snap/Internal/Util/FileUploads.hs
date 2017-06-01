@@ -8,7 +8,15 @@
 
 module Snap.Internal.Util.FileUploads
   ( -- * Functions
-    handleFileUploads
+    handleFormUploads
+  , foldMultipart
+  , PartFold
+  , FormParam
+  , FormFile (..)
+  , storeAsLazyByteString
+  , withTemporaryStore
+    -- ** Backwards compatible API
+  , handleFileUploads
   , handleMultipart
   , PartProcessor
 
@@ -34,6 +42,14 @@ module Snap.Internal.Util.FileUploads
   , getUploadTimeout
   , setUploadTimeout
 
+    -- *** File upload policy
+  , FileUploadPolicy(..)
+  , defaultFileUploadPolicy
+  , setMaximumFileSize
+  , setMaximumNumberOfFiles
+  , setSkipFilesWithoutNames
+  , setMaximumSkippedFileSize
+
     -- *** Per-file upload policy
   , PartUploadPolicy(..)
   , disallow
@@ -47,32 +63,36 @@ module Snap.Internal.Util.FileUploads
   ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative              (Alternative ((<|>)), Applicative ((*>), (<*), pure))
+import           Control.Applicative              (Alternative ((<|>)), Applicative (pure, (*>), (<*)))
 import           Control.Arrow                    (Arrow (first))
-import           Control.Exception.Lifted         (Exception, SomeException (..), bracket, catch, fromException, mask, throwIO, toException)
+import           Control.Exception.Lifted         (Exception, SomeException (..), bracket, catch, finally, fromException, mask, throwIO, toException)
 import qualified Control.Exception.Lifted         as E (try)
-import           Control.Monad                    (Functor (fmap), Monad ((>>=), return), MonadPlus (mzero), guard, liftM, sequence, void, when, (>=>))
+import           Control.Monad                    (Functor (fmap), Monad (return, (>>=)), MonadPlus (mzero), forM_, guard, liftM, sequence, unless, void, when, (>=>))
+import           Control.Monad.IO.Class           (liftIO)
 import           Data.Attoparsec.ByteString.Char8 (Parser, isEndOfLine, string, takeWhile)
 import qualified Data.Attoparsec.ByteString.Char8 as Atto (try)
 import           Data.ByteString.Char8            (ByteString)
 import qualified Data.ByteString.Char8            as S
 import           Data.ByteString.Internal         (c2w)
+import qualified Data.ByteString.Lazy.Internal    as LB (ByteString (Empty), chunk)
 import qualified Data.CaseInsensitive             as CI (mk)
 import           Data.Int                         (Int, Int64)
-import           Data.List                        (concat, find, map, (++))
-import qualified Data.Map                         as Map (insertWith', size)
+import qualified Data.IORef                       as IORef
+import           Data.List                        (find, map, (++))
+import qualified Data.Map                         as Map (insertWith')
 import           Data.Maybe                       (Maybe (..), fromMaybe, isJust, maybe)
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T (concat, pack, unpack)
 import qualified Data.Text.Encoding               as TE (decodeUtf8)
 import           Data.Typeable                    (Typeable, cast)
-import           Prelude                          (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, flip, fst, id, max, not, otherwise, snd, ($), ($!), (.), (^), (||))
+import           Prelude                          (Bool (..), Double, Either (..), Eq (..), FilePath, IO, Ord (..), Show (..), String, const, either, foldr, fst, id, max, not, otherwise, seq, snd, succ, ($), ($!), (.), (^), (||))
 import           Snap.Core                        (HasHeaders (headers), Headers, MonadSnap, Request (rqParams, rqPostParams), getHeader, getRequest, getTimeoutModifier, putRequest, runRequestBody)
 import           Snap.Internal.Parsing            (crlf, fullyParse, pContentTypeWithParameters, pHeaders, pValueWithParameters)
 import qualified Snap.Types.Headers               as H (fromList)
 import           System.Directory                 (removeFile)
 import           System.FilePath                  ((</>))
-import           System.IO                        (BufferMode (NoBuffering), Handle, hClose, hSetBuffering)
+import           System.IO                        (BufferMode (NoBuffering), Handle, hClose, hSetBuffering, openBinaryTempFile)
+import           System.IO.Error                  (isDoesNotExistError)
 import           System.IO.Streams                (InputStream, MatchInfo (..), TooManyBytesReadException, search)
 import qualified System.IO.Streams                as Streams
 import           System.IO.Streams.Attoparsec     (parseFromStream)
@@ -151,7 +171,7 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
             str' <- Streams.throwIfProducesMoreThan maxSize stream
             fileReader tmpdir partHandler partInfo str' `catch` tooMany maxSize
 
-        tooMany maxSize (_ :: TooManyBytesReadException) = do
+        tooMany maxSize (_ :: TooManyBytesReadException) =
             partHandler partInfo
                         (Left $
                          PolicyViolationException $
@@ -172,14 +192,126 @@ handleFileUploads tmpdir uploadPolicy partPolicy partHandler =
 
 
 ------------------------------------------------------------------------------
+-- | Contents of form field of type @file@
+data FormFile a = FormFile
+    { formFileName  :: !ByteString
+         -- ^ Name of a field
+    , formFileValue :: a
+         -- ^ Result of storing file
+    } deriving (Eq, Ord, Show)
+
+data UploadState a = UploadState
+     { numUploadedFiles :: !Int
+     , uploadedFiles :: !([FormFile a] -> [FormFile a])
+     }
+
+-- | Processes form data and calls provided storage function on
+-- file parts.
+--
+-- You can use this together with 'withTemporaryStore', 'storeAsLazyByteString'
+-- or provide your own callback to store uploaded files.
+--
+-- If you need to process uploaded file mime type or file name, do it in the
+-- store callback function.
+--
+-- See also 'foldMultipart'.
+--
+-- Example using with small files which can safely be stored in memory.
+--
+-- @
+--
+-- import qualified Data.ByteString.Lazy as Lazy
+--
+-- handleSmallFiles :: MonadSnap m => [(ByteString, ByteString, Lazy.ByteString)]
+-- handleSmallFiles = handleFormUploads uploadPolicy filePolicy store
+--
+--   where
+--     uploadPolicy = defaultUploadPolicy
+--     filePolicy = setMaximumFileSize (64*1024)
+--                  $ setMaximumNumberOfFiles 5
+--                    defaultUploadPolicy
+--     store partInfo stream = do
+--        content <- storeAsLazyByteString partInfo stream
+--        let
+--          fileName = partFileName partInfo
+--          fileMime = partContentType partInfo
+--        in (fileName, fileMime, content)
+-- @
+--
+handleFormUploads ::
+       (MonadSnap m) =>
+       UploadPolicy                   -- ^ general upload policy
+    -> FileUploadPolicy               -- ^ Upload policy for files
+    -> (PartInfo -> InputStream ByteString -> IO a)
+                                      -- ^ A file storage function
+    -> m ([FormParam], [FormFile a])
+handleFormUploads uploadPolicy filePolicy partHandler = do
+    (params, !st) <- foldMultipart uploadPolicy go (UploadState 0 id)
+    return (params, uploadedFiles st [])
+  where
+    go !partInfo stream !st = do
+        when (numUploads >= maxFiles) throwTooManyFiles
+
+        case partFileName partInfo of
+          Nothing -> onEmptyName
+          Just _ -> takeIt
+
+      where
+        numUploads = numUploadedFiles st
+        files = uploadedFiles st
+        maxFiles = maxNumberOfFiles filePolicy
+        maxFileSize = maxFileUploadSize filePolicy
+        fnText = fromMaybe "" $ partFileName partInfo
+
+        fn = TE.decodeUtf8 fnText
+
+        takeIt = do
+            str' <- Streams.throwIfProducesMoreThan maxFileSize stream
+            r <- partHandler partInfo str' `catch` tooMany maxFileSize
+            let f = FormFile (partFieldName partInfo) r
+            return $! UploadState (succ numUploads) (files . ([f] ++) )
+
+        skipIt maxSize = do
+            str' <- Streams.throwIfProducesMoreThan maxSize stream
+            !_ <- Streams.skipToEof str' `catch` tooMany maxSize
+            return $! UploadState (succ numUploads) files
+
+        onEmptyName = if skipEmptyFileName filePolicy
+                      then skipIt (maxEmptyFileNameSize filePolicy)
+                      else takeIt
+
+
+        throwTooManyFiles = throwIO . PolicyViolationException $ T.concat
+                            ["number of files exceeded the maximum of "
+                            ,T.pack (show maxFiles) ]
+
+        tooMany maxSize (_ :: TooManyBytesReadException) =
+            throwIO . PolicyViolationException $
+                    T.concat [ "File \""
+                             , fn
+                             , "\" exceeded maximum allowable size "
+                             , T.pack $ show maxSize ]
+
+
+------------------------------------------------------------------------------
 -- | A type alias for a function that will process one of the parts of a
--- @multipart/form-data@ HTTP request body.
-type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
+-- @multipart/form-data@ HTTP request body with accumulator.
+type PartFold a = PartInfo -> InputStream ByteString -> a -> IO a
 
 
 ------------------------------------------------------------------------------
 -- | Given an upload policy and a function to consume uploaded \"parts\",
 -- consume a request body uploaded with @Content-type: multipart/form-data@.
+--
+-- If 'setProcessFormInputs' is 'True', then parts with disposition @form-data@
+-- (a form parameter) will be processed and returned as first element of
+-- resulting pair. Parts with other disposition will be fed to 'PartFold'
+-- handler.
+--
+-- If 'setProcessFormInputs' is 'False', then parts with any disposition will
+-- be fed to 'PartFold' handler and first element of returned pair will be
+-- empty. In this case it is important that you limit number of form inputs
+-- and sizes of inputs in your 'PartFold' handler to avoid common DOS attacks.
 --
 -- Note: /THE REQUEST MUST BE CORRECTLY ENCODED/. If the request's
 -- @Content-type@ is not \"@multipart/formdata@\", this function skips
@@ -198,19 +330,21 @@ type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
 -- /Exceptions/
 --
 -- If the given 'UploadPolicy' stipulates that you wish form inputs to be
--- placed in the 'rqParams' parameter map (using 'setProcessFormInputs'), and
--- a form input exceeds the maximum allowable size, this function will throw a
--- 'PolicyViolationException'.
+-- processed (using 'setProcessFormInputs'), and a form input exceeds the
+-- maximum allowable size or the form exceeds maximum number of inputs, this
+-- function will throw a 'PolicyViolationException'.
 --
 -- If an uploaded part contains MIME headers longer than a fixed internal
 -- threshold (currently 32KB), this function will throw a 'BadPartException'.
 --
-handleMultipart ::
+-- /Since: 1.0.3.0/
+foldMultipart ::
        (MonadSnap m) =>
        UploadPolicy        -- ^ global upload policy
-    -> PartProcessor a     -- ^ part processor
-    -> m [a]
-handleMultipart uploadPolicy origPartHandler = do
+    -> PartFold a          -- ^ part processor
+    -> a                   -- ^ seed accumulator
+    -> m ([FormParam], a)
+foldMultipart uploadPolicy origPartHandler zero = do
     hdrs <- liftM headers getRequest
     let (ct, mbBoundary) = getContentType hdrs
 
@@ -221,7 +355,7 @@ handleMultipart uploadPolicy origPartHandler = do
                         then captureVariableOrReadFile
                                  (getMaximumFormInputSize uploadPolicy)
                                  origPartHandler
-                        else \x y -> liftM File $ origPartHandler x y
+                        else \x y acc -> liftM File $ origPartHandler x y acc
 
     -- not well-formed multipart? bomb out.
     guard (ct == "multipart/form-data")
@@ -233,8 +367,7 @@ handleMultipart uploadPolicy origPartHandler = do
 
     -- RateTooSlowException will be caught and properly dealt with by
     -- runRequestBody
-    captures <- runRequestBody (proc bumpTimeout boundary partHandler)
-    procCaptures captures id
+    runRequestBody (proc bumpTimeout boundary partHandler)
 
   where
     --------------------------------------------------------------------------
@@ -245,28 +378,46 @@ handleMultipart uploadPolicy origPartHandler = do
     --------------------------------------------------------------------------
     proc bumpTimeout boundary partHandler =
         Streams.throwIfTooSlow bumpTimeout uploadRate uploadSecs >=>
-        internalHandleMultipart boundary partHandler
+        internalFoldMultipart maxFormVars boundary partHandler zero
 
+------------------------------------------------------------------------------
+-- | A type alias for a function that will process one of the parts of a
+-- @multipart/form-data@ HTTP request body without usinc accumulator.
+type PartProcessor a = PartInfo -> InputStream ByteString -> IO a
+
+
+------------------------------------------------------------------------------
+-- | A variant of 'foldMultipart' accumulating results into a list.
+-- Also puts captured 'FormParam's into rqPostParams and rqParams maps.
+--
+handleMultipart ::
+       (MonadSnap m) =>
+       UploadPolicy        -- ^ global upload policy
+    -> PartProcessor a     -- ^ part processor
+    -> m [a]
+handleMultipart uploadPolicy origPartHandler = do
+    (captures, files) <- foldMultipart uploadPolicy partFold id
+    procCaptures captures
+    return $! files []
+
+  where
+    partFold info input acc = do
+      x <- origPartHandler info input
+      return $ acc . ([x]++)
     --------------------------------------------------------------------------
-    procCaptures []                 dl = return $! dl []
-    procCaptures ((File x):xs)      dl = procCaptures xs (dl . (x:))
-    procCaptures ((Capture k v):xs) dl = do
+    procCaptures []          = pure ()
+    procCaptures params = do
         rq <- getRequest
-        when (Map.size (rqPostParams rq) >= maxFormVars)
-          $ throwIO . PolicyViolationException
-          $ T.concat [ "number of form inputs exceeded maximum of "
-                     , T.pack $ show maxFormVars ]
-        putRequest $ modifyParams (ins k v) rq
-        procCaptures xs dl
+        putRequest $ modifyParams (\m -> foldr ins m params) rq
 
     --------------------------------------------------------------------------
-    ins k v = Map.insertWith' (flip (++)) k [v]
+    ins (!k, !v) = Map.insertWith' (\_ ex -> (v:ex)) k [v]
+         -- prepend value if key exists, since we are folding from right
 
     --------------------------------------------------------------------------
     modifyParams f r = r { rqPostParams = f $ rqPostParams r
                          , rqParams     = f $ rqParams r
                          }
-
 
 ------------------------------------------------------------------------------
 -- | Represents the disposition type specified via the @Content-Disposition@
@@ -293,7 +444,7 @@ data PartInfo =
     -- ^ Content type of this part.
   , partDisposition :: !PartDisposition
     -- ^ Disposition type of this part. See 'PartDisposition'.
-  , partHeaders     :: !(Headers)
+  , partHeaders     :: !Headers
     -- ^ Remaining headers associated with this part.
   }
   deriving (Show)
@@ -528,6 +679,80 @@ setUploadTimeout s u = u { uploadTimeout = s }
 
 
 ------------------------------------------------------------------------------
+
+-- | File upload policy, if any policy is violated then
+-- 'PolicyViolationException' is thrown
+data FileUploadPolicy = FileUploadPolicy
+    { maxFileUploadSize    :: !Int64
+    , maxNumberOfFiles     :: !Int
+    , skipEmptyFileName    :: !Bool
+    , maxEmptyFileNameSize :: !Int64
+    }
+
+-- | A default 'FileUploadPolicy'
+--
+--   [@maximum file size@]             1MB
+--
+--   [@maximum number of files@]       10
+--
+--   [@skip files without name@]       yes
+--
+--   [@maximum size of skipped file@]  0
+--
+--
+defaultFileUploadPolicy :: FileUploadPolicy
+defaultFileUploadPolicy = FileUploadPolicy maxFileSize maxFiles
+                                           skipEmptyName maxEmptySize
+  where
+    maxFileSize = 1048576 -- 1MB
+    maxFiles    = 10
+    skipEmptyName = True
+    maxEmptySize = 0
+
+-- | Maximum size of single uploaded file.
+setMaximumFileSize :: Int64 -> FileUploadPolicy -> FileUploadPolicy
+setMaximumFileSize maxSize s =
+    s { maxFileUploadSize = maxSize }
+
+-- | Maximum number of uploaded files.
+setMaximumNumberOfFiles :: Int -> FileUploadPolicy -> FileUploadPolicy
+setMaximumNumberOfFiles maxFiles s =
+    s { maxNumberOfFiles = maxFiles }
+
+-- | Skip files with empty file names.
+--
+-- If set, parts without filenames will not be fed to storage function.
+--
+-- HTML5 form data encoding standard states that form input fields of type
+-- file, without value set, are encoded same way as if file with empty body,
+-- empty file name, and type @application/octet-stream@ was set as value.
+--
+-- You most likely want to use this with zero bytes allowed to avoid storing
+-- such fields (see 'setMaximumSkippedFileSize').
+--
+-- By default files without names are skipped.
+--
+-- /Since: 1.0.3.0/
+setSkipFilesWithoutNames :: Bool -> FileUploadPolicy -> FileUploadPolicy
+setSkipFilesWithoutNames shouldSkip s =
+    s { skipEmptyFileName = shouldSkip }
+
+-- | Maximum size of file without name which can be skipped.
+--
+-- Ignored if 'setSkipFilesWithoutNames' is @False@.
+--
+-- If skipped file is larger than this setting then 'FileUploadException'
+-- is thrown.
+--
+-- By default maximum file size is 0.
+--
+-- /Since: 1.0.3.0/
+setMaximumSkippedFileSize :: Int64 -> FileUploadPolicy -> FileUploadPolicy
+setMaximumSkippedFileSize maxSize s =
+    s { maxEmptyFileNameSize = maxSize }
+
+
+------------------------------------------------------------------------------
 -- | Upload policy can be set on an \"general\" basis (using 'UploadPolicy'),
 --   but handlers can also make policy decisions on individual files\/parts
 --   uploaded. For each part uploaded, handlers can decide:
@@ -551,17 +776,77 @@ allowWithMaximumSize = PartUploadPolicy . Just
 
 
 ------------------------------------------------------------------------------
+-- | Stores file body in memory as Lazy ByteString.
+storeAsLazyByteString :: InputStream ByteString -> IO LB.ByteString
+storeAsLazyByteString !str = do
+   f <- Streams.fold (\f c -> f . LB.chunk c) id str
+   return $! f LB.Empty
+
+
+------------------------------------------------------------------------------
+-- | Store files in a temporary directory, and clean up on function exit.
+--
+-- Files are safe to move until function exists.
+--
+-- If asynchronous exception is thrown during cleanup, temporary files may
+-- remain.
+--
+-- @
+-- uploadsHandler = withTemporaryStore "/var/tmp" "upload-" $ \store -> do
+--     (inputs, files) <- handleFormUploads defaultUploadpolicy
+--                                          defaultFileUploadPolicy
+--                                          (const store)
+--     saveFiles files
+--
+-- @
+--
+withTemporaryStore ::
+    MonadSnap m
+    => FilePath -- ^ temporary directory
+    -> String   -- ^ file name pattern
+    -> ((InputStream ByteString -> IO FilePath) -> m a)
+      -- ^ Action taking store function
+    -> m a
+withTemporaryStore tempdir pat act = do
+    ioref <- liftIO $ IORef.newIORef []
+    let
+      modifyIORef' ref f = do -- ghc 7.4 does not have modifyIORef'
+          x <- IORef.readIORef ref
+          let x' = f x
+          x' `seq` IORef.writeIORef ref x'
+
+      go input = do
+          (fn, h) <- openBinaryTempFile tempdir pat
+          modifyIORef' ioref (fn:)
+          hSetBuffering h NoBuffering
+          output <- Streams.handleToOutputStream h
+          Streams.connect input output
+          hClose h
+          pure fn
+
+      cleanup = liftIO $ do
+          files <- IORef.readIORef ioref
+          forM_ files $ \fn ->
+             removeFile fn `catch` handleExists
+      handleExists e = unless (isDoesNotExistError e) $ throwIO e
+
+    act go `finally` cleanup
+
+
+------------------------------------------------------------------------------
 -- private exports follow. FIXME: organize
 ------------------------------------------------------------------------------
 
 ------------------------------------------------------------------------------
 captureVariableOrReadFile ::
        Int64                                   -- ^ maximum size of form input
-    -> PartProcessor a                         -- ^ file reading code
-    -> PartProcessor (Capture a)
-captureVariableOrReadFile maxSize fileHandler partInfo stream =
+    -> PartFold a                              -- ^ file reading code
+    -> PartInfo -> InputStream ByteString
+    -> a
+    -> IO (Capture a)
+captureVariableOrReadFile maxSize fileHandler partInfo stream acc =
     if isFile
-      then liftM File $ fileHandler partInfo stream
+      then liftM File $ fileHandler partInfo stream acc
       else variable `catch` handler
 
   where
@@ -569,7 +854,7 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
              partDisposition partInfo == DispositionFile
 
     variable = do
-        x <- liftM S.concat $
+        !x <- liftM S.concat $
              Streams.throwIfProducesMoreThan maxSize stream >>= Streams.toList
         return $! Capture fieldName x
 
@@ -585,7 +870,7 @@ captureVariableOrReadFile maxSize fileHandler partInfo stream =
 
 
 ------------------------------------------------------------------------------
-data Capture a = Capture ByteString ByteString
+data Capture a = Capture !ByteString !ByteString
                | File a
 
 
@@ -603,19 +888,47 @@ fileReader tmpdir partProc partInfo input =
 
 
 ------------------------------------------------------------------------------
-internalHandleMultipart ::
-       ByteString                                    -- ^ boundary value
-    -> (PartInfo -> InputStream ByteString -> IO a)  -- ^ part processor
+data MultipartState a = MultipartState
+  { numFormVars       :: {-# UNPACK #-} !Int
+  , numFormFiles      :: {-# UNPACK #-} !Int
+  , capturedFields    :: !([FormParam] -> [FormParam])
+  , accumulator       :: !a
+  }
+
+------------------------------------------------------------------------------
+-- | A form parameter name-value pair
+type FormParam = (ByteString, ByteString)
+
+------------------------------------------------------------------------------
+addCapture :: ByteString -> ByteString -> MultipartState a -> MultipartState a
+addCapture !k !v !ms =
+  let !kv = (k,v)
+      f = capturedFields ms . ([kv]++)
+      !ms' = ms { capturedFields = f
+                , numFormVars = succ (numFormVars ms) }
+  in ms'
+
+
+------------------------------------------------------------------------------
+internalFoldMultipart ::
+       Int           -- ^ max num fields
+    -> ByteString                                     -- ^ boundary value
+    -> (PartInfo -> InputStream ByteString -> a -> IO (Capture a))  -- ^ part processor
+    -> a
     -> InputStream ByteString
-    -> IO [a]
-internalHandleMultipart !boundary clientHandler !stream = go
+    -> IO ([FormParam], a)
+internalFoldMultipart !maxFormVars !boundary clientHandler !zeroAcc !stream = go
   where
+    --------------------------------------------------------------------------
+    initialState = MultipartState 0 0 id zeroAcc
+
     --------------------------------------------------------------------------
     go = do
         -- swallow the first boundary
         _        <- parseFromStream (parseFirstBoundary boundary) stream
         bmstream <- search (fullBoundary boundary) stream
-        liftM concat $ processParts goPart bmstream
+        ms <- foldParts goPart bmstream initialState
+        return $ (capturedFields ms [], accumulator ms)
 
     --------------------------------------------------------------------------
     pBoundary !b = Atto.try $ do
@@ -639,7 +952,7 @@ internalHandleMultipart !boundary clientHandler !stream = go
             throwIO $ BadPartException "headers exceeded maximum size"
 
     --------------------------------------------------------------------------
-    goPart !str = do
+    goPart !str !state = do
         hdrs <- takeHeaders str
 
         -- are we using mixed?
@@ -649,30 +962,45 @@ internalHandleMultipart !boundary clientHandler !stream = go
         if contentType == "multipart/mixed"
           then maybe (throwIO $ BadPartException $
                       "got multipart/mixed without boundary")
-                     (processMixed fieldName str)
+                     (processMixed fieldName str state)
                      mboundary
           else do
               let info = PartInfo fieldName fileName contentType disposition hdrs
-              liftM (:[]) $ clientHandler info str
-
+              handlePart info str state
 
     --------------------------------------------------------------------------
-    processMixed !fieldName !str !mixedBoundary = do
+    handlePart !info !str !ms = do
+      r <- clientHandler info str (accumulator ms)
+      case r of
+        Capture !k !v -> do
+           when (maxFormVars <= numFormVars ms) throwTooMuchVars
+           return $! addCapture k v ms
+        File !newAcc -> return $! ms { accumulator = newAcc
+                                     , numFormFiles = succ (numFormFiles ms)
+                                     }
+
+    throwTooMuchVars =
+        throwIO . PolicyViolationException
+        $ T.concat [ "number of form inputs exceeded maximum of "
+                   , T.pack $ show maxFormVars ]
+
+    --------------------------------------------------------------------------
+    processMixed !fieldName !str !state !mixedBoundary = do
         -- swallow the first boundary
         _  <- parseFromStream (parseFirstBoundary mixedBoundary) str
         bm <- search (fullBoundary mixedBoundary) str
-        processParts (mixedStream fieldName) bm
+        foldParts (mixedStream fieldName) bm state
 
 
     --------------------------------------------------------------------------
-    mixedStream !fieldName !str = do
+    mixedStream !fieldName !str !acc = do
         hdrs <- takeHeaders str
 
         let (contentType, _)           = getContentType hdrs
         let (_, fileName, disposition) = getFieldHeaderInfo hdrs
 
         let info = PartInfo fieldName fileName contentType disposition hdrs
-        clientHandler info str
+        handlePart info str acc
 
 
 ------------------------------------------------------------------------------
@@ -734,24 +1062,25 @@ partStream st = Streams.makeInputStream go
 -- InputStream over each part and grab a list of the resulting values.
 --
 -- TODO/FIXME: fix description
-processParts :: (InputStream ByteString -> IO a)
+foldParts :: (InputStream ByteString -> MultipartState a -> IO (MultipartState a))
              -> InputStream MatchInfo
-             -> IO [a]
-processParts partFunc stream = go id
+             -> (MultipartState a)
+             -> IO (MultipartState a)
+foldParts partFunc stream = go
   where
-    part pStream = do
+    part acc pStream = do
         isLast <- parseFromStream pBoundaryEnd pStream
 
         if isLast
           then return Nothing
           else do
-              !x <- partFunc pStream
+              !x <- partFunc pStream acc
               Streams.skipToEof pStream
               return $! Just x
 
-    go !soFar = partStream stream >>=
-                part >>=
-                maybe (return $ soFar []) (\x -> go (soFar . (x:)))
+    go !acc = do
+      cap <- partStream stream >>= part acc
+      maybe (return acc) go cap
 
     pBoundaryEnd = (eol *> pure False) <|> (string "--" *> pure True)
 
