@@ -27,9 +27,6 @@ import qualified Data.ByteString.Char8 as S (breakEnd, dropWhile, null, readInt,
 import           Data.Char             (isSpace)
 import           Data.Maybe            (fromMaybe)
 import           Snap.Core             (MonadSnap, Request (rqClientAddr, rqClientPort), getHeader, modifyRequest)
-#if !MIN_VERSION_base(4,8,0)
-import           Control.Applicative   ((<$>))
-#endif
 ------------------------------------------------------------------------------
 
 
@@ -83,11 +80,11 @@ xForwardedFor req = req { rqClientAddr = ip
   where
     extract = fst . S.spanEnd isSpace . S.dropWhile isSpace . snd . S.breakEnd (== ',')
 
-    ip      = fromMaybe (rqClientAddr req) $ mfilter (not . S.null) $ extract <$>
+    ip      = fromMaybe (rqClientAddr req) $ mfilter (not . S.null) $ fmap extract $
               getHeader "Forwarded-For"   req  <|>
               getHeader "X-Forwarded-For" req
 
-    port    = maybe (rqClientPort req) fst $ S.readInt =<< extract <$>
+    port    = maybe (rqClientPort req) fst $ (S.readInt =<<) $ fmap extract $
               getHeader "Forwarded-Port"   req  <|>
               getHeader "X-Forwarded-Port" req
 {-# INLINE xForwardedFor #-}
