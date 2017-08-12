@@ -2,6 +2,10 @@
 ### Added
 - Alternative file upload handling into Snap.Util.FileUploads
 
+### Fixes
+- Fixed parsing of field values in multipart/form-data headers with encodings
+  other than US-ASCII
+
 ## 1.0.2.1
 ### Dependencies
 - Allow `io-streams` 1.4.
