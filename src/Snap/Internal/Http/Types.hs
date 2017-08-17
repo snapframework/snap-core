@@ -101,9 +101,9 @@ class HasHeaders a where
 --
 -- @
 -- ghci> import qualified "Snap.Types.Headers" as H
--- ghci> 'addHeader' "Host" "localhost" H.'empty'
+-- ghci> 'addHeader' \"Host\" "localhost" H.'empty'
 -- H {unH = [("host","localhost")]}
--- ghci> 'addHeader' "Host" "127.0.0.1" it
+-- ghci> 'addHeader' \"Host\" "127.0.0.1" it
 -- H {unH = [("host","localhost,127.0.0.1")]}
 -- @
 addHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
@@ -118,9 +118,9 @@ addHeader k v = updateHeaders $ H.insert k v
 --
 -- @
 -- ghci> import qualified "Snap.Types.Headers" as H
--- ghci> 'setHeader' "Host" "localhost" H.'empty'
+-- ghci> 'setHeader' \"Host\" "localhost" H.'empty'
 -- H {unH = [(\"host\",\"localhost\")]}
--- ghci> setHeader "Host" "127.0.0.1" it
+-- ghci> setHeader \"Host\" "127.0.0.1" it
 -- H {unH = [("host","127.0.0.1")]}
 -- @
 setHeader :: (HasHeaders a) => CI ByteString -> ByteString -> a -> a
@@ -134,7 +134,7 @@ setHeader k v = updateHeaders $ H.set k v
 --
 -- @
 -- ghci> import qualified "Snap.Types.Headers" as H
--- ghci> 'getHeader' "Host" $ 'setHeader' "Host" "localhost" H.'empty'
+-- ghci> 'getHeader' \"Host\" $ 'setHeader' \"Host\" "localhost" H.'empty'
 -- Just "localhost"
 -- @
 getHeader :: (HasHeaders a) => CI ByteString -> a -> Maybe ByteString
@@ -149,7 +149,7 @@ getHeader k a = H.lookup k $ headers a
 --
 -- @
 -- ghci> import qualified "Snap.Types.Headers" as H
--- ghci> 'listHeaders' $ 'setHeader' "Host" "localhost" H.'empty'
+-- ghci> 'listHeaders' $ 'setHeader' \"Host\" "localhost" H.'empty'
 -- [("host","localhost")]
 -- @
 listHeaders :: (HasHeaders a) => a -> [(CI ByteString, ByteString)]
@@ -163,7 +163,7 @@ listHeaders = H.toList . headers
 --
 -- @
 -- ghci> import qualified "Snap.Types.Headers" as H
--- ghci> 'deleteHeader' "Host" $ 'setHeader' "Host" "localhost" H.'empty'
+-- ghci> 'deleteHeader' \"Host\" $ 'setHeader' \"Host\" "localhost" H.'empty'
 -- H {unH = []}
 -- @
 deleteHeader :: (HasHeaders a) => CI ByteString -> a -> a

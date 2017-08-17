@@ -10,7 +10,7 @@ import qualified Data.ByteString.Char8            as S (concat)
 import qualified Data.Map                         as Map (fromList)
 import           Data.Word                        (Word8)
 import           Snap.Internal.Http.Types         (Cookie (Cookie, cookieDomain, cookieExpires, cookieHttpOnly, cookieName, cookiePath, cookieSecure, cookieValue))
-import           Snap.Internal.Parsing            (crlf, finish, fullyParse, fullyParse', pAvPairs, pHeaders, pQuotedString, parseCookie, parseToCompletion, parseUrlEncoded, unsafeFromHex, unsafeFromNat, pTokens)
+import           Snap.Internal.Parsing            (crlf, finish, fullyParse, fullyParse', pAvPairs, pHeaders, pQuotedString, pQuotedString', parseCookie, parseToCompletion, parseUrlEncoded, unsafeFromHex, unsafeFromNat, pTokens)
 import           Snap.Test.Common                 (expectExceptionH)
 import           System.Random                    (Random (random, randomR))
 import           Test.Framework                   (Test)
@@ -24,6 +24,7 @@ tests = [ testAvPairs
         , testCookie
         , testHeaderParse
         , testQuotedString
+        , testQuotedString'
         , testUnsafeFromHex
         , testUnsafeFromInt
         , testUrlEncoded
@@ -95,6 +96,16 @@ testQuotedString = testCase "parsing/quoted-string" $ do
 
   where
     txt = "\"foo\\\"bar\\\"baz\""
+
+------------------------------------------------------------------------------
+testQuotedString' :: Test
+testQuotedString' = testCase "parsing/quoted-string-utf8" $ do
+    let e = fullyParse qdtext $ pQuotedString' (const True)
+    assertEqual "q-s" (Right txt) e
+
+  where
+    txt = "\xd1\x82\xd0\xb5\xd1\x81\xd1\x82" -- "тест" as UTF-8
+    qdtext = S.concat ["\"", txt, "\""]
 
 
 ------------------------------------------------------------------------------

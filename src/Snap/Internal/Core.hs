@@ -91,6 +91,7 @@ module Snap.Internal.Core
 import           Control.Applicative                (Alternative ((<|>), empty), Applicative ((<*>), pure), (<$>))
 import           Control.Exception.Lifted           (ErrorCall (..), Exception, Handler (..), SomeException (..), catch, catches, mask, onException, throwIO)
 import           Control.Monad                      (Functor (..), Monad (..), MonadPlus (..), ap, liftM, unless, (=<<))
+import qualified Control.Monad.Fail                 as Fail
 import           Control.Monad.Base                 (MonadBase (..))
 import           Control.Monad.IO.Class             (MonadIO (..))
 import           Control.Monad.Trans.Control        (MonadBaseControl (..))
@@ -305,20 +306,20 @@ data SnapState = SnapState
 ------------------------------------------------------------------------------
 instance Monad Snap where
     (>>=)  = snapBind
-    return = snapReturn
-    fail   = snapFail
+#if !MIN_VERSION_base(4,8,0)
+    -- pre-AMP
+    return = pure
+    {-# INLINE return #-}
+#endif
+    fail   = Fail.fail
 
+instance Fail.MonadFail Snap where
+    fail   = snapFail
 
 ------------------------------------------------------------------------------
 snapBind :: Snap a -> (a -> Snap b) -> Snap b
 snapBind m f = Snap $ \sk fk st -> unSnap m (\a st' -> unSnap (f a) sk fk st') fk st
 {-# INLINE snapBind #-}
-
-
-snapReturn :: a -> Snap a
-snapReturn = pure
-{-# INLINE snapReturn #-}
-
 
 snapFail :: String -> Snap a
 snapFail !_ = Snap $ \_ fk st -> fk PassOnProcessing st

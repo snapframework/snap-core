@@ -7,7 +7,7 @@ module Snap.Util.FileUploads.Tests
   ( tests ) where
 
 ------------------------------------------------------------------------------
-import           Control.Applicative            (Alternative ((<|>)))
+import           Control.Applicative            (Alternative ((<|>)), (<$>))
 import           Control.DeepSeq                (deepseq)
 import           Control.Exception              (ErrorCall (..), evaluate, throwIO)
 import           Control.Exception.Lifted       (Exception (fromException, toException), catch, finally, throw)
@@ -15,8 +15,9 @@ import           Control.Monad                  (Monad (return, (>>), (>>=)), li
 import           Control.Monad.IO.Class         (MonadIO (liftIO))
 import           Data.ByteString                (ByteString)
 import qualified Data.ByteString.Char8          as S
+import qualified Data.ByteString.Lazy           as L
 import           Data.IORef                     (atomicModifyIORef, newIORef, readIORef, writeIORef)
-import           Data.List                      (foldl')
+import           Data.List                      (foldl', length)
 import qualified Data.Map                       as Map
 import           Data.Maybe                     (Maybe (..), fromJust, maybe)
 import qualified Data.Text                      as T
@@ -24,18 +25,18 @@ import           Data.Typeable                  (Typeable)
 import           Prelude                        (Bool (..), Either (..), Eq (..), FilePath, IO, Int, Num (..), Show (..), const, either, error, filter, map, seq, snd, ($), ($!), (&&), (++), (.))
 import           Snap.Internal.Core             (EscapeSnap (TerminateConnection), Snap, getParam, getPostParam, getQueryParam, runSnap)
 import           Snap.Internal.Http.Types       (Request (rqBody), Response, setHeader)
-import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout, toPartDisposition)
+import           Snap.Internal.Util.FileUploads (BadPartException (..), FileUploadException (..), FormFile (..), PartDisposition (..), PartInfo (..), PolicyViolationException (..), allowWithMaximumSize, defaultFileUploadPolicy, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, foldMultipart, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleFileUploads, handleFormUploads, setMaximumFileSize, setMaximumFormInputSize, setMaximumNumberOfFiles, setMaximumNumberOfFormInputs, setMaximumSkippedFileSize, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setSkipFilesWithoutNames, setUploadTimeout, storeAsLazyByteString, toPartDisposition, withTemporaryStore)
 import qualified Snap.Test                      as Test
 import           Snap.Test.Common               (coverEqInstance, coverShowInstance, coverTypeableInstance, eatException, expectExceptionH, seconds, waitabit)
 import qualified Snap.Types.Headers             as H
-import           System.Directory               (createDirectoryIfMissing, getDirectoryContents, removeDirectoryRecursive)
+import           System.Directory               (createDirectoryIfMissing, doesFileExist, getDirectoryContents, removeDirectoryRecursive, removeFile)
 import           System.IO.Streams              (RateTooSlowException)
 import qualified System.IO.Streams              as Streams
 import           System.Mem                     (performGC)
 import           System.Timeout                 (timeout)
 import           Test.Framework                 (Test)
 import           Test.Framework.Providers.HUnit (testCase)
-import           Test.HUnit                     (assertBool, assertEqual, assertFailure)
+import           Test.HUnit                     (Assertion, assertBool, assertEqual, assertFailure)
 ------------------------------------------------------------------------------
 
 
@@ -47,8 +48,18 @@ instance Exception TestException
 
 ------------------------------------------------------------------------------
 tests :: [Test]
-tests = [ testSuccess1
+tests = [ testFoldMultipart1
+        , testFoldMultipart2
+        , testFilePolicyViolation1
+        , testFilePolicyViolation2
+        , testEmptyNamePolicyViolation
+        , testEmptyNameStore
+        , testEmptyNameSkip
+        , testTemporaryStore
+        , testTemporaryStoreSafeMove
+        , testSuccess1
         , testSuccess2
+        , testSuccessUtf8Filename
         , testBadParses
         , testPerPartPolicyViolation1
         , testPerPartPolicyViolation2
@@ -67,6 +78,217 @@ tests = [ testSuccess1
         , testDisconnectionCleanup
         ]
 
+------------------------------------------------------------------------------
+testFoldMultipart1 :: Test
+testFoldMultipart1 = testCase "fileUploads/fold1" $
+     void $ go hndl mixedTestBody
+
+  where
+    hndl :: Snap ()
+    hndl = do
+        (params, files) <- foldMultipart defaultUploadPolicy  hndl' []
+
+        let fileMap = foldl' f Map.empty files
+        liftIO $ assertEqual "2 params returned" 2 (length params)
+        let [p1, p2] = params
+
+        liftIO $ do
+            let Just (a1, a2, a3) = Map.lookup "file1.txt" fileMap
+            let Just (b1, b2, b3) = Map.lookup "file2.gif" fileMap
+            assertEqual "file1 contents"
+                        ("text/plain", file1Contents)
+                        (a1, a2)
+            assertEqual "file1 header 1"
+                        (Just "text/plain")
+                        (H.lookup "content-type" a3)
+            assertEqual "file1 header 2"
+                        (Just "attachment; filename=\"file1.txt\"")
+                        (H.lookup "content-disposition" a3)
+
+            assertEqual "file2 contents"
+                        ("image/gif", file2Contents)
+                        (b1, b2)
+            assertEqual "file2 header 1"
+                        (Just "image/gif")
+                        (H.lookup "content-type" b3)
+            assertEqual "file2 header 2"
+                        (Just "attachment; filename=\"file2.gif\"")
+                        (H.lookup "content-disposition" b3)
+
+            assertEqual "field1 contents"
+                        ("field1", formContents1)
+                        p1
+
+            assertEqual "field2 contents"
+                        ("field2", formContents2)
+                        p2
+
+    f mp (fn, ct, x, hdrs) = Map.insert fn (ct,x,hdrs) mp
+
+    hndl' partInfo istream acc = do
+       let
+         fn = fromJust $ partFileName partInfo
+         ct = partContentType partInfo
+         hdrs = partHeaders partInfo
+       body <- S.concat <$> Streams.toList istream
+       return (acc ++ [(fn, ct, body, hdrs)])
+
+
+
+------------------------------------------------------------------------------
+testFoldMultipart2 :: Test
+testFoldMultipart2 = testCase "fileUploads/fold2" $
+    void $ go hndl mixedTestBody
+  where
+    policy = setProcessFormInputs False defaultUploadPolicy
+
+    hndl = do
+        (fields, fileCount) <- foldMultipart policy hndl' (0::Int)
+
+        liftIO $ do
+             assertEqual "num params" 4 fileCount
+             assertEqual "num processed" 0 (length fields)
+
+    hndl' !_ !_ !acc = return $ acc + 1
+
+
+
+------------------------------------------------------------------------------
+testFilePolicyViolation1 :: Test
+testFilePolicyViolation1 = testCase "fileUploads/filePolicyViolation1" $
+     assertThrows (go hndl mixedTestBody) h
+  where
+    h e = assertIsFileSizeException e
+
+    hndl = handleFormUploads defaultUploadPolicy
+             (setMaximumFileSize 0 defaultFileUploadPolicy)
+             (const storeAsLazyByteString)
+
+
+
+------------------------------------------------------------------------------
+testFilePolicyViolation2 :: Test
+testFilePolicyViolation2 = testCase "fileUploads/filePolicyViolation2" $
+     assertThrows (go hndl mixedTestBody) h
+  where
+    h (PolicyViolationException r) =
+        assertBool "correct exception"
+                   (T.isInfixOf "number of files exceeded the maximum" r)
+
+    hndl = handleFormUploads defaultUploadPolicy
+             (setMaximumNumberOfFiles 0 defaultFileUploadPolicy)
+             (const storeAsLazyByteString)
+
+
+------------------------------------------------------------------------------
+testEmptyNamePolicyViolation :: Test
+testEmptyNamePolicyViolation = testCase "fileUploads/emptyNamePolicyViolation" $
+     assertThrows (go hndl noFileNameTestBody) h
+  where
+    h e = assertIsFileSizeException e
+
+    hndl = handleFormUploads defaultUploadPolicy
+             (setSkipFilesWithoutNames True defaultFileUploadPolicy)
+             (const storeAsLazyByteString)
+
+
+------------------------------------------------------------------------------
+assertIsFileSizeException :: PolicyViolationException -> Assertion
+assertIsFileSizeException (PolicyViolationException r) =
+    assertBool "file size exception"
+        (T.isInfixOf "File" r &&
+          T.isInfixOf "exceeded maximum allowable size" r)
+
+
+------------------------------------------------------------------------------
+testEmptyNameStore :: Test
+testEmptyNameStore = testCase "fileUploads/emptyNameStore" $
+     void $ go hndl noFileNameTestBody
+  where
+    hndl = do
+      (inputs, files) <- handleFormUploads defaultUploadPolicy
+                         (setSkipFilesWithoutNames False defaultFileUploadPolicy)
+                         (const storeAsLazyByteString)
+      liftIO $ do
+         assertEqual "got both files" 2 (length files)
+         let [f1, f2] = files
+         assertEqual "file1 contents"
+                     (FormFile "files" $ L.fromChunks [file1Contents])
+                     f1
+         assertEqual "file2 contents"
+                     (FormFile "files" $ L.fromChunks [file2Contents])
+                     f2
+         assertEqual "inputs present" 2 (length inputs)
+      return ()
+
+
+------------------------------------------------------------------------------
+testEmptyNameSkip :: Test
+testEmptyNameSkip = testCase "fileUploads/emptyNameSkip" $
+     void $ go hndl noFileNameTestBody
+  where
+    hndl = do
+      (inputs, files) <- handleFormUploads defaultUploadPolicy
+                         (  setMaximumSkippedFileSize 4000
+                          . setSkipFilesWithoutNames True
+                          $ defaultFileUploadPolicy )
+                         (const storeAsLazyByteString)
+      liftIO $ do
+         assertEqual "files skipped" 0 (length files)
+         assertEqual "inputs present" 2 (length inputs)
+      return ()
+
+
+------------------------------------------------------------------------------
+testTemporaryStore :: Test
+testTemporaryStore = testCase "fileUploads/temporaryStore" $
+     harness "tempdir1" hndl mixedTestBody
+  where
+    hndl = do
+      (fn1, fn2) <- withTemporaryStore "tempdir1" "upload" $ \store -> do
+          (inputs, files) <- handleFormUploads defaultUploadPolicy
+                                               defaultFileUploadPolicy
+                                               (const store)
+          liftIO $ do
+             assertEqual "num files" 2 (length files)
+             assertEqual "inputs present" 2 (length inputs)
+             let [FormFile name1 fn1, FormFile name2 fn2] = files
+             fc1 <- liftIO $ S.readFile fn1
+             fc2 <- liftIO $ S.readFile fn2
+
+             assertEqual "file1 content"
+                         ("files", file1Contents)
+                         (name1, fc1)
+
+             assertEqual "file2 content"
+                         ("files", file2Contents)
+                         (name2, fc2)
+             return (fn1, fn2)
+      liftIO $ do
+        ex1 <- doesFileExist fn1
+        ex2 <- doesFileExist fn2
+        assertEqual "file1 deleted" False ex1
+        assertEqual "file2 deleted" False ex2
+
+
+------------------------------------------------------------------------------
+testTemporaryStoreSafeMove :: Test
+testTemporaryStoreSafeMove = testCase "fileUploads/temporaryStoreSafeMove" $
+     harness "tempdir1" hndl mixedTestBody
+  where
+    hndl = do
+      -- should not throw
+      withTemporaryStore "tempdir1" "upload" $ \store -> do
+          (_, files) <- handleFormUploads defaultUploadPolicy
+                                               defaultFileUploadPolicy
+                                               (const store)
+          liftIO $ do
+             assertEqual "num files" 2 (length files)
+             let [FormFile _ fn1, FormFile _ fn2] = files
+             removeFile fn1
+             removeFile fn2
+
+
 
 ------------------------------------------------------------------------------
 testSuccess1 :: Test
@@ -80,7 +302,7 @@ testSuccess1 = testCase "fileUploads/success1" $
         xs <- handleFileUploads tmpdir
                                 defaultUploadPolicy
                                 (const $ allowWithMaximumSize 300000)
-                               hndl'
+                                hndl'
 
         let fileMap = foldl' f Map.empty xs
         p1  <- getParam "field1"
@@ -152,6 +374,24 @@ testSuccess2 = testCase "fileUploads/success2" $
         liftIO $ assertEqual "num params" 4 n
 
     hndl' !ref !_ !_ = atomicModifyIORef ref (\x -> (x+1, ()))
+
+ ------------------------------------------------------------------------------
+testSuccessUtf8Filename :: Test
+testSuccessUtf8Filename = testCase "fileUploads/utf8-filename" $
+                          harness tmpdir hndl utf8FilenameBody
+
+  where
+    tmpdir = "tempdir3"
+
+    hndl = do
+        xs <- handleFileUploads tmpdir
+                                defaultUploadPolicy
+                                (const $ allowWithMaximumSize 300000)
+                                hndl'
+
+        liftIO $ assertEqual "filename" [filenameUtf8] xs
+
+    hndl' pinfo _ = return $ fromJust $ partFileName pinfo
 
 
 ------------------------------------------------------------------------------
@@ -673,6 +913,9 @@ file1Contents = "foo"
 file2Contents :: ByteString
 file2Contents = "... contents of file2.gif ..."
 
+filenameUtf8 :: ByteString
+filenameUtf8 =  "\xd1\x82\xd0\xb5\xd1\x81\xd1\x82.png" -- "тест.png" as UTF-8
+
 boundaryValue :: ByteString
 boundaryValue = "fkjldsakjfdlsafldksjf"
 
@@ -934,3 +1177,23 @@ abortedTestBody =
           , "content-disposition: form-data; name=\"field2\"\r\n"
           , "fdjkljflsdkjfsd"
           ]
+
+
+------------------------------------------------------------------------------
+utf8FilenameBody :: ByteString
+utf8FilenameBody =
+    S.concat
+         [ "--"
+         , boundaryValue
+         , crlf
+         , "Content-Disposition: form-data; name=\"file\"; filename=\""
+         , filenameUtf8
+         , "\"\r\n"
+         , "Content-Type: image/png\r\n"
+         , crlf
+         , file2Contents
+         , crlf
+         , "--"
+         , boundaryValue
+         , "--\r\n"
+         ]

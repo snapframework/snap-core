@@ -61,7 +61,15 @@
 -- @
 module Snap.Util.FileUploads
   ( -- * Functions
-    handleFileUploads
+    handleFormUploads
+  , foldMultipart
+  , PartFold
+  , FormParam
+  , FormFile (..)
+  , storeAsLazyByteString
+  , withTemporaryStore
+    -- ** Backwards compatible API
+  , handleFileUploads
   , handleMultipart
   , PartProcessor
 
@@ -91,6 +99,14 @@ module Snap.Util.FileUploads
   , getUploadTimeout
   , setUploadTimeout
 
+    -- *** File upload policy
+  , FileUploadPolicy
+  , defaultFileUploadPolicy
+  , setMaximumFileSize
+  , setMaximumNumberOfFiles
+  , setSkipFilesWithoutNames
+  , setMaximumSkippedFileSize
+
     -- *** Per-file upload policy
   , PartUploadPolicy
   , disallow
@@ -106,4 +122,4 @@ module Snap.Util.FileUploads
   ) where
 
 
-import           Snap.Internal.Util.FileUploads (BadPartException (badPartExceptionReason), FileUploadException, PartDisposition (..), PartInfo (..), PartProcessor, PartUploadPolicy, PolicyViolationException (policyViolationExceptionReason), UploadPolicy, allowWithMaximumSize, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, getMaximumFormInputSize, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleMultipart, setMaximumFormInputSize, setMaximumNumberOfFormInputs, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setUploadTimeout)
+import           Snap.Internal.Util.FileUploads (BadPartException (badPartExceptionReason), FileUploadException, FileUploadPolicy, FormFile (..), FormParam, PartDisposition (..), PartFold, PartInfo (..), PartProcessor, PartUploadPolicy, PolicyViolationException (policyViolationExceptionReason), UploadPolicy, allowWithMaximumSize, defaultFileUploadPolicy, defaultUploadPolicy, disallow, doProcessFormInputs, fileUploadExceptionReason, foldMultipart, getMaximumFormInputSize, getMaximumNumberOfFormInputs, getMinimumUploadRate, getMinimumUploadSeconds, getUploadTimeout, handleFileUploads, handleFormUploads, handleMultipart, setMaximumFileSize, setMaximumFormInputSize, setMaximumNumberOfFiles, setMaximumNumberOfFormInputs, setMaximumSkippedFileSize, setMinimumUploadRate, setMinimumUploadSeconds, setProcessFormInputs, setSkipFilesWithoutNames, setUploadTimeout, storeAsLazyByteString, withTemporaryStore)

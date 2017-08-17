@@ -48,15 +48,15 @@ initialAddr = "127.0.0.1"
 ------------------------------------------------------------------------------
 testNoProxy :: Test
 testNoProxy = testCase "proxy/no-proxy" $ do
-    a <- evalHandler (mkReq $ forwardedFor [("4.3.2.1", Nothing)])
+    a <- evalHandler (mkReq $ forwardedFor ["4.3.2.1"])
                      (behindProxy NoProxy reportRemoteAddr)
-    p <- evalHandler (mkReq $ forwardedFor [("4.3.2.1", Nothing)])
+    p <- evalHandler (mkReq $ forwardedFor ["4.3.2.1"] >> xForwardedPort [10903])
                      (behindProxy NoProxy reportRemotePort)
     assertEqual "NoProxy leaves request alone" initialAddr a
     assertEqual "NoProxy leaves request alone" initialPort p
 
     --------------------------------------------------------------------------
-    b <- evalHandler (mkReq $ xForwardedFor [("4.3.2.1", Nothing)])
+    b <- evalHandler (mkReq $ xForwardedFor ["2fe3::d4"])
                      (behindProxy NoProxy reportRemoteAddr)
     assertEqual "NoProxy leaves request alone" initialAddr b
 
@@ -74,13 +74,18 @@ testForwardedFor = testCase "proxy/forwarded-for" $ do
     assertEqual "port" initialPort p
 
     --------------------------------------------------------------------------
-    (b,_) <- evalHandler (mkReq $ forwardedFor addr) handler
-    assertEqual "Behind 5.6.7.8" ip b
+    (b,q) <- evalHandler (mkReq $ forwardedFor [ip4]) handler
+    assertEqual "Behind 5.6.7.8" ip4 b
+    assertEqual "No Forwarded-Port, no port change" initialPort q
 
     --------------------------------------------------------------------------
-    (c,q) <- evalHandler (mkReq $ xForwardedFor addrs2) handler
-    assertEqual "Behind 5.6.7.8" ip c
-    assertEqual "port change" port q
+    (c,_) <- evalHandler (mkReq $ xForwardedFor [ip4, ip6]) handler
+    assertEqual "Behind 23fe::d4" ip6 c
+
+    --------------------------------------------------------------------------
+    (d,r) <- evalHandler (mkReq $ xForwardedFor [ip6, ip4] >> xForwardedPort [20202, port]) handler
+    assertEqual "Behind 5.6.7.8" ip4 d
+    assertEqual "port change" port r
 
   where
     handler = behindProxy X_Forwarded_For $ do
@@ -88,13 +93,9 @@ testForwardedFor = testCase "proxy/forwarded-for" $ do
                   !p <- reportRemotePort'
                   return $! (a,p)
 
-    ip      = "5.6.7.8"
+    ip4     = "5.6.7.8"
+    ip6     = "23fe::d4"
     port    = 10101
-
-    addr    = [ (ip, Nothing) ]
-
-    addr2   = [ (ip, Just port) ]
-    addrs2  = [("4.3.2.1", Just 20202)] ++ addr2
 
 
 ------------------------------------------------------------------------------
@@ -138,25 +139,26 @@ reportRemotePort' = withRequest $ \req -> return $ rqRemotePort req
 
 ------------------------------------------------------------------------------
 forwardedFor' :: CI ByteString              -- ^ header name
-              -> [(ByteString, Maybe Int)]  -- ^ list of "forwarded-for"
+              -> [ByteString]               -- ^ list of "forwarded-for"
               -> RequestBuilder IO ()
-forwardedFor' hdr addrs = do
-    setHeader hdr out
-
-  where
-    toStr (a, Nothing) = a
-    toStr (a, Just p ) = S.concat [ a, ":", S.pack $ show p ]
-
-    out  = S.intercalate ", " $ map toStr addrs
+forwardedFor' hdr addrs =
+    setHeader hdr $ S.intercalate ", " addrs
 
 
 ------------------------------------------------------------------------------
-forwardedFor :: [(ByteString, Maybe Int)]
+forwardedFor :: [ByteString]
              -> RequestBuilder IO ()
 forwardedFor = forwardedFor' "Forwarded-For"
 
 
 ------------------------------------------------------------------------------
-xForwardedFor :: [(ByteString, Maybe Int)]
+xForwardedFor :: [ByteString]
              -> RequestBuilder IO ()
 xForwardedFor = forwardedFor' "X-Forwarded-For"
+
+
+------------------------------------------------------------------------------
+xForwardedPort :: [Int]                     -- ^ list of "forwarded-port"
+               -> RequestBuilder IO ()
+xForwardedPort ports =
+    setHeader "X-Forwarded-Port" $ S.intercalate ", " $ map (S.pack . show) $ ports
