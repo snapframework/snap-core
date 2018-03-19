@@ -79,7 +79,7 @@ import qualified Data.CaseInsensitive             as CI (mk)
 import           Data.Int                         (Int, Int64)
 import qualified Data.IORef                       as IORef
 import           Data.List                        (find, map, (++))
-import qualified Data.Map                         as Map (insertWith')
+import qualified Data.Map                         as Map (insertWith)
 import           Data.Maybe                       (Maybe (..), fromMaybe, isJust, maybe)
 import           Data.Text                        (Text)
 import qualified Data.Text                        as T (concat, pack, unpack)
@@ -411,7 +411,7 @@ handleMultipart uploadPolicy origPartHandler = do
         putRequest $ modifyParams (\m -> foldr ins m params) rq
 
     --------------------------------------------------------------------------
-    ins (!k, !v) = Map.insertWith' (\_ ex -> (v:ex)) k [v]
+    ins (!k, !v) = Map.insertWith (\_ ex -> (v:ex)) k [v]
          -- prepend value if key exists, since we are folding from right
 
     --------------------------------------------------------------------------

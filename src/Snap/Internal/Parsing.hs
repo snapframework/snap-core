@@ -23,7 +23,7 @@ import           Data.Char                        (Char, intToDigit, isAlpha, is
 import           Data.Int                         (Int64)
 import           Data.List                        (concat, intercalate, intersperse)
 import           Data.Map                         (Map)
-import qualified Data.Map                         as Map (empty, insertWith', toList)
+import qualified Data.Map                         as Map (empty, insertWith, toList)
 import           Data.Maybe                       (Maybe (..), maybe)
 import           Data.Monoid                      (Monoid (mconcat, mempty), (<>))
 import           Data.Word                        (Word8)
@@ -463,7 +463,7 @@ parseUrlEncoded s = foldr ins Map.empty decoded
 
   where
     --------------------------------------------------------------------------
-    ins (!k,v) !m = Map.insertWith' (++) k [v] m
+    ins (!k,v) !m = Map.insertWith (++) k [v] m
 
     --------------------------------------------------------------------------
     parts :: [(ByteString,ByteString)]
