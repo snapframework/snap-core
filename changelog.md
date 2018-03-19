@@ -1,3 +1,10 @@
+## 1.0.3.2
+- Allow `unix-compat` 0.5
+
+- Stop using deprecated Data.Map.insertWith'
+
+- Test with GHC 8.4.1
+
 ## 1.0.3.1
 - Allow `io-streams` 1.5.
 
