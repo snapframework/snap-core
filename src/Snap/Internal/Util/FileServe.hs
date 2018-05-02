@@ -120,6 +120,7 @@ type MimeMap = HashMap FilePath ByteString
 -- >   ( ".conf"    , "text/plain"                                             ),
 -- >   ( ".cpp"     , "text/plain"                                             ),
 -- >   ( ".css"     , "text/css"                                               ),
+-- >   ( ".csv"     , "text/csv"                                               ),
 -- >   ( ".cxx"     , "text/plain"                                             ),
 -- >   ( ".doc"     , "application/msword"                                     ),
 -- >   ( ".docx"    , S.append "application/vnd.openxmlformats-officedocument"
@@ -216,6 +217,7 @@ defaultMimeTypes =
     ( ".conf"    , "text/plain"                                             ),
     ( ".cpp"     , "text/plain"                                             ),
     ( ".css"     , "text/css"                                               ),
+    ( ".csv"     , "text/csv"                                               ),
     ( ".cxx"     , "text/plain"                                             ),
     ( ".doc"     , "application/msword"                                     ),
     ( ".docx"    , S.append "application/vnd.openxmlformats-officedocument"
