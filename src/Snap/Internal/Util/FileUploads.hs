@@ -770,7 +770,7 @@ disallow = PartUploadPolicy Nothing
 
 
 ------------------------------------------------------------------------------
--- | Allows the file to be uploaded, with maximum size /n/.
+-- | Allows the file to be uploaded, with maximum size /n/ in bytes.
 allowWithMaximumSize :: Int64 -> PartUploadPolicy
 allowWithMaximumSize = PartUploadPolicy . Just
 
