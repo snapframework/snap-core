@@ -280,6 +280,7 @@ defaultMimeTypes =
     ( ".tif"     , "image/tiff"                                             ),
     ( ".torrent" , "application/x-bittorrent"                               ),
     ( ".ts"      , "video/mp2t"                                             ),
+    ( ".ttf"     , "font/ttf"                                               ),
     ( ".txt"     , "text/plain"                                             ),
     ( ".wav"     , "audio/x-wav"                                            ),
     ( ".wax"     , "audio/x-ms-wax"                                         ),
