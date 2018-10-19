@@ -21,3 +21,4 @@ docs/templates/out
 cabal.sandbox.config
 cabal.project.local
 dist-newstyle
+.ghc.environment.*
