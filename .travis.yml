@@ -63,6 +63,7 @@ install:
  - BENCH=${BENCH---enable-benchmarks}
  - TEST=${TEST---enable-tests}
  - travis_retry cabal update -v
+ - cabal outdated --exit-code
  - sed -i 's/^jobs:/-- jobs:/' ${HOME}/.cabal/config
  - rm -fv cabal.project.local
  - "echo 'packages: .' > cabal.project"
