@@ -1,3 +1,6 @@
+## 1.0.4.0
+- Allow `network` 3.0.
+
 ## 1.0.3.2
 - Allow `unix-compat` 0.5
 
