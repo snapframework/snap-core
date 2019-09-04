@@ -59,6 +59,7 @@ import           Foreign.Marshal.Alloc      (mallocBytes)
 #endif
 
 ------------------------------------------------------------------------------
+import qualified Snap.Cookie  as C
 import           Snap.Types.Headers         (Headers)
 import qualified Snap.Types.Headers         as H
 
@@ -245,6 +246,19 @@ type HttpVersion = (Int,Int)
 
 
 ------------------------------------------------------------------------------
+-- | Internal type class for converting cookies to and from the most
+-- generic form
+class IsCookie a where
+    fromCookie :: a -> C.Cookie
+    toCookie   :: C.Cookie -> a
+
+
+instance IsCookie C.Cookie where
+    fromCookie = id
+    toCookie = id
+
+
+------------------------------------------------------------------------------
 -- | A datatype representing an HTTP cookie.
 data Cookie = Cookie {
       -- | The name of the cookie.
@@ -268,6 +282,11 @@ data Cookie = Cookie {
       -- | HTTP only?
     , cookieHttpOnly :: !Bool
 } deriving (Eq, Show)
+
+
+instance IsCookie Cookie where
+     fromCookie (Cookie n v e d p s h) = C.Cookie n v e d p s h Nothing
+     toCookie (C.Cookie n v e d p s h _) = Cookie n v e d p s h
 
 
 ------------------------------------------------------------------------------
@@ -440,19 +459,7 @@ data Request = Request
       -- @
     , rqVersion       :: {-# UNPACK #-} !HttpVersion
 
-      -- | Returns a list of the cookies that came in from the HTTP request
-      -- headers.
-      --
-      -- Example:
-      --
-      -- @
-      -- ghci> :set -XOverloadedStrings
-      -- ghci> import qualified "Snap.Test" as T
-      -- ghci> import qualified "Data.Map" as M
-      -- ghci> rqCookies \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
-      -- []
-      -- @
-    , rqCookies       :: [Cookie]
+    , rqCookies_       :: [C.Cookie]
 
       -- | Handlers can be hung on a @URI@ \"entry point\"; this is called the
       -- \"context path\". If a handler is hung on the context path
@@ -587,6 +594,22 @@ data Request = Request
     }
 
 
+-- | Returns a list of the cookies that came in from the HTTP request
+-- headers.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Snap.Test" as T
+-- ghci> import qualified "Data.Map" as M
+-- ghci> rqCookies \`fmap\` T.buildRequest (T.get "\/foo\/bar" M.empty)
+-- []
+-- @
+rqCookies :: IsCookie a => Request -> [a]
+rqCookies rq = map toCookie $ rqCookies_ rq
+
+
 ------------------------------------------------------------------------------
 instance Show Request where
   show r = concat [ method, " ", uri, " HTTP/", version, "\n"
@@ -612,7 +635,7 @@ instance Show Request where
                       map (\ (a,b) -> S.unpack a ++ ": " ++ show b)
                       (Map.toAscList $ rqParams r)
       cookies       = showFlds "\ncookies: " "\n         " $
-                      map show (rqCookies r)
+                      map show (rqCookies_ r)
 
       showFlds header delim lst
                     = if not . null $ lst then header ++ (intercalate delim lst)
@@ -672,7 +695,7 @@ rspBodyToEnum (SendFile fp (Just (start, end))) = \out ->
 -- | Represents an HTTP response.
 data Response = Response
     { rspHeaders            :: Headers
-    , rspCookies            :: Map ByteString Cookie
+    , rspCookies            :: Map ByteString C.Cookie
 
       -- | We will need to inspect the content length no matter what, and
       --   looking up \"content-length\" in the headers and parsing the number
@@ -1031,15 +1054,17 @@ setContentType = setHeader "Content-Type"
 --
 -- TODO: Remove duplication. This function is copied from
 -- snap-server/Snap.Internal.Http.Server.Session.
-cookieToBS :: Cookie -> ByteString
-cookieToBS (Cookie k v mbExpTime mbDomain mbPath isSec isHOnly) = cookie
+cookieToBS :: C.Cookie -> ByteString
+cookieToBS (C.Cookie k v mbExpTime mbDomain mbPath isSec isHOnly ss) = cookie
   where
-    cookie = S.concat [k, "=", v, path, exptime, domain, secure, hOnly]
+    cookie = S.concat [k, "=", v, path, exptime, domain, secure, hOnly, sSite]
     path = maybe "" (S.append "; path=") mbPath
     domain = maybe "" (S.append "; domain=") mbDomain
     exptime = maybe "" (S.append "; expires=" . fmt) mbExpTime
     secure = if isSec then "; Secure" else ""
     hOnly = if isHOnly then "; HttpOnly" else ""
+    sSite = maybe "" (\x -> case x of C.Lax -> "; SameSite=Lax"
+                                      C.Strict -> "; SameSite=Strict") ss
 
     -- TODO: 'formatHttpTime' uses "DD MMM YYYY" instead of "DD-MMM-YYYY",
     -- unlike the code in 'Snap.Internal.Http.Server.Session'. Is this form
@@ -1073,12 +1098,14 @@ renderCookies r hdrs
 -- ghci> 'getResponseCookie' \"name\" $ 'addResponseCookie' cookie 'emptyResponse'
 -- Just (Cookie {cookieName = \"name\", cookieValue = \"value\", ...})
 -- @
-addResponseCookie :: Cookie            -- ^ cookie value
+addResponseCookie :: IsCookie a
+                  => a                 -- ^ cookie value
                   -> Response          -- ^ response to modify
                   -> Response
-addResponseCookie ck@(Cookie k _ _ _ _ _ _) r = r { rspCookies = cks' }
+addResponseCookie ck r = r { rspCookies = cks' }
   where
-    cks'= Map.insert k ck $ rspCookies r
+    ck' = fromCookie ck
+    cks'= Map.insert (C._cookieName ck') ck' $ rspCookies r
 {-# INLINE addResponseCookie #-}
 
 
@@ -1092,10 +1119,11 @@ addResponseCookie ck@(Cookie k _ _ _ _ _ _) r = r { rspCookies = cks' }
 -- ghci> 'getResponseCookie' \"cookie-name\" 'emptyResponse'
 -- Nothing
 -- @
-getResponseCookie :: ByteString            -- ^ cookie name
+getResponseCookie :: IsCookie a
+                  => ByteString            -- ^ cookie name
                   -> Response              -- ^ response to query
-                  -> Maybe Cookie
-getResponseCookie cn r = Map.lookup cn $ rspCookies r
+                  -> Maybe a
+getResponseCookie cn r = fmap toCookie $ Map.lookup cn $ rspCookies r
 {-# INLINE getResponseCookie #-}
 
 
@@ -1107,9 +1135,10 @@ getResponseCookie cn r = Map.lookup cn $ rspCookies r
 -- ghci> 'getResponseCookies' 'emptyResponse'
 -- []
 -- @
-getResponseCookies :: Response              -- ^ response to query
-                   -> [Cookie]
-getResponseCookies = Map.elems . rspCookies
+getResponseCookies :: IsCookie a
+                   => Response              -- ^ response to query
+                   -> [a]
+getResponseCookies = map toCookie . Map.elems . rspCookies
 {-# INLINE getResponseCookies #-}
 
 
@@ -1157,8 +1186,9 @@ deleteResponseCookie cn r = r { rspCookies = cks' }
 -- ghci> 'getResponseCookie' \"name\" rsp\'
 -- Just (Cookie {cookieName = \"name\", ...})
 -- @
-modifyResponseCookie :: ByteString          -- ^ cookie name
-                     -> (Cookie -> Cookie)  -- ^ modifier function
+modifyResponseCookie :: IsCookie a
+                     => ByteString          -- ^ cookie name
+                     -> (a -> a)            -- ^ modifier function
                      -> Response            -- ^ response to modify
                      -> Response
 modifyResponseCookie cn f r = maybe r modify $ getResponseCookie cn r

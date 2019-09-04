@@ -128,7 +128,8 @@ import qualified Data.ByteString.Internal           as S (accursedUnutterablePer
 #endif
 ------------------------------------------------------------------------------
 import qualified Data.Readable                      as R
-import           Snap.Internal.Http.Types           (Cookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (..), Response (..), ResponseBody (..), StreamProc, addHeader, addResponseCookie, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, normalizeMethod, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqSetParam, rspBodyMap, rspBodyToEnum, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus, statusReasonMap)
+import qualified Snap.Cookie                        as C
+import           Snap.Internal.Http.Types           (Cookie (..), IsCookie (..), HasHeaders (..), HttpVersion, Method (..), Params, Request (..), Response (..), ResponseBody (..), StreamProc, rqCookies, addHeader, addResponseCookie, clearContentLength, deleteHeader, deleteResponseCookie, emptyResponse, formatHttpTime, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, normalizeMethod, parseHttpTime, rqModifyParams, rqParam, rqPostParam, rqQueryParam, rqSetParam, rspBodyMap, rspBodyToEnum, setContentLength, setContentType, setHeader, setResponseBody, setResponseCode, setResponseStatus, statusReasonMap)
 import           Snap.Internal.Parsing              (urlDecode)
 import qualified Snap.Types.Headers                 as H
 ------------------------------------------------------------------------------
@@ -1972,11 +1973,11 @@ getQueryParams = getRequest >>= return . rqQueryParams
 --
 -- Just (Cookie {cookieName = "name", cookieValue = "value", ...})
 -- @
-getCookie :: MonadSnap m
+getCookie :: (MonadSnap m, IsCookie a)
           => ByteString
-          -> m (Maybe Cookie)
+          -> m (Maybe a)
 getCookie name = withRequest $
-    return . listToMaybe . filter (\c -> cookieName c == name) . rqCookies
+    return . listToMaybe . filter (\c -> C._cookieName (fromCookie c) == name) . rqCookies
 
 
 ------------------------------------------------------------------------------

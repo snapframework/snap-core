@@ -19,7 +19,7 @@ import           Data.Text                         (Text)
 import           Data.Time.Clock                   (getCurrentTime)
 import           Prelude                           (Bool (True, False), IO, Int, Maybe (Just, Nothing), Monad (..), Ord (..), const, fail, fromIntegral, return, seq, show, ($), ($!), (*), (.))
 import           Snap.Core                         (Cookie (Cookie, cookieExpires), Method (DELETE, GET, Method, PATCH, POST, PUT), Request (rqContentLength, rqContextPath, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Snap, expireCookie, extendTimeout, getCookie, getHeader, getParam, logError, readCookie, redirect, runSnap, terminateConnection, writeBS)
-import           Snap.Internal.Http.Types          (Request (..), Response (rspCookies))
+import           Snap.Internal.Http.Types          (IsCookie (..), Request (..), Response (rspCookies))
 import qualified Snap.Internal.Http.Types          as T
 import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestBuilder, RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
 import           Snap.Test                         (assert404, assertBodyContains, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
@@ -359,7 +359,7 @@ testAssertRedirect = testCase "test/requestBuilder/testAssertRedirect" $ do
 ------------------------------------------------------------------------------
 testCookies :: Test
 testCookies = testCase "test/requestBuilder/cookies" $ do
-    evalHandler (get "/" Map.empty) (getCookie "foo")
+    evalHandler (get "/" Map.empty) ((getCookie "foo") :: Snap (Maybe Cookie))
         >>= assertEqual "cookie1" Nothing
     evalHandler (get "/" Map.empty >> addCookies [c1]) (getCookie "foo")
         >>= assertEqual "cookie2" (Just c1)
@@ -377,7 +377,7 @@ testCookies = testCase "test/requestBuilder/cookies" $ do
     assertBool "isJust" (isJust h)
 
     now <- getCurrentTime
-    let tm = fromJust $ cookieExpires $ fromJust h
+    let tm = fromJust $ cookieExpires $ toCookie $ fromJust h
     assertBool "time" (tm < now)
     return $! show tm `seq` ()
 

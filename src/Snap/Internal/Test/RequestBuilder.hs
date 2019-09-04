@@ -52,9 +52,10 @@ import           Data.CaseInsensitive       (CI, original)
 import qualified Data.Map                   as Map
 import qualified Data.Vector                as V
 import           Data.Word                  (Word8)
-import           Snap.Core                  (Cookie (Cookie), Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
+import           Snap.Cookie                (Cookie (..))
+import           Snap.Core                  (Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
 import           Snap.Internal.Core         (evalSnap, fixupResponse)
-import           Snap.Internal.Http.Types   (Request (Request, rqBody), Response (rspBody, rspContentLength), rspBodyToEnum)
+import           Snap.Internal.Http.Types   (IsCookie (fromCookie), Request (Request, rqBody), Response (rspBody, rspContentLength), rspBodyToEnum, rqCookies_)
 import qualified Snap.Internal.Http.Types   as H
 import qualified Snap.Types.Headers         as H
 import qualified System.IO.Streams          as Streams
@@ -580,10 +581,10 @@ addHeader k v = rModify (H.addHeader k v)
 -- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
 -- cookies: Cookie {cookieName = "name", cookieValue = "value", ...}
 -- @
-addCookies :: (Monad m) => [Cookie] -> RequestBuilder m ()
+addCookies :: (Monad m, IsCookie a) => [a] -> RequestBuilder m ()
 addCookies cookies = do
-    rModify $ \rq -> rq { rqCookies = rqCookies rq ++ cookies }
-    allCookies <- liftM rqCookies rGet
+    rModify $ \rq -> rq { rqCookies_ = rqCookies_ rq ++ map fromCookie cookies }
+    allCookies <- liftM rqCookies_ rGet
     let cstr = map cookieToBS allCookies
     setHeader "Cookie" $ S.intercalate "; " cstr
 
@@ -591,7 +592,7 @@ addCookies cookies = do
 ------------------------------------------------------------------------------
 -- | Convert 'Cookie' into 'ByteString' for output.
 cookieToBS :: Cookie -> ByteString
-cookieToBS (Cookie k v !_ !_ !_ !_ !_) = cookie
+cookieToBS (Cookie k v !_ !_ !_ !_ !_ !_) = cookie
   where
     cookie  = S.concat [k, "=", v]
 
