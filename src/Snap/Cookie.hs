@@ -9,7 +9,7 @@ module Snap.Cookie where
 import           Control.Lens.TH (makeLenses)
 import           Data.ByteString (ByteString, empty)
 import           Data.Default
-import           Data.Time.Clock (UTCTime)
+import           Data.Time (UTCTime)
 
 
 ------------------------------------------------------------------------------
