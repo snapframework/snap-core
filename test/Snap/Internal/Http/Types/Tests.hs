@@ -4,15 +4,18 @@
 ------------------------------------------------------------------------------
 module Snap.Internal.Http.Types.Tests ( tests ) where
 ------------------------------------------------------------------------------
+import           Control.Lens                   ((.~))
 import           Control.Parallel.Strategies    (rdeepseq, using)
 import           Data.ByteString.Builder        (byteString)
 import qualified Data.ByteString.Char8          as S (concat)
 import           Data.ByteString.Lazy.Char8     ()
+import           Data.Default                   (def)
 import           Data.List                      (sort)
 import qualified Data.Map                       as Map (empty, insert, lookup)
 import           Data.Time.Calendar             (Day (ModifiedJulianDay))
 import           Data.Time.Clock                (UTCTime (UTCTime))
-import           Snap.Internal.Http.Types       (Cookie (Cookie), HasHeaders (headers, updateHeaders), Method (CONNECT, DELETE, GET, HEAD, Method, OPTIONS, PATCH, POST, PUT, TRACE), Request (rqCookies, rqIsSecure, rqContentLength, rqParams), Response (rspContentLength, rspStatus, rspStatusReason), addHeader, addResponseCookie, cookieToBS, deleteResponseCookie, emptyResponse, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, rqModifyParams, rqParam, rqSetParam, setContentLength, setContentType, setResponseBody, setResponseCode, setResponseStatus)
+import           Snap.Cookie                    (Cookie(Cookie), SameSite(Strict), cookieName, cookieValue, cookieSameSite)
+import           Snap.Internal.Http.Types       (HasHeaders (headers, updateHeaders), Method (CONNECT, DELETE, GET, HEAD, Method, OPTIONS, PATCH, POST, PUT, TRACE), Request (rqCookies_, rqIsSecure, rqContentLength, rqParams), Response (rspContentLength, rspStatus, rspStatusReason), addHeader, addResponseCookie, cookieToBS, deleteResponseCookie, emptyResponse, formatLogTime, getHeader, getResponseCookie, getResponseCookies, listHeaders, modifyResponseBody, modifyResponseCookie, rqModifyParams, rqParam, rqSetParam, setContentLength, setContentType, setResponseBody, setResponseCode, setResponseStatus)
 import           Snap.Internal.Parsing          (urlDecode)
 import qualified Snap.Test                      as Test (buildRequest, get, getResponseBody)
 import qualified Snap.Types.Headers             as H (lookup, set)
@@ -99,7 +102,7 @@ testTypes = testCase "httpTypes/show" $ do
               defReq
 
     let req2 = (addHeader "zomg" "1234" req)
-               { rqCookies = [ cook, cook2 ]
+               { rqCookies_ = [ cook, cook2 ]
                , rqIsSecure = True
                , rqContentLength = Just 10
                }
@@ -145,22 +148,25 @@ testTypes = testCase "httpTypes/show" $ do
     resp3 = setResponseCode 999 resp2
 
     utc   = UTCTime (ModifiedJulianDay 55226) 0
-    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False False
-    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") False False
+    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False False Nothing
+    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") False False Nothing
 
 
 ------------------------------------------------------------------------------
 testCookieToBS :: Test
 testCookieToBS = testCase "httpTypes/cookieToBS" $ do
-    let [b0, b1, b2] = map cookieToBS [cookie0, cookie1, cookie2]
+    let [b0, b1, b2, b3] = map cookieToBS [cookie0, cookie1, cookie2, cookie3]
     assertEqual "cookie0" "foo=bar; HttpOnly" b0
     assertEqual "cookie1" "foo=bar; Secure" b1
     assertEqual "cookie2" "foo=bar; path=/; expires=Sat, 30 Jan 2010 00:00:00 GMT; domain=.foo.com; HttpOnly" b2
+    assertEqual "cookie3" "foo=bar; SameSite=Strict" b3
   where
     utc   = UTCTime (ModifiedJulianDay 55226) 0
-    cookie0  = Cookie "foo" "bar" Nothing Nothing Nothing False True
-    cookie1  = Cookie "foo" "bar" Nothing Nothing Nothing True False
-    cookie2  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False True
+    cookie0  = Cookie "foo" "bar" Nothing Nothing Nothing False True Nothing
+    cookie1  = Cookie "foo" "bar" Nothing Nothing Nothing True False Nothing
+    cookie2  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False True Nothing
+    cookie3  = cookieName .~ "foo" $ cookieValue .~ "bar" $
+               cookieSameSite .~ (Just Strict) $ def
 
 
 testCookies :: Test
@@ -172,7 +178,7 @@ testCookies = testCase "httpTypes/cookies" $ do
     assertEqual "removed cookie" Nothing nilCook
     assertEqual "multiple cookies" [cook, cook2] cks
     assertEqual "cookie modification" (Just cook3) rCook3Mod
-    assertEqual "modify nothing" Nothing (getResponseCookie "boo" resp5)
+    assertEqual "modify nothing" Nothing ((getResponseCookie "boo" resp5) :: Maybe Cookie)
 
     return ()
 
@@ -188,14 +194,15 @@ testCookies = testCase "httpTypes/cookies" $ do
     resp2 = addResponseCookie cook2 resp
     resp3 = addResponseCookie cook3 resp2
     resp4 = addResponseCookie cook3 emptyResponse
-    resp5 = modifyResponseCookie "boo" id emptyResponse
+    resp5 = modifyResponseCookie "boo" (id :: Cookie -> Cookie) emptyResponse
 
     utc   = UTCTime (ModifiedJulianDay 55226) 0
-    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False True
-    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") True False
-    cook3 = Cookie "boo" "baz" Nothing Nothing Nothing False False
+    cook  = Cookie "foo" "bar" (Just utc) (Just ".foo.com") (Just "/") False True Nothing
+    cook2 = Cookie "zoo" "baz" (Just utc) (Just ".foo.com") (Just "/") True False Nothing
+    cook3 = Cookie "boo" "baz" Nothing Nothing Nothing False False Nothing
 
     rCook = getResponseCookie "foo" resp
+    nilCook :: Maybe Cookie
     nilCook = getResponseCookie "foo" resp'
     rCook2 = getResponseCookie "zoo" resp2
     rCook3 = getResponseCookie "boo" resp3
