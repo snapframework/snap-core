@@ -22,7 +22,7 @@ import           Snap.Core                         (Cookie (Cookie, cookieExpire
 import           Snap.Internal.Http.Types          (Request (..), Response (rspCookies))
 import qualified Snap.Internal.Http.Types          as T
 import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestBuilder, RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
-import           Snap.Test                         (assert404, assertBodyContains, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
+import           Snap.Test                         (assert404, assertBodyContainsBS, assertBodyMatches, assertRedirect, assertRedirectTo, assertSuccess, getResponseBody)
 import           Snap.Test.Common                  (coverShowInstance, expectExceptionH)
 import           Snap.Util.FileUploads             (defaultUploadPolicy, handleMultipart, partContentType, partFieldName, partFileName)
 import qualified System.IO.Streams                 as Streams
@@ -283,7 +283,7 @@ testToString = testCase "test/requestBuilder/testToString" $ do
     assertSuccess rsp
     assertEqual "Close" (Just "close") $ getHeader "connection" rsp
     assertEqual "HTTP body" "zzz" body
-    assertBool "HTTP header" $ http =~ headRE
+    assertBool "HTTP header" $ "HTTP/1.1 200 OK" `S.isInfixOf` http
     assertBool "HTTP date"   $ http =~ dateRE
     assertEqual "monadic result" 42 out2
   where
@@ -293,7 +293,6 @@ testToString = testCase "test/requestBuilder/testToString" $ do
                 logError "zzz"
                 extendTimeout 5
                 return (42 :: Int)
-    headRE = "HTTP/1.1 200 OK" :: ByteString
     dateRE = S.concat [ "date: [a-zA-Z]+, [0-9]+ [a-zA-Z]+ "
                       , "[0-9]+ [0-9]+:[0-9]+:[0-9]+ GMT"
                       ]
@@ -304,22 +303,18 @@ testRequestToString :: Test
 testRequestToString = testCase "test/requestBuilder/reqToString" $ do
     req1 <- buildRequest $ setRequestType GetRequest
     s1   <- requestToString req1
-    assertBool "HTTP header" $ s1 =~ headRE
+    assertBool "HTTP header" $ "GET / HTTP/1.1\r\n" `S.isPrefixOf` s1
 
     req2 <- buildRequest $ do postRaw "/" "text/zzz" "zzz"
                               setHttpVersion (1,0)
     s2   <- requestToString req2
-    assertBool "HTTP header2" $ s2 =~ postHeadRE
-    assertBool "HTTP cl" $ s2 =~ ("content-length: 3" :: ByteString)
+    assertBool "HTTP header2" $ "POST / HTTP/1.0\r\n" `S.isPrefixOf` s2
+    assertBool "HTTP cl" $ ("content-length: 3" :: ByteString) `S.isInfixOf` s2
 
     req3 <- buildRequest $ do postRaw "/" "text/zzz" "zzz"
                               setHeader "transfer-encoding" "chunked"
     s3   <- requestToString req3
     assertBool "HTTP chunked" $ "3\r\nzzz\r\n0\r\n\r\n" `S.isSuffixOf` s3
-
-  where
-    headRE = "^GET / HTTP/1.1\r\n" :: ByteString
-    postHeadRE = "^POST / HTTP/1.0\r\n" :: ByteString
 
 
 ------------------------------------------------------------------------------
@@ -328,7 +323,7 @@ testAssert404 = testCase "test/requestBuilder/testAssert404" $ do
     rsp <- runHandler (get "/" Map.empty) mzero
     assert404 rsp
     expectExceptionH $ assertSuccess rsp
-    expectExceptionH $ assertBodyContains "fjlkdja" rsp
+    expectExceptionH $ assertBodyContainsBS "fjlkdja" rsp
     expectExceptionH $ assertRedirectTo "/zzzzz" rsp
     expectExceptionH $ assertRedirect rsp
 
@@ -344,7 +339,7 @@ testAssertBodyContains =
     testCase "test/requestBuilder/testAssertBodyContains" $ do
         rsp <- runHandler (get "/" Map.empty) $ do
                    writeBS "RESPONSE IS OK"
-        assertBodyContains "NSE IS" rsp
+        assertBodyContainsBS "NSE IS" rsp
 
 
 ------------------------------------------------------------------------------
