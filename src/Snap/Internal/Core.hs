@@ -310,8 +310,9 @@ instance Monad Snap where
     -- pre-AMP
     return = pure
     {-# INLINE return #-}
-#endif
+#elif !MIN_VERSION_base(4,13,0)
     fail   = Fail.fail
+#endif
 
 instance Fail.MonadFail Snap where
     fail   = snapFail
