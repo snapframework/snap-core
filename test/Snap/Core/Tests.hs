@@ -285,7 +285,7 @@ testAlternative = testCase "core/alternative" $ do
     (_,resp) <- go (pass <|> setFoo "Bar")
     assertEqual "foo present" (Just "Bar") $ getHeader "Foo" resp
 
-    (_,resp2) <- go (fail ""
+    (_,resp2) <- go (fail "fail should not error"
                        <|> fail2
                        <|> setFoo "Bar"
                        <|> setFoo "Baz")
