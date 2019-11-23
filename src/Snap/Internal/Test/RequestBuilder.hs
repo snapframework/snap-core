@@ -75,6 +75,9 @@ newtype RequestBuilder m a = RequestBuilder (StateT Request m a)
   deriving ( Applicative
            , Functor
            , Monad
+#if MIN_VERSION_base(4,13,0)
+           , MonadFail
+#endif
            , MonadIO
            , MonadState Request
            , MonadTrans

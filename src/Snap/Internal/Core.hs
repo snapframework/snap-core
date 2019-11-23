@@ -311,7 +311,9 @@ instance Monad Snap where
     return = pure
     {-# INLINE return #-}
 #endif
+#if !MIN_VERSION_base(4,13,0)
     fail   = Fail.fail
+#endif
 
 instance Fail.MonadFail Snap where
     fail   = snapFail

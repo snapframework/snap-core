@@ -23,14 +23,14 @@ module Snap.Test.Common
 import           Control.Concurrent          (threadDelay)
 import           Control.DeepSeq             (deepseq)
 import           Control.Exception.Lifted    (SomeException (..), catch, evaluate, try)
-import           Control.Monad               (Monad ((>>), fail, return), liftM, replicateM)
+import           Control.Monad               (Monad ((>>), return), liftM, replicateM)
 import           Control.Monad.IO.Class      (MonadIO (..))
 import           Control.Monad.Trans.Control (MonadBaseControl)
 import qualified Data.ByteString             as S
 import           Data.ByteString.Internal    (c2w)
 import qualified Data.ByteString.Lazy        as L
 import           Data.Typeable               (Typeable, typeOf)
-import           Prelude                     (Either (..), Eq (..), IO, Int, Num (..), Ord (..), Ordering (..), Read (..), Show (..), map, seq, ($), (.), (^))
+import           Prelude                     (Either (..), Eq (..), IO, Int, Num (..), Ord (..), Ordering (..), Read (..), Show (..), fail, map, seq, ($), (.), (^))
 import           Test.QuickCheck             (Arbitrary (arbitrary), choose)
 import           Test.QuickCheck.Monadic     (PropertyM)
 import qualified Test.QuickCheck.Monadic     as QC

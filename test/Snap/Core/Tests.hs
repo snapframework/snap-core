@@ -19,7 +19,7 @@ import           Control.Applicative                  (Alternative ((<|>)), Appl
 import           Control.Concurrent.MVar              (newEmptyMVar, putMVar, takeMVar)
 import           Control.DeepSeq                      (deepseq)
 import           Control.Exception.Lifted             (ErrorCall (..), Exception, SomeException (..), catch, fromException, mask, throwIO, try)
-import           Control.Monad                        (Functor (fmap), Monad ((>>), (>>=), fail, return), MonadPlus (mplus, mzero), forM_, liftM, void)
+import           Control.Monad                        (Functor (fmap), Monad ((>>), (>>=), return), MonadPlus (mplus, mzero), forM_, liftM, void)
 import           Control.Monad.Base                   (MonadBase (liftBase))
 import           Control.Monad.IO.Class               (liftIO)
 import           Control.Monad.Trans.Error            (ErrorT (runErrorT))
@@ -47,7 +47,7 @@ import           Data.Monoid                          (mappend)
 import           Data.Text                            (Text)
 import qualified Data.Text.Encoding                   as T (encodeUtf8)
 import           Data.Text.Lazy                       ()
-import           Prelude                              (Bool (..), Either (..), Enum (..), Eq (..), IO, Int, Maybe (Just, Nothing), Num (..), Show (..), String, const, either, flip, id, map, maybe, not, seq, undefined, ($), ($!), (&&), (++), (.))
+import           Prelude                              (Bool (..), Either (..), Enum (..), Eq (..), IO, Int, Maybe (Just, Nothing), Num (..), Show (..), String, const, either, fail, flip, id, map, maybe, not, seq, undefined, ($), ($!), (&&), (++), (.))
 import           Snap.Internal.Core                   (EscapeSnap (..), MonadSnap (..), NoHandlerException (NoHandlerException), Snap, addToOutput, bracketSnap, catchFinishWith, dir, escapeHttp, evalSnap, finishWith, getParam, getParams, getPostParam, getPostParams, getQueryParam, getQueryParams, getRequest, getResponse, getsResponse, ifTop, ipHeaderFilter, localRequest, logError, method, methods, modifyResponse, pass, path, pathArg, putRequest, putResponse, readRequestBody, redirect, redirect', runRequestBody, runSnap, setTimeout, terminateConnection, transformRequestBody, updateContextPath, withRequest, withResponse, writeBS, writeLBS, writeLazyText, writeText)
 import           Snap.Internal.Http.Types             (Cookie (Cookie), Method (..), Request (rqBody, rqClientAddr, rqContextPath, rqIsSecure, rqURI), Response (rspContentLength, rspStatus, rspStatusReason, rspTransformingRqBody), addHeader, deleteHeader, emptyResponse, getHeader, rqRemoteAddr, setContentLength, setHeader, setResponseCode, setResponseStatus, statusReasonMap)
 import           Snap.Internal.Parsing                (urlDecode, urlEncode)
@@ -285,7 +285,7 @@ testAlternative = testCase "core/alternative" $ do
     (_,resp) <- go (pass <|> setFoo "Bar")
     assertEqual "foo present" (Just "Bar") $ getHeader "Foo" resp
 
-    (_,resp2) <- go (fail ""
+    (_,resp2) <- go (fail "fail should not error"
                        <|> fail2
                        <|> setFoo "Bar"
                        <|> setFoo "Baz")
