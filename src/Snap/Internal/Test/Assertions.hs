@@ -11,7 +11,6 @@ import           Data.Maybe                 (fromJust)
 import           Snap.Internal.Http.Types   (Response (rspBody, rspStatus), getHeader, rspBodyToEnum)
 import qualified System.IO.Streams          as Streams
 import           Test.HUnit                 (Assertion, assertBool, assertEqual)
-import           Text.Regex.Posix           ((=~))
 #if !MIN_VERSION_base(4,8,0)
 import           Data.Monoid                (mconcat)
 #endif
@@ -137,8 +136,39 @@ assertRedirect rsp = assertBool message (300 <= status && status <= 399)
 
 
 ------------------------------------------------------------------------------
--- | Given a 'Response', assert that its body matches the given regular
--- expression.
+-- | Given a 'Response', assert that its body matches the given predicate.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import Text.Regex.Posix ((=~))
+-- ghci> import qualified "System.IO.Streams" as Streams
+-- ghci> import qualified "Data.ByteString.Builder" as Builder
+-- ghci> :{
+-- ghci| let r = 'Snap.Core.setResponseBody'
+-- ghci|         (\out -> do
+-- ghci|             Streams.write (Just $ Builder.byteString \"Hello, world!\") out
+-- ghci|             return out)
+-- ghci|         'Snap.Core.emptyResponse'
+-- ghci| :}
+-- ghci> 'assertBodyMatches' \"^Hello\" ('=~' \"^Hello\") r
+-- ghci> 'assertBodyMatches' \"Bye\" ('=~' \"Bye\") r
+-- *** Exception: HUnitFailure "Expected body to match \\\"\\\"Bye\\\"\\\", but didn\'t"
+-- @
+assertBodyMatches :: String -- ^ Label for error message
+                  -> (ByteString -> Bool)  -- ^ Predicate that will match the body content
+                  -> Response
+                  -> Assertion
+assertBodyMatches label match rsp = do
+    body <- getResponseBody rsp
+    assertBool message (match body)
+  where
+    message = "Expected body to match  \"" ++ label
+              ++ "\", but didn't"
+
+------------------------------------------------------------------------------
+-- | Given a 'Response', assert that its body matches the given ByteString.
 --
 -- Example:
 --
@@ -153,16 +183,12 @@ assertRedirect rsp = assertBool message (300 <= status && status <= 399)
 -- ghci|             return out)
 -- ghci|         'Snap.Core.emptyResponse'
 -- ghci| :}
--- ghci> 'assertBodyContains' \"^Hello\" r
--- ghci> 'assertBodyContains' \"Bye\" r
--- *** Exception: HUnitFailure "Expected body to match regexp \\\"\\\"Bye\\\"\\\", but didn\'t"
+-- ghci> 'assertBodyContainsBS' \"Hello\" r
+-- ghci> 'assertBodyContainsBS' \"Bye\" r
+-- *** Exception: HUnitFailure "Expected body to match \\\"\\\"Bye\\\"\\\", but didn\'t"
 -- @
-assertBodyContains :: ByteString  -- ^ Regexp that will match the body content
-                   -> Response
-                   -> Assertion
-assertBodyContains match rsp = do
-    body <- getResponseBody rsp
-    assertBool message (body =~ match)
-  where
-    message = "Expected body to match regexp \"" ++ show match
-              ++ "\", but didn't"
+assertBodyContainsBS :: ByteString -- ^ Bytestring that will match the body content
+                     -> Response
+                     -> Assertion
+assertBodyContainsBS bsToMatch rsp =
+    assertBodyMatches (S.unpack bsToMatch) (bsToMatch `S.isInfixOf`) rsp
