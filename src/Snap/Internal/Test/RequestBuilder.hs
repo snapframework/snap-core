@@ -59,7 +59,7 @@ import qualified Snap.Internal.Http.Types   as H
 import qualified Snap.Types.Headers         as H
 import qualified System.IO.Streams          as Streams
 import           System.PosixCompat.Time    (epochTime)
-import           System.Random              (Random (randomIO))
+import           System.Random              (randomIO)
 import           Text.Printf                (printf)
 #if !MIN_VERSION_base(4,8,0)
 import           Control.Applicative        (Applicative)
