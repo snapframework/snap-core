@@ -112,6 +112,7 @@ Library
     Snap.Internal.Debug,
     Snap.Internal.Http.Types,
     Snap.Internal.Parsing,
+    Snap.Internal.Util.FileServe,
     Snap.Test,
     Snap.Types.Headers,
     Snap.Util.CORS,
@@ -125,7 +126,6 @@ Library
     Snap.Internal.Routing,
     Snap.Internal.Test.RequestBuilder,
     Snap.Internal.Test.Assertions,
-    Snap.Internal.Util.FileServe,
     Snap.Internal.Util.FileUploads
 
 

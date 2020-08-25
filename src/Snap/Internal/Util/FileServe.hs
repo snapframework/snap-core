@@ -24,6 +24,7 @@ module Snap.Internal.Util.FileServe
   , serveFileAs
     -- * Internal functions
   , decodeFilePath
+  , checkRangeReq
   ) where
 
 ------------------------------------------------------------------------------
