@@ -23,7 +23,7 @@ import qualified Snap.Test                            as Test
 import           Snap.Test.Common                     (coverTypeableInstance, expectException, expectExceptionH, liftQ)
 import           Snap.Util.GZip                       (BadAcceptEncodingException, noCompression, withCompression)
 import qualified System.IO.Streams                    as Streams
-import           System.Random                        (Random (randomIO))
+import           System.Random                        (randomIO)
 import           Test.Framework                       (Test)
 import           Test.Framework.Providers.HUnit       (testCase)
 import           Test.Framework.Providers.QuickCheck2 (testProperty)
