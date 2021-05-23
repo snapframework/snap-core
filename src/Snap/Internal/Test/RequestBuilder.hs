@@ -19,6 +19,7 @@ module Snap.Internal.Test.RequestBuilder
   , evalHandler
   , evalHandlerM
   , get
+  , head
   , postMultipart
   , postRaw
   , postUrlEncoded
@@ -52,6 +53,7 @@ import           Data.CaseInsensitive       (CI, original)
 import qualified Data.Map                   as Map
 import qualified Data.Vector                as V
 import           Data.Word                  (Word8)
+import           Prelude                    hiding (head)
 import           Snap.Core                  (Cookie (Cookie), Method (DELETE, GET, HEAD, POST, PUT), MonadSnap, Params, Request (rqContentLength, rqContextPath, rqCookies, rqHeaders, rqHostName, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Response, Snap, deleteHeader, formatHttpTime, getHeader, parseUrlEncoded, printUrlEncoded, runSnap)
 import           Snap.Internal.Core         (evalSnap, fixupResponse)
 import           Snap.Internal.Http.Types   (Request (Request, rqBody), Response (rspBody, rspContentLength), rspBodyToEnum)
@@ -707,6 +709,30 @@ get uri params = do
     setQueryString params
     setRequestPath uri
 
+------------------------------------------------------------------------------
+-- | Builds an HTTP \"HEAD\" request with the given query parameters.
+--
+-- Example:
+--
+-- @
+-- ghci> :set -XOverloadedStrings
+-- ghci> import qualified "Data.Map" as M
+-- ghci> 'buildRequest' $ 'head' \"\/foo\/bar\" (M.fromList ("param0", ["baz", "quux"])])
+-- HEAD \/foo\/bar?param0=baz&param0=quux HTTP\/1.1
+-- host: localhost
+--
+-- sn="localhost" c=127.0.0.1:60000 s=127.0.0.1:8080 ctx=\/ clen=n\/a
+-- params: param0: ["baz","quux"]
+-- @
+-- @since 1.0.4.3 
+head :: MonadIO m =>
+        ByteString              -- ^ request path
+     -> Params                  -- ^ request's form parameters
+     -> RequestBuilder m ()
+head uri params = do
+  setRequestType . RequestWithRawBody HEAD $ ""
+  setQueryString params
+  setRequestPath uri
 
 ------------------------------------------------------------------------------
 -- | Builds an HTTP \"DELETE\" request with the given query parameters.

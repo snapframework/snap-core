@@ -19,6 +19,7 @@ module Snap.Test
 
     -- *** Convenience functions for generating common types of HTTP requests
   , get
+  , head
   , postUrlEncoded
   , postMultipart
   , put
