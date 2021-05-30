@@ -18,7 +18,7 @@ import           Data.Maybe                        (fromJust, isJust)
 import           Data.Text                         (Text)
 import           Data.Time.Clock                   (getCurrentTime)
 import           Prelude                           (Bool (True, False), IO, Int, Maybe (Just, Nothing), Monad (..), Ord (..), const, fail, fromIntegral, return, seq, show, ($), ($!), (*), (.))
-import           Snap.Core                         (Cookie (Cookie, cookieExpires), Method (DELETE, GET, Method, PATCH, POST, PUT), Request (rqContentLength, rqContextPath, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Snap, expireCookie, extendTimeout, getCookie, getHeader, getParam, logError, readCookie, redirect, runSnap, terminateConnection, writeBS)
+import           Snap.Core                         (Cookie (Cookie, cookieExpires), Method (DELETE, GET, HEAD, Method, PATCH, POST, PUT), Request (rqContentLength, rqContextPath, rqIsSecure, rqMethod, rqParams, rqPathInfo, rqPostParams, rqQueryParams, rqQueryString, rqURI, rqVersion), Snap, expireCookie, extendTimeout, getCookie, getHeader, getParam, logError, readCookie, redirect, runSnap, terminateConnection, writeBS)
 import           Snap.Internal.Http.Types          (Request (..), Response (rspCookies))
 import qualified Snap.Internal.Http.Types          as T
 import           Snap.Internal.Test.RequestBuilder (FileData (FileData), MultipartParam (Files, FormData), RequestBuilder, RequestType (DeleteRequest, GetRequest, MultipartPostRequest, RequestWithRawBody, UrlEncodedPostRequest), addCookies, addHeader, buildRequest, delete, evalHandler, get, postMultipart, postRaw, postUrlEncoded, put, requestToString, responseToString, runHandler, setContentType, setHeader, setHttpVersion, setQueryStringRaw, setRequestPath, setRequestType, setSecure)
@@ -103,6 +103,9 @@ testSetRequestType = testCase "test/requestBuilder/setRequestType" $ do
 
     request7 <- buildRequest $ setRequestType $ RequestWithRawBody PATCH "bar"
     assertEqual "setRequestType/7/Method" PATCH (rqMethod request7)
+
+    request8 <- buildRequest $ setRequestType $ RequestWithRawBody HEAD ""
+    assertEqual "setRequestType/8/Method" HEAD (rqMethod request8)
 
   where
     rt4 = MultipartPostRequest [ ("foo", FormData ["foo"])
