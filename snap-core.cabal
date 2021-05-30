@@ -194,6 +194,11 @@ Library
     build-depends: network-uri >= 2.5 && < 2.6,
                    network     >= 2.3 && < 2.6
 
+  if impl(ghc >= 7.6)
+    build-depends: unix-compat >= 0.3 && < 0.6
+  else
+    build-depends: unix-compat >= 0.3 && < 0.5.3
+
 
 Test-suite testsuite
   hs-source-dirs: src test
