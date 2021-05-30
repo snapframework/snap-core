@@ -60,7 +60,7 @@ testCORSOptions = testCase "CORS/options" $ do
        opts $ return ()
   checkAllowOrigin (Just origin) r
   checkAllowCredentials (Just "true") r
-  checkAllowHeaders (Just "X-STUFF, Content-Type") r
+  checkAllowHeaders (Just "Content-Type, X-STUFF") r
   checkAllowMethods (Just "GET") r
   ---------------------------------------------------------
   s <- runHandler (mkMethReq OPTIONS

@@ -1,3 +1,7 @@
+## 1.0.4.3
+
+- Add `head` helper for `Snap.Test`
+
 ## 1.0.4.0
 - Allow `network` 3.0.
 
