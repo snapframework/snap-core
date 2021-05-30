@@ -1235,6 +1235,8 @@ formatLogTime :: CTime -> IO ByteString
 ------------------------------------------------------------------------------
 -- | Converts an HTTP timestamp into a 'CTime'.
 --
+-- If the given time string is unparseable, this function will return 0.
+--
 -- Example:
 --
 -- @

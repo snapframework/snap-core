@@ -10,9 +10,13 @@ void set_c_locale() {
 }
 
 
+// When given invalid input, returns 0.
 time_t c_parse_http_time(char* s) {
+    if (s == NULL) return 0;
     struct tm dest;
-    strptime(s, "%a, %d %b %Y %H:%M:%S GMT", &dest);
+    if (strptime(s, "%a, %d %b %Y %H:%M:%S GMT", &dest) == NULL) {
+        return 0;
+    }
     return timegm(&dest);
 }
 
