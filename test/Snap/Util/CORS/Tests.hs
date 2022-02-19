@@ -8,6 +8,9 @@ module Snap.Util.CORS.Tests (tests) where
 import           Data.ByteString.Char8          (ByteString)
 import           Data.CaseInsensitive           (CI (..))
 import qualified Data.HashSet                   as HashSet
+import qualified Data.Set                       as Set
+import qualified Data.Text                      as Text
+import qualified Data.Text.Encoding             as Text
 import           Snap.Core                      (Method (..), getHeader, Response(..))
 import           Snap.Test                      (RequestBuilder, runHandler, setHeader, setRequestType, RequestType(..), setRequestPath)
 import           Snap.Util.CORS                 (applyCORS,CORSOptions(..),defaultOptions,HashableMethod(..))
@@ -97,7 +100,12 @@ checkExposeHeaders :: Maybe ByteString -> Response -> Assertion
 checkExposeHeaders = checkHeader "Access-Control-Expose-Headers"
 
 checkAllowHeaders :: Maybe ByteString -> Response -> Assertion
-checkAllowHeaders = checkHeader "Access-Control-Allow-Headers"
+checkAllowHeaders v r =
+  assertEqual "Header Access-Control-Allow-Headers"
+    (getSet <$> v)
+    (getSet <$> getHeader "Access-Control-Allow-Headers" r)
+  where
+    getSet = Set.fromList . Text.splitOn ", " . Text.decodeUtf8
 
 checkAllowMethods :: Maybe ByteString -> Response -> Assertion
 checkAllowMethods = checkHeader "Access-Control-Allow-Methods"

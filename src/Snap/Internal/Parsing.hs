@@ -27,7 +27,15 @@ import qualified Data.Map                         as Map (empty, insertWith, toL
 import           Data.Maybe                       (Maybe (..), maybe)
 import           Data.Monoid                      (Monoid (mconcat, mempty), (<>))
 import           Data.Word                        (Word8)
-import           GHC.Exts                         (Int (I#), uncheckedShiftRL#, word2Int#)
+import           GHC.Exts                         ( Int (I#)
+                                                  , word2Int#
+#if MIN_VERSION_base(4,16,0)
+                                                  , uncheckedShiftRLWord8#
+                                                  , word8ToWord#
+#else
+                                                  , uncheckedShiftRL#
+#endif
+                                                  )
 import           GHC.Word                         (Word8 (..))
 import           Prelude                          (Bool (..), Either (..), Enum (fromEnum, toEnum), Eq (..), Num (..), Ord (..), String, and, any, concatMap, elem, error, filter, flip, foldr, fst, id, map, not, otherwise, show, snd, ($), ($!), (&&), (++), (.), (||))
 import           Snap.Internal.Http.Types         (Cookie (Cookie))
@@ -437,6 +445,9 @@ hexd c0 = char8 '%' <> word8 hi <> word8 low
     !hi       = toDigit $ (c .&. 0xf0) `shiftr` 4
 
     shiftr (W8# a#) (I# b#) = I# (word2Int# (uncheckedShiftRL# a# b#))
+#if MIN_VERSION_base(4,16,0)
+    uncheckedShiftRL# a# b# = word8ToWord# (uncheckedShiftRLWord8# a# b#)
+#endif
 
 
 ------------------------------------------------------------------------------
