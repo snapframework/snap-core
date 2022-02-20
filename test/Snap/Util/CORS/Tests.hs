@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-warnings-deprecations #-}
 
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Snap.Util.CORS.Tests (tests) where
@@ -7,6 +8,9 @@ module Snap.Util.CORS.Tests (tests) where
 ------------------------------------------------------------------------------
 import           Data.ByteString.Char8          (ByteString)
 import           Data.CaseInsensitive           (CI (..))
+#if !MIN_VERSION_base(4,8,0)
+import           Data.Functor                   ((<$>))
+#endif
 import qualified Data.HashSet                   as HashSet
 import qualified Data.Set                       as Set
 import qualified Data.Text                      as Text
