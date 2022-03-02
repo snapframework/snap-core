@@ -1,6 +1,11 @@
-## 1.0.4.3
+## 1.0.5.0
 
 - Add `head` helper for `Snap.Test`
+- Add support for GHC 9
+- Expose Snap.Internal.Util.FileServe
+- Ensure parseHttpTime returns 0 on invalid input
+- Add test helper for HEAD requests
+- Misc version bumps
 
 ## 1.0.4.0
 - Allow `network` 3.0.
