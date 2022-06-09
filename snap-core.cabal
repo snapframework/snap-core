@@ -151,7 +151,7 @@ Library
     time                      >= 1.0     && < 1.14,
     transformers              >= 0.3     && < 0.6,
     transformers-base         >= 0.4     && < 0.5,
-    unix-compat               >= 0.3     && < 0.6,
+    unix-compat               >= 0.3     && < 0.7,
     unordered-containers      >= 0.1.4.3 && < 0.3,
     vector                    >= 0.6     && < 0.13
 
@@ -195,7 +195,7 @@ Library
                    network     >= 2.3 && < 2.6
 
   if impl(ghc >= 7.6)
-    build-depends: unix-compat >= 0.3 && < 0.6
+    build-depends: unix-compat >= 0.3 && < 0.7
   else
     build-depends: unix-compat >= 0.3 && < 0.5.3
 
