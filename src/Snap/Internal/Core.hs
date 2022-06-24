@@ -1774,10 +1774,18 @@ i2w v = 48 + fromIntegral v
 
 
 ------------------------------------------------------------------------------
-evalSnap :: Snap a
-         -> (ByteString -> IO ())
-         -> ((Int -> Int) -> IO ())
-         -> Request
+-- | Evaluates a 'Snap' monad action.
+--
+-- Unlike 'runSnap', 'evalSnap' evaluates to the value, not the 'Response'.
+-- Like 'runSnap', 'evalSnap' is intended for library writers.
+-- Note that there is no meaningful way of evaluating a 'Snap' monad action
+-- that contains 'pass' without alternative (i.e. failure), 'finishWith'
+-- (i.e. early termination), or 'escapeHttp' (i.e. escaping Snap).
+-- In all of those three cases 'evalSnap' throws an IO exception.
+evalSnap :: Snap a                  -- ^ Action to run.
+         -> (ByteString -> IO ())   -- ^ Error logging action.
+         -> ((Int -> Int) -> IO ()) -- ^ Timeout action.
+         -> Request                 -- ^ HTTP request.
          -> IO a
 evalSnap (Snap m) logerr timeoutAction req =
     m (\v _ -> return v) diediedie ss
