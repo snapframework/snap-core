@@ -153,7 +153,7 @@ Library
     transformers-base         >= 0.4     && < 0.5,
     unix-compat               >= 0.3     && < 0.6,
     unordered-containers      >= 0.1.4.3 && < 0.3,
-    vector                    >= 0.6     && < 0.13
+    vector                    >= 0.6     && < 0.14
 
   other-extensions:
     BangPatterns,
