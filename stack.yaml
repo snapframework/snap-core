@@ -2,8 +2,4 @@ resolver: lts-18.18
 
 #### Uncomment below to test GHC 9.2 on nightly
 #
-# resolver: nightly-2021-12-15
-# compiler: ghc-9.2.1
-#
-# extra-deps:
-#   - attoparsec-0.14.3
+# resolver: nightly-2022-10-06
