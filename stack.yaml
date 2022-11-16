@@ -1,5 +1,7 @@
-resolver: lts-18.18
+packages:
+  - '.'
 
-#### Uncomment below to test GHC 9.2 on nightly
-#
-# resolver: nightly-2022-10-06
+resolver: nightly-2022-11-16
+
+extra-deps:
+  - 'readable-0.3.1'
