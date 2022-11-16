@@ -1,3 +1,4 @@
+cabal-version:  2.2
 name:           snap-core
 version:        1.0.5.1
 synopsis:       Snap: A Haskell Web Framework (core interfaces and types)
@@ -25,23 +26,28 @@ description:
   .
   /Quick start/: The 'Snap' monad and HTTP definitions are in "Snap.Core".
 
-license:        BSD3
+license:        BSD-3-Clause
 license-file:   LICENSE
 author:         Snap Framework Authors (see CONTRIBUTORS)
 maintainer:     snap@snapframework.com
 build-type:     Simple
-cabal-version:  >= 1.10
 homepage:       http://snapframework.com/
 bug-reports:    https://github.com/snapframework/snap-core/issues
 category:       Web, Snap, IO-Streams
-Tested-With:    GHC == 7.4.2, GHC == 7.6.3, GHC == 7.8.4, GHC == 7.10.3,
-                GHC == 8.0.2, GHC == 8.2.2, GHC == 8.4.4, GHC == 8.6.5,
-                GHC == 8.8.4, GHC == 8.10.7, GHC == 9.0.2, GHC == 9.2.4
+
+tested-with:
+  GHC == 8.6.5
+  GHC == 8.8.4
+  GHC == 8.10.7
+  GHC == 9.0.2
+  GHC == 9.2.5
+  GHC == 9.4.3
 
 extra-source-files:
   test/TestSuite.hs,
   cbits/timefuncs.c,
   CONTRIBUTORS,
+  changelog.md,
   extra/haddock.css,
   extra/hscolour.css,
   extra/logo.gif,
@@ -90,9 +96,14 @@ Flag network-uri
   Description: Get Network.URI from the network-uri package
   Default: True
 
+common universal
+  default-language: Haskell2010
+
+  build-depends:
+   , base >= 4 && < 5
 
 Library
-  Default-language:  Haskell2010
+  import: universal
   hs-source-dirs: src
 
   if !flag(debug)
@@ -132,7 +143,6 @@ Library
   build-depends:
     HUnit                     >= 1.2     && < 2,
     attoparsec                >= 0.12    && < 0.15,
-    base                      >= 4       && < 5,
     bytestring                >= 0.9     && < 0.12,
     bytestring-builder        >= 0.10.4  && < 0.11,
     case-insensitive          >= 1.1     && < 1.3,
@@ -199,10 +209,10 @@ Library
 
 
 Test-suite testsuite
+  import:         universal
   hs-source-dirs: src test
   Type:              exitcode-stdio-1.0
   Main-is:           TestSuite.hs
-  Default-language:  Haskell2010
 
   if flag(portable) || os(windows)
     cpp-options: -DPORTABLE
@@ -248,7 +258,6 @@ Test-suite testsuite
   build-depends:
     HUnit,
     attoparsec,
-    base,
     bytestring,
     bytestring-builder,
     case-insensitive,
