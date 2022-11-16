@@ -48,7 +48,7 @@ import           System.IO.Unsafe           (unsafePerformIO)
 #ifdef PORTABLE
 import           Data.Time.Clock.POSIX
 import           Data.Time.Clock.POSIX
-import           Data.Time.Format
+import           Data.Time.Format           as Time
 import           Data.Time.Locale.Compat    (defaultTimeLocale)
 import           Data.Time.LocalTime
 #else
@@ -1281,6 +1281,13 @@ formatLogTime ctime = do
 ------------------------------------------------------------------------------
 parseHttpTime = return . toCTime . prs . S.unpack
   where
+    parseTime =
+#if MIN_VERSION_time(1,10,0)
+      parseTimeM True
+#else
+      Time.parseTime
+#endif
+
     prs :: String -> Maybe UTCTime
     prs = parseTime defaultTimeLocale "%a, %d %b %Y %H:%M:%S GMT"
 
