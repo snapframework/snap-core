@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -fno-warn-orphans -fno-warn-warnings-deprecations #-}
 {-# LANGUAGE CPP            #-}
-{-# LANGUAGE PackageImports #-}
 
 -- Note re: "-fno-warn-warnings-deprecations" above: transformers has
 -- deprecated Control.Monad.Trans.Error (which we like) but we are going to
@@ -10,11 +9,15 @@
 module Snap.Internal.Instances () where
 ------------------------------------------------------------------------------
 import           Control.Monad.Trans.Class         (MonadTrans (lift))
+#if !MIN_VERSION_transformers(0,6,0)
 import           Control.Monad.Trans.Error         (Error, ErrorT)
+#endif
 #if MIN_VERSION_transformers(0,4,0)
 import           Control.Monad.Trans.Except        (ExceptT)
 #endif
+#if !MIN_VERSION_transformers(0,6,0)
 import           Control.Monad.Trans.List          (ListT)
+#endif
 import           Control.Monad.Trans.Reader        (ReaderT)
 import qualified Control.Monad.Trans.RWS.Lazy      as LRWS (RWST)
 import           Control.Monad.Trans.RWS.Strict    (RWST)
@@ -30,17 +33,19 @@ import           Data.Monoid                       (Monoid)
 
 
 ------------------------------------------------------------------------------
+#if !MIN_VERSION_transformers(0,6,0)
 instance (MonadSnap m, Error e) => MonadSnap (ErrorT e m) where
     liftSnap = lift . liftSnap
+
+------------------------------------------------------------------------------
+instance MonadSnap m => MonadSnap (ListT m) where
+    liftSnap = lift . liftSnap
+#endif
 
 #if MIN_VERSION_transformers(0,4,0)
 instance (MonadSnap m, Monoid e) => MonadSnap (ExceptT e m) where
     liftSnap = lift . liftSnap
 #endif
-
-------------------------------------------------------------------------------
-instance MonadSnap m => MonadSnap (ListT m) where
-    liftSnap = lift . liftSnap
 
 
 ------------------------------------------------------------------------------
