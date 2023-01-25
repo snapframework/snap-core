@@ -22,12 +22,16 @@ import           Control.Exception.Lifted             (ErrorCall (..), Exception
 import           Control.Monad                        (Functor (fmap), Monad ((>>), (>>=), return), MonadPlus (mplus, mzero), forM_, liftM, void)
 import           Control.Monad.Base                   (MonadBase (liftBase))
 import           Control.Monad.IO.Class               (liftIO)
+#if !MIN_VERSION_transformers(0,6,0)
 import           Control.Monad.Trans.Error            (ErrorT (runErrorT))
+#endif
 import           Data.ByteString.Builder              (byteString)
 #if MIN_VERSION_transformers(0,4,0)
 import           Control.Monad.Trans.Except           (runExceptT)
 #endif
+#if !MIN_VERSION_transformers(0,6,0)
 import           Control.Monad.Trans.List             (ListT (runListT))
+#endif
 import           Control.Monad.Trans.Reader           (ReaderT (runReaderT))
 import qualified Control.Monad.Trans.RWS.Lazy         as LRWS (RWST (runRWST))
 import           Control.Monad.Trans.RWS.Strict       (RWST (runRWST))
@@ -833,11 +837,13 @@ testRedirect = testCase "core/redirect" $ do
 ------------------------------------------------------------------------------
 testCoverInstances :: Test
 testCoverInstances = testCase "core/instances" $ do
+#if !MIN_VERSION_transformers(0,6,0)
     coverErrorT
+    coverListT
+#endif
 #if MIN_VERSION_transformers(0,4,0)
     coverExceptT
 #endif
-    coverListT
     coverRWST
     coverLRWS
     coverReaderT
@@ -867,15 +873,17 @@ testCoverInstances = testCase "core/instances" $ do
     lwt :: LWriter.WriterT () Snap () -> Snap ()
     lwt m = void $ LWriter.runWriterT m
 
+#if !MIN_VERSION_transformers(0,6,0)
     coverErrorT   = cover (\m -> do
                                (_ :: Either String ()) <- runErrorT m
                                return ())
+    coverListT    = cover (void . runListT)
+#endif
 #if MIN_VERSION_transformers(0,4,0)
     coverExceptT  = cover (\m -> do
                                (_ :: Either String ()) <- runExceptT m
                                return ())
 #endif
-    coverListT    = cover (void . runListT)
     coverRWST     = cover rwst
     coverLRWS     = cover lrwst
     coverReaderT  = cover (flip runReaderT ())
