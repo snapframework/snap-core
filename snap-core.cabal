@@ -40,8 +40,9 @@ tested-with:
   GHC == 8.8.4
   GHC == 8.10.7
   GHC == 9.0.2
-  GHC == 9.2.5
+  GHC == 9.2.7
   GHC == 9.4.4
+  GHC == 9.6.1
 
 extra-source-files:
   test/TestSuite.hs,
@@ -161,7 +162,7 @@ Library
     time                      >= 1.0     && < 1.14,
     transformers              >= 0.3     && < 0.7,
     transformers-base         >= 0.4     && < 0.5,
-    unix-compat               >= 0.3     && < 0.7,
+    unix-compat               >= 0.3     && < 0.8,
     unordered-containers      >= 0.1.4.3 && < 0.3,
     vector                    >= 0.6     && < 0.14
 
