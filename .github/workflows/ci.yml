@@ -33,11 +33,12 @@ jobs:
           - "8.8.4"
           - "8.10.7"
           - "9.0.2"
-          - "9.2.5"
+          - "9.2.7"
           - "9.4.4"
+          - "9.6.1"
         include:
-          - { os: macOS-latest,   ghc: "9.4.4" }
-          - { os: windows-latest, ghc: "9.4.4" }
+          - { os: macOS-latest,   ghc: "9.6.1" }
+          - { os: windows-latest, ghc: "9.6.1" }
 
     steps:
       - uses: actions/checkout@v3
@@ -47,7 +48,6 @@ jobs:
         id: setup-haskell-cabal
         with:
           ghc-version: ${{ matrix.ghc }}
-          cabal-version: ${{ matrix.cabal }}
 
       - name: Configure
         run: |
@@ -80,6 +80,7 @@ jobs:
           cabal test all
 
       - name: Documentation
+        if: matrix.ghc >= '9.4'
         run: |
           cabal haddock
 
