@@ -40,8 +40,9 @@ tested-with:
   GHC == 8.10.7
   GHC == 9.0.2
   GHC == 9.2.8
-  GHC == 9.4.5
-  GHC == 9.6.2
+  GHC == 9.4.7
+  GHC == 9.6.3
+  GHC == 9.8.1
 
 extra-source-files:
   test/TestSuite.hs,
@@ -157,7 +158,7 @@ Library
     random                    >= 1       && < 2,
     readable                  >= 0.1     && < 0.4,
     regex-posix               >= 0.95    && < 1,
-    text                      >= 0.11    && < 2.1,
+    text                      >= 0.11    && < 2.2,
     time                      >= 1.0     && < 1.14,
     transformers              >= 0.3     && < 0.7,
     transformers-base         >= 0.4     && < 0.5,
@@ -281,7 +282,7 @@ Test-suite testsuite
     vector,
     --------------------------------------------------------------------------
     QuickCheck                 >= 2.3.0.2  && <3,
-    deepseq                    >= 1.1      && < 1.5,
+    deepseq                    >= 1.1      && < 1.6,
     parallel                   >= 3        && <4,
     test-framework             >= 0.8.0.3  && <0.9,
     test-framework-hunit       >= 0.2.7    && <0.4,
