@@ -41,7 +41,7 @@ jobs:
           - { os: windows-latest, ghc: "9.8" }
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up GHC ${{ matrix.ghc }}
         uses: haskell-actions/setup@v2
@@ -55,7 +55,7 @@ jobs:
           cabal build --dry-run
 
       - name: Restore cached dependencies
-        uses: actions/cache/restore@v3
+        uses: actions/cache/restore@v4
         id: cache
         env:
           key: ${{ runner.os }}-ghc-${{ steps.setup.outputs.ghc-version }}-cabal-${{ steps.setup.outputs.cabal-version }}
@@ -68,7 +68,7 @@ jobs:
         run: cabal build all --only-dependencies
 
       - name: Save cached dependencies
-        uses: actions/cache/save@v3
+        uses: actions/cache/save@v4
         if: ${{ steps.cache.outputs.cache-primary-key != steps.cache.outputs.cache-matched-key }}
         with:
           path: ${{ steps.setup.outputs.cabal-store }}
@@ -95,10 +95,10 @@ jobs:
         include:
           # GHC version must match https://www.stackage.org/nightly
           - stack: "latest"
-            ghc: "9.6"
+            ghc: "9.8"
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - uses: haskell-actions/setup@v2
         name: Setup Haskell Stack
@@ -111,7 +111,7 @@ jobs:
           stack config set system-ghc true --global
           stack config set resolver nightly
 
-      - uses: actions/cache@v3
+      - uses: actions/cache@v4
         name: Cache
         with:
           path: |
