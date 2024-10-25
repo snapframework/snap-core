@@ -40,6 +40,7 @@ import           Control.Applicative                  ((<$>))
 tests :: [Test]
 tests = [ testIdentity1
         , testIdentity1_charset
+        , testIdentity1_vary
         , testIdentity2
         , testIdentity3
         , testIdentity4
@@ -235,6 +236,22 @@ testIdentity1_charset = testProperty "gzip/identity1_charset" $
                              withContentType "text/plain; charset=utf-8" s)
         assertEqual "" (Just "gzip") $ getHeader "Content-Encoding" rsp
         assertEqual "" (Just "Accept-Encoding") $ getHeader "Vary" rsp
+
+        body <- Test.getResponseBody rsp
+        let s1 = GZip.decompress $ L.fromChunks [body]
+        assertEqual "" s s1
+
+testIdentity1_vary :: Test
+testIdentity1_vary = testProperty "gzip/identity1_vary" $
+                        monadicIO $ forAllM arbitrary prop
+  where
+    prop :: L.ByteString -> PropertyM IO ()
+    prop s = liftQ $ do
+        (!_,!rsp) <- goGZip (seqSnap $ withCompression $ do
+                            modifyResponse $ setHeader "Vary" "Origin"
+                            textPlain s)
+        assertEqual "" (Just "gzip") $ getHeader "Content-Encoding" rsp
+        assertEqual "" (Just "Origin,Accept-Encoding") $ getHeader "Vary" rsp
 
         body <- Test.getResponseBody rsp
         let s1 = GZip.decompress $ L.fromChunks [body]

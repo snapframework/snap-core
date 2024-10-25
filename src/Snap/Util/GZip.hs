@@ -30,7 +30,7 @@ import           Data.Set                         (Set)
 import qualified Data.Set                         as Set (fromList, member)
 import           Data.Typeable                    (Typeable)
 import           Prelude                          (Either (..), Eq (..), IO, Show (show), id, not, ($), ($!), (&&), (++), (||))
-import           Snap.Core                        (MonadSnap, clearContentLength, finishWith, getHeader, getRequest, getResponse, modifyResponse, modifyResponseBody, setHeader)
+import           Snap.Core                        (MonadSnap, HasHeaders, clearContentLength, finishWith, getHeader, getRequest, getResponse, modifyResponse, modifyResponseBody, setHeader, addHeader)
 import           Snap.Internal.Debug              (debug)
 import           Snap.Internal.Parsing            (fullyParse)
 import           System.IO.Streams                (OutputStream)
@@ -176,15 +176,17 @@ compressibleMimeTypes = Set.fromList [ "application/x-font-truetype"
                                      , "text/plain"
                                      , "text/xml" ]
 
-
-
+updateVaryHeader :: HasHeaders a => a -> a
+updateVaryHeader resp = case getHeader "Accept-Encoding" resp of
+  Just "*" -> resp
+  _ -> addHeader "Vary" "Accept-Encoding" resp
 
 ------------------------------------------------------------------------------
 gzipCompression :: MonadSnap m => ByteString -> m ()
 gzipCompression ce = modifyResponse f
   where
     f r = setHeader "Content-Encoding" ce    $
-          setHeader "Vary" "Accept-Encoding" $
+          updateVaryHeader $
           clearContentLength                 $
           modifyResponseBody gcompress r
 
@@ -194,7 +196,7 @@ compressCompression :: MonadSnap m => ByteString -> m ()
 compressCompression ce = modifyResponse f
   where
     f r = setHeader "Content-Encoding" ce    $
-          setHeader "Vary" "Accept-Encoding" $
+          updateVaryHeader $
           clearContentLength                 $
           modifyResponseBody ccompress r
 
